@@ -1,0 +1,75 @@
+{
+  "name": "glass-music",
+  "private": true,
+  "version": "1.0.0",
+  "description": "A futuristic, liquid-glass aesthetic music player for Linux",
+  "main": "main.js",
+  "homepage": "https://github.com/glass-music/app",
+  "author": {
+    "name": "Glass Music Team",
+    "email": "info@glassmusic.app"
+  },
+  "scripts": {
+    "start": "npm run electron:dev",
+    "dev": "vite",
+    "build": "tsc && vite build",
+    "preview": "vite preview",
+    "electron:dev": "concurrently -k \"cross-env BROWSER=none npm run dev\" \"wait-on http://localhost:3000 && electron .\"",
+    "dist": "npm run build && electron-builder"
+  },
+  "dependencies": {
+    "jsmediatags": "^3.9.5",
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0",
+    "lucide-react": "^0.344.0"
+  },
+  "devDependencies": {
+    "@types/react": "^18.2.64",
+    "@types/react-dom": "^18.2.21",
+    "@types/jsmediatags": "^3.9.6",
+    "@vitejs/plugin-react": "^4.2.1",
+    "autoprefixer": "^10.4.18",
+    "concurrently": "^8.2.2",
+    "cross-env": "^7.0.3",
+    "electron": "^29.1.0",
+    "electron-builder": "^24.13.3",
+    "postcss": "^8.4.35",
+    "tailwindcss": "^3.4.1",
+    "typescript": "^5.2.2",
+    "vite": "^5.1.6",
+    "wait-on": "^7.2.0"
+  },
+  "build": {
+    "appId": "com.glass.music",
+    "productName": "Glass Music",
+    "directories": {
+      "output": "release"
+    },
+    "files": [
+      "dist/**/*",
+      "main.js"
+    ],
+    "extraResources": [
+      {
+        "from": "build/icons",
+        "to": "build/icons"
+      }
+    ],
+    "linux": {
+      "target": [
+        "AppImage",
+        "deb",
+        "pacman",
+        "tar.gz"
+      ],
+      "icon": "build/icons/linux/",
+      "category": "Audio",
+      "maintainer": "Glass Music Team <info@glassmusic.app>",
+      "synopsis": "Liquid Glass Music Player"
+    },
+    "win": {
+      "target": "nsis",
+      "icon": "build/icons/win/icon.ico"
+    }
+  }
+}
