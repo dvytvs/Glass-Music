@@ -1,0 +1,125 @@
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Custom Scrollbar for Glass Effect */
+::-webkit-scrollbar {
+  width: 8px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 4px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.2);
+}
+
+.glass-panel {
+  background: rgba(255, 255, 255, 0.03);
+  backdrop-filter: blur(40px);
+  -webkit-backdrop-filter: blur(40px);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.37);
+}
+
+.glass-panel-active {
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+}
+
+.liquid-bg {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  z-index: -1;
+  overflow: hidden;
+  background: #0f0c29;
+  background: linear-gradient(to bottom, #24243e, #302b63, #0f0c29);
+}
+
+.blob {
+  position: absolute;
+  filter: blur(80px);
+  opacity: 0.6;
+  animation: move 20s infinite alternate;
+}
+
+@keyframes move {
+  from { transform: translate(0, 0) scale(1); }
+  to { transform: translate(100px, -50px) scale(1.2); }
+}
+
+/* --- Smooth Animations (Apple Style) --- */
+
+@keyframes slideUpEnter {
+  0% { transform: translateY(100%); opacity: 0; }
+  100% { transform: translateY(0); opacity: 1; }
+}
+
+@keyframes slideDownExit {
+  0% { transform: translateY(0); opacity: 1; }
+  100% { transform: translateY(100%); opacity: 0; }
+}
+
+@keyframes zoomInEnter {
+  0% { transform: scale(0.92); opacity: 0; }
+  100% { transform: scale(1); opacity: 1; }
+}
+
+@keyframes fadeIn {
+  0% { opacity: 0; transform: translateY(10px); }
+  100% { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes listItemAppear {
+  0% { opacity: 0; transform: translateY(20px); }
+  100% { opacity: 1; transform: translateY(0); }
+}
+
+.animate-slide-up {
+  animation: slideUpEnter 0.5s cubic-bezier(0.32, 0.72, 0, 1) forwards;
+}
+
+.animate-slide-down {
+  animation: slideDownExit 0.4s cubic-bezier(0.32, 0.72, 0, 1) forwards;
+}
+
+.animate-zoom-in {
+  animation: zoomInEnter 0.4s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+.animate-fade-in-view {
+  animation: fadeIn 0.4s ease-out forwards;
+}
+
+/* Staggered List Animation */
+.stagger-list > * {
+  opacity: 0; /* Initially hidden */
+  animation: listItemAppear 0.5s cubic-bezier(0.2, 0.8, 0.2, 1) forwards;
+}
+
+.stagger-list > *:nth-child(1) { animation-delay: 0ms; }
+.stagger-list > *:nth-child(2) { animation-delay: 30ms; }
+.stagger-list > *:nth-child(3) { animation-delay: 60ms; }
+.stagger-list > *:nth-child(4) { animation-delay: 90ms; }
+.stagger-list > *:nth-child(5) { animation-delay: 120ms; }
+.stagger-list > *:nth-child(6) { animation-delay: 150ms; }
+.stagger-list > *:nth-child(7) { animation-delay: 180ms; }
+.stagger-list > *:nth-child(8) { animation-delay: 210ms; }
+.stagger-list > *:nth-child(9) { animation-delay: 240ms; }
+.stagger-list > *:nth-child(10) { animation-delay: 270ms; }
+.stagger-list > *:nth-child(n+11) { animation-delay: 300ms; }
+
+/* Animation Delays */
+.animation-delay-2000 {
+  animation-delay: 2s;
+}
+.animation-delay-4000 {
+  animation-delay: 4s;
+}

@@ -1,0 +1,5 @@
+{
+  "name": "Glass Music",
+  "description": "A futuristic, liquid-glass aesthetic music player inspired by MacOS 26.2 concepts. Features local file playback and a highly responsive translucent UI.",
+  "requestFramePermissions": []
+}
