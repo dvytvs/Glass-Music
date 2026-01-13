@@ -1,7 +1,7 @@
+
 {
   "name": "glass-music",
-  "private": true,
-  "version": "1.0.0",
+  "version": "1.8.1",
   "description": "A futuristic, liquid-glass aesthetic music player for Linux",
   "main": "main.js",
   "homepage": "https://github.com/glass-music/app",
@@ -21,7 +21,7 @@
     "jsmediatags": "^3.9.5",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
-    "lucide-react": "^0.344.0"
+    "lucide-react": "^0.460.0"
   },
   "devDependencies": {
     "@types/react": "^18.2.64",
@@ -47,13 +47,8 @@
     },
     "files": [
       "dist/**/*",
-      "main.js"
-    ],
-    "extraResources": [
-      {
-        "from": "build/icons",
-        "to": "build/icons"
-      }
+      "main.js",
+      "assets/**/*"
     ],
     "linux": {
       "target": [
@@ -64,12 +59,11 @@
       ],
       "icon": "build/icons/linux/",
       "category": "Audio",
-      "maintainer": "Glass Music Team <info@glassmusic.app>",
-      "synopsis": "Liquid Glass Music Player"
+      "maintainer": "Glass Music Team <info@glassmusic.app>"
     },
     "win": {
       "target": "nsis",
-      "icon": "build/icons/win/icon.ico"
+      "icon": "build/icons/linux"
     }
   }
 }

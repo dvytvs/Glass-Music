@@ -1,4 +1,6 @@
 
+import { LyricLine } from "./types";
+
 // Using global jsmediatags from CDN
 const jsmediatags = (window as any).jsmediatags;
 
@@ -53,4 +55,54 @@ export const parseFileMetadata = (file: File): Promise<{ title?: string, artist?
       }
     });
   });
+};
+
+export const fileToDataURL = (file: File): Promise<string> => {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      if (e.target?.result) {
+        resolve(e.target.result as string);
+      } else {
+        reject("Failed to read file");
+      }
+    };
+    reader.onerror = reject;
+    reader.readAsDataURL(file);
+  });
+};
+
+export const parseLrc = (lrcString: string): LyricLine[] => {
+    if (!lrcString) return [];
+    
+    const lines = lrcString.split('\n');
+    const lyrics: LyricLine[] = [];
+    const timeRegex = /\[(\d{2}):(\d{2})\.(\d{2,3})\]/;
+    
+    // Check if the text actually has timestamps
+    const hasTimestamps = lines.some(line => timeRegex.test(line));
+
+    if (!hasTimestamps) {
+        // Plain text mode: return lines with time -1 to indicate no sync
+        return lines
+            .map(line => line.trim())
+            .filter(line => line.length > 0)
+            .map(text => ({ time: -1, text }));
+    }
+
+    lines.forEach(line => {
+        const match = timeRegex.exec(line);
+        if (match) {
+            const minutes = parseInt(match[1], 10);
+            const seconds = parseInt(match[2], 10);
+            const milliseconds = parseInt(match[3], 10);
+            const totalSeconds = minutes * 60 + seconds + milliseconds / (match[3].length === 3 ? 1000 : 100);
+            const text = line.replace(timeRegex, '').trim();
+            if (text) {
+                lyrics.push({ time: totalSeconds, text });
+            }
+        }
+    });
+
+    return lyrics.sort((a, b) => a.time - b.time);
 };

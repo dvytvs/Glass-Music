@@ -5,7 +5,9 @@ import {
   VolumeX, Repeat, Shuffle, ListMusic, Music, 
   Disc, Mic2, LayoutGrid, Search, Upload, Heart,
   MoreHorizontal, Airplay, Maximize2, Minimize2,
-  Trash2, Edit, X, Check, ArrowLeft, ArrowRight
+  Trash2, Edit, X, Check, ArrowLeft, ArrowRight,
+  Settings, Image, Video, Droplet, Palette, Sliders,
+  MicVocal, Snowflake, Quote
 } from 'lucide-react';
 
 export { 
@@ -13,5 +15,7 @@ export {
   VolumeX, Repeat, Shuffle, ListMusic, Music, 
   Disc, Mic2, LayoutGrid, Search, Upload, Heart,
   MoreHorizontal, Airplay, Maximize2, Minimize2,
-  Trash2, Edit, X, Check, ArrowLeft, ArrowRight
+  Trash2, Edit, X, Check, ArrowLeft, ArrowRight,
+  Settings, Image, Video, Droplet, Palette, Sliders,
+  MicVocal, Snowflake, Quote
 };
