@@ -1,8 +1,8 @@
 
 import React, { useState, useRef, useEffect } from 'react';
 import { Track, PlaybackState, ViewType, ArtistMetadata } from '../types';
-import { Play, MoreHorizontal, Music, Disc, Mic2, Edit, Trash2, ArrowRight, X, Check, Upload, ArrowLeft, Heart, Image, Search, Quote } from './Icons';
-import { formatTime } from '../utils';
+import { Play, MoreHorizontal, Music, Disc, Mic2, Edit, Trash2, ArrowRight, X, Check, Upload, ArrowLeft, Heart, Image, Search, Quote, Sliders } from './Icons';
+import { formatTime, fetchOpenSourceArtistImage_Safe } from '../utils';
 
 interface MainViewProps {
   tracks: Track[];
@@ -22,15 +22,17 @@ interface MainViewProps {
   artistMetadata?: Record<string, ArtistMetadata>;
   onUpdateArtist?: (artist: string, data: Partial<ArtistMetadata>) => void;
   searchQuery?: string;
+  onRequestFileUnlock: () => void; // Added this prop
 }
 
 const MainView: React.FC<MainViewProps> = ({ 
   tracks, currentTrack, playbackState, onPlay, onShuffleAll, currentView, 
   selectedArtist, selectedAlbum, onUpdateTrack, onDeleteTrack, onGoToArtist, onGoToAlbum, onBack, accentColor,
-  artistMetadata = {}, onUpdateArtist, searchQuery = ""
+  artistMetadata = {}, onUpdateArtist, searchQuery = "", onRequestFileUnlock
 }) => {
   const [activeMenuId, setActiveMenuId] = useState<string | null>(null);
   const [editingTrack, setEditingTrack] = useState<Track | null>(null);
+  const [isSaving, setIsSaving] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   
@@ -38,7 +40,6 @@ const MainView: React.FC<MainViewProps> = ({
   const bannerInputRef = useRef<HTMLInputElement>(null);
   const avatarInputRef = useRef<HTMLInputElement>(null);
 
-  // Close menu when clicking outside
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
       if (menuRef.current && !menuRef.current.contains(event.target as Node)) {
@@ -49,20 +50,81 @@ const MainView: React.FC<MainViewProps> = ({
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
-  const handleEditSave = (e: React.FormEvent) => {
+  useEffect(() => {
+      if (currentView === 'artist_detail' && selectedArtist && onUpdateArtist) {
+          const meta = artistMetadata[selectedArtist];
+          if (!meta || !meta.avatar) {
+              fetchOpenSourceArtistImage_Safe(selectedArtist).then(data => {
+                  if (data) {
+                      onUpdateArtist(selectedArtist, data);
+                  }
+              });
+          }
+      }
+  }, [currentView, selectedArtist]);
+
+
+  const handleEditSave = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (editingTrack) {
-      onUpdateTrack(editingTrack.id, {
+    if (!editingTrack) return;
+
+    setIsSaving(true);
+    
+    // Detect Electron
+    const electron = (window as any).require ? (window as any).require('electron') : null;
+
+    // Prepare data to save locally regardless of file write success
+    const newTrackData = {
         title: editingTrack.title,
         artist: editingTrack.artist,
         album: editingTrack.album,
         year: editingTrack.year,
         coverUrl: editingTrack.coverUrl,
         lyrics: editingTrack.lyrics
-      });
-      setEditingTrack(null);
-      setActiveMenuId(null);
+    };
+
+    if (electron && editingTrack.path) {
+        try {
+            // STEP 1: FORCE RELEASE FILE LOCK
+            onRequestFileUnlock();
+            
+            // Wait 500ms for FS release
+            await new Promise(resolve => setTimeout(resolve, 500));
+
+            const { ipcRenderer } = electron;
+            
+            // Invoke write (Best Effort)
+            const result = await ipcRenderer.invoke('write-metadata', {
+                filePath: editingTrack.path,
+                tags: newTrackData
+            });
+
+            if (!result.success) {
+                console.warn(`File write failed (${result.error}), saving to local library only.`);
+            }
+
+        } catch (err: any) {
+            console.error("IPC Error ignored:", err);
+        }
+    } else if (editingTrack.source === 'local' && !electron) {
+        // Web version warning
+        console.warn("Web version: Saving to local storage only.");
     }
+    
+    // ALWAYS Update UI / Local State
+    onUpdateTrack(editingTrack.id, newTrackData);
+    
+    setEditingTrack(null);
+    setActiveMenuId(null);
+    setIsSaving(false);
+  };
+
+  const handleShowInFolder = async (path: string) => {
+      if ((window as any).require) {
+          const { ipcRenderer } = (window as any).require('electron');
+          await ipcRenderer.invoke('show-item-in-folder', path);
+          setActiveMenuId(null);
+      }
   };
 
   const handleCoverUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -94,7 +156,6 @@ const MainView: React.FC<MainViewProps> = ({
 
   const isPlaying = (id: string) => currentTrack?.id === id && playbackState === PlaybackState.PLAYING;
 
-  // Helper to get individual artists from a comma/semicolon separated string
   const parseArtists = (artistString: string): string[] => {
       return artistString.split(/[,;]/).map(a => a.trim()).filter(a => a.length > 0);
   };
@@ -435,6 +496,17 @@ const MainView: React.FC<MainViewProps> = ({
                               >
                                   <Edit className="w-4 h-4 text-white/60" /> Редактировать
                               </button>
+                              
+                              {/* Show In Folder Option */}
+                              {track.path && (
+                                <button 
+                                    onClick={(e) => { e.stopPropagation(); handleShowInFolder(track.path!); }}
+                                    className="w-full text-left px-3 py-2 rounded-lg text-sm text-white hover:bg-white/10 flex items-center gap-2"
+                                >
+                                    <Sliders className="w-4 h-4 text-white/60" /> Показать в папке
+                                </button>
+                              )}
+
                               <button 
                                   onClick={(e) => { e.stopPropagation(); onGoToAlbum(track.album); setActiveMenuId(null); }}
                                   className="w-full text-left px-3 py-2 rounded-lg text-sm text-white hover:bg-white/10 flex items-center gap-2"
@@ -538,8 +610,14 @@ const MainView: React.FC<MainViewProps> = ({
 
                      <div className="flex justify-end gap-3 pt-6 sticky bottom-0 bg-[#1c1c1e] z-10">
                          <button type="button" onClick={() => setEditingTrack(null)} className="px-4 py-2 rounded-lg text-white/60 hover:text-white text-sm font-medium glass-button border-0">Отмена</button>
-                         <button type="submit" className="px-6 py-2 rounded-lg text-white text-sm font-medium flex items-center gap-2 glass-button border-0" style={{ backgroundColor: accentColor }}>
-                             <Check className="w-4 h-4" /> Сохранить
+                         <button 
+                            type="submit" 
+                            disabled={isSaving}
+                            className="px-6 py-2 rounded-lg text-white text-sm font-medium flex items-center gap-2 glass-button border-0 disabled:opacity-50" 
+                            style={{ backgroundColor: accentColor }}
+                        >
+                             {isSaving ? <span className="animate-spin">⌛</span> : <Check className="w-4 h-4" />}
+                             {isSaving ? 'Сохранить' : 'Сохранить'}
                          </button>
                      </div>
                 </form>

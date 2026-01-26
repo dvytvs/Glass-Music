@@ -54,7 +54,7 @@ const Sidebar: React.FC<SidebarProps> = ({
 
         <nav className="flex-1 space-y-1 overflow-y-auto custom-scrollbar">
           <div className="mb-6">
-            <h3 className="px-4 text-xs font-semibold text-white/40 uppercase tracking-wider mb-2">Apple Music</h3>
+            <h3 className="px-4 text-xs font-semibold text-white/40 uppercase tracking-wider mb-2">Glass Music</h3>
             <NavItem 
               icon={<Play className="w-4 h-4 fill-current" />} 
               label="Слушать" 

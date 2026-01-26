@@ -8,7 +8,7 @@ import SettingsModal from './components/SettingsModal';
 import Background from './components/Background';
 import SnowEffect from './components/SnowEffect';
 import { Track, PlaybackState, PlayerState, ViewType, ThemeConfig, ArtistMetadata } from './types';
-import { generateMockCover, parseFileMetadata } from './utils';
+import { generateMockCover, parseFileMetadata, fetchOpenSourceArtistImage_Safe, sortTracks } from './utils';
 
 const STORAGE_KEY = 'glass_music_library_v1';
 const THEME_KEY = 'glass_music_theme_v1';
@@ -21,7 +21,8 @@ const DEFAULT_THEME: ThemeConfig = {
   blurLevel: 24,
   brightness: 0.4,
   enableGlass: true, // Default enabled
-  seasonalTheme: false // Default off
+  seasonalTheme: false, // Default off
+  playerStyle: 'floating' // New default
 };
 
 const App: React.FC = () => {
@@ -30,8 +31,7 @@ const App: React.FC = () => {
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [settingsOpen, setSettingsOpen] = useState(false);
   
-  // Replaced simple boolean with mode to handle "Open directly to Lyrics"
-  const [fullScreenMode, setFullScreenMode] = useState<'none' | 'player' | 'lyrics'>('none');
+  const [fullScreenMode, setFullScreenMode] = useState<'none' | 'cover' | 'lyrics'>('none');
 
   const [selectedArtist, setSelectedArtist] = useState<string | null>(null);
   const [selectedAlbum, setSelectedAlbum] = useState<string | null>(null);
@@ -39,7 +39,6 @@ const App: React.FC = () => {
   const [isLoaded, setIsLoaded] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   
-  // Customization State
   const [theme, setTheme] = useState<ThemeConfig>(DEFAULT_THEME);
 
   const [playerState, setPlayerState] = useState<PlayerState>({
@@ -52,56 +51,103 @@ const App: React.FC = () => {
     isShuffled: false,
     isRepeating: false,
     currentView: 'songs',
-    history: [] // Stack of track IDs
+    history: []
   });
 
   const audioRef = useRef<HTMLAudioElement>(new Audio());
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const saveTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  
+  // --- ROBUST PERSISTENCE LOGIC ---
 
-  // --- Persistence Logic ---
+  // Helper to check for Electron
+  const isElectron = () => {
+      return (window as any).require && (window as any).require('electron');
+  };
 
+  const loadData = async () => {
+      try {
+          let savedTracks = null;
+          let savedTheme = null;
+          let savedArtists = null;
+
+          if (isElectron()) {
+              const { ipcRenderer } = (window as any).require('electron');
+              savedTracks = await ipcRenderer.invoke('get-local-data', { key: STORAGE_KEY });
+              savedTheme = await ipcRenderer.invoke('get-local-data', { key: THEME_KEY });
+              savedArtists = await ipcRenderer.invoke('get-local-data', { key: ARTIST_DATA_KEY });
+          } else {
+              // Fallback for Web
+              const t = localStorage.getItem(STORAGE_KEY);
+              const th = localStorage.getItem(THEME_KEY);
+              const a = localStorage.getItem(ARTIST_DATA_KEY);
+              if (t) savedTracks = JSON.parse(t);
+              if (th) savedTheme = JSON.parse(th);
+              if (a) savedArtists = JSON.parse(a);
+          }
+
+          if (savedTracks) {
+              const parsedTracks: Track[] = Array.isArray(savedTracks) ? savedTracks : [];
+              const restoredTracks = parsedTracks.map(track => {
+                  if (track.path && !track.fileUrl) {
+                      return { ...track, fileUrl: `file://${track.path}` };
+                  }
+                  return track;
+              });
+              const validTracks = restoredTracks.filter(t => t.fileUrl || t.path);
+              setTracks(sortTracks(validTracks));
+          }
+
+          if (savedTheme) {
+              setTheme({ ...DEFAULT_THEME, ...savedTheme });
+          }
+
+          if (savedArtists) {
+              setArtistMetadata(savedArtists);
+          }
+      } catch (e) {
+          console.error("Critical Load Error:", e);
+      } finally {
+          setIsLoaded(true);
+      }
+  };
+
+  // Load on mount
   useEffect(() => {
-    try {
-      const savedData = localStorage.getItem(STORAGE_KEY);
-      const savedTheme = localStorage.getItem(THEME_KEY);
-      const savedArtists = localStorage.getItem(ARTIST_DATA_KEY);
-      
-      if (savedData) {
-        const parsedTracks: Track[] = JSON.parse(savedData);
-        const restoredTracks = parsedTracks.map(track => {
-            if (track.path && !track.fileUrl) {
-                return { ...track, fileUrl: `file://${track.path}` };
-            }
-            return track;
-        });
-        const validTracks = restoredTracks.filter(t => t.fileUrl || t.path);
-        setTracks(validTracks);
-      }
-
-      if (savedTheme) {
-        setTheme({ ...DEFAULT_THEME, ...JSON.parse(savedTheme) });
-      }
-
-      if (savedArtists) {
-        setArtistMetadata(JSON.parse(savedArtists));
-      }
-    } catch (e) {
-      console.error("Failed to load library", e);
-    }
-    setIsLoaded(true);
+      loadData();
   }, []);
 
+  // Save on change (Debounced)
   useEffect(() => {
     if (!isLoaded) return;
-    const tracksToSave = tracks.map(t => ({ ...t, fileUrl: '' }));
-    try {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(tracksToSave));
-      localStorage.setItem(THEME_KEY, JSON.stringify(theme));
-      localStorage.setItem(ARTIST_DATA_KEY, JSON.stringify(artistMetadata));
-    } catch (e) {
-      console.error("Storage error", e);
+
+    if (saveTimeoutRef.current) clearTimeout(saveTimeoutRef.current);
+
+    saveTimeoutRef.current = setTimeout(async () => {
+        const tracksToSave = tracks.map(t => ({ ...t, fileUrl: '' })); // Don't save blob URLs
+        
+        try {
+            if (isElectron()) {
+                const { ipcRenderer } = (window as any).require('electron');
+                await Promise.all([
+                    ipcRenderer.invoke('save-local-data', { key: STORAGE_KEY, data: tracksToSave }),
+                    ipcRenderer.invoke('save-local-data', { key: THEME_KEY, data: theme }),
+                    ipcRenderer.invoke('save-local-data', { key: ARTIST_DATA_KEY, data: artistMetadata })
+                ]);
+            } else {
+                localStorage.setItem(STORAGE_KEY, JSON.stringify(tracksToSave));
+                localStorage.setItem(THEME_KEY, JSON.stringify(theme));
+                localStorage.setItem(ARTIST_DATA_KEY, JSON.stringify(artistMetadata));
+            }
+        } catch (e) {
+            console.error("Save Error:", e);
+        }
+    }, 1000); // 1 second debounce to prevent spamming disk writes
+
+    return () => {
+        if (saveTimeoutRef.current) clearTimeout(saveTimeoutRef.current);
     }
-  }, [tracks, isLoaded, theme, artistMetadata]);
+  }, [tracks, theme, artistMetadata, isLoaded]);
 
   // --- Glass Toggle Logic ---
   useEffect(() => {
@@ -179,7 +225,6 @@ const App: React.FC = () => {
   }, [playerState.currentTrack]);
 
   const handlePlay = useCallback(async (track: Track) => {
-    // If playing the same track, just toggle pause
     if (playerState.currentTrack?.id === track.id) {
         if (playerState.playbackState === PlaybackState.PLAYING) {
           audioRef.current.pause();
@@ -191,8 +236,6 @@ const App: React.FC = () => {
         return;
     }
 
-    // New Track Logic
-    // If we are changing tracks (not just resuming), push OLD track to history
     if (playerState.currentTrack) {
        setPlayerState(prev => ({
            ...prev,
@@ -212,8 +255,6 @@ const App: React.FC = () => {
     } catch (err) { console.error("Playback error:", err); }
   }, [playerState.currentTrack, playerState.playbackState, playerState.volume]);
 
-  // Helper for internal use (doesn't push history logic itself, relies on handlePlay for that if manually called, 
-  // but for Next/Prev we manage history explicitly)
   const playTrackInternal = async (track: Track) => {
       let src = track.fileUrl;
       if (!src && track.path) src = `file://${track.path}`;
@@ -228,8 +269,6 @@ const App: React.FC = () => {
 
   const handleNext = useCallback(() => {
     if (!playerState.currentTrack || tracks.length === 0) return;
-    
-    // Push current to history
     setPlayerState(prev => ({ ...prev, history: [...prev.history, prev.currentTrack!.id] }));
 
     let nextIndex = 0;
@@ -242,7 +281,6 @@ const App: React.FC = () => {
       nextIndex = (currentIndex + 1) % tracks.length;
     }
     
-    // Use internal play to avoid double history push
     playTrackInternal(tracks[nextIndex]);
   }, [playerState.currentTrack, tracks, playerState.isShuffled]);
 
@@ -253,22 +291,18 @@ const App: React.FC = () => {
      if (!playerState.currentTrack || tracks.length === 0) return;
      const audio = audioRef.current;
      
-     // If song is > 3 sec in, restart it
      if (audio.currentTime > 3) { audio.currentTime = 0; return; }
 
-     // Check History
      if (playerState.history.length > 0) {
          const prevTrackId = playerState.history[playerState.history.length - 1];
          const prevTrack = tracks.find(t => t.id === prevTrackId);
          if (prevTrack) {
-             // Remove last from history (pop)
              setPlayerState(prev => ({ ...prev, history: prev.history.slice(0, -1) }));
              playTrackInternal(prevTrack);
              return;
          }
      }
 
-    // Fallback if no history (sequential prev)
     const currentIndex = tracks.findIndex(t => t.id === playerState.currentTrack?.id);
     const prevIndex = (currentIndex - 1 + tracks.length) % tracks.length;
     playTrackInternal(tracks[prevIndex]);
@@ -285,7 +319,15 @@ const App: React.FC = () => {
   const toggleShuffle = () => setPlayerState(prev => ({ ...prev, isShuffled: !prev.isShuffled }));
 
   const handleUpdateTrack = (id: string, data: Partial<Track>) => {
-    setTracks(prev => prev.map(t => t.id === id ? { ...t, ...data } : t));
+    setTracks(prev => {
+        const updatedTracks = prev.map(t => t.id === id ? { ...t, ...data } : t);
+        // If the title changed, we need to re-sort to maintain alphabetical order
+        if (data.title) {
+            return sortTracks(updatedTracks);
+        }
+        return updatedTracks;
+    });
+    
     if (playerState.currentTrack?.id === id) {
         setPlayerState(prev => ({ ...prev, currentTrack: { ...prev.currentTrack!, ...data } }));
     }
@@ -304,6 +346,48 @@ const App: React.FC = () => {
       setTracks(prev => prev.filter(t => t.id !== id));
   };
 
+  const handleClearLibrary = async () => {
+    if (window.confirm("Вы уверены? Это действие удалит все треки, метаданные артистов и очистит медиатеку безвозвратно.")) {
+        audioRef.current.pause();
+        audioRef.current.src = "";
+        
+        setTracks([]);
+        setArtistMetadata({});
+        setPlayerState({
+            currentTrack: null,
+            queue: [],
+            playbackState: PlaybackState.PAUSED,
+            volume: 0.8,
+            currentTime: 0,
+            duration: 0,
+            isShuffled: false,
+            isRepeating: false,
+            currentView: 'songs',
+            history: []
+        });
+        
+        // Clear storage immediately
+        if (isElectron()) {
+            const { ipcRenderer } = (window as any).require('electron');
+            await ipcRenderer.invoke('clear-local-data');
+        } else {
+            localStorage.removeItem(STORAGE_KEY);
+            localStorage.removeItem(ARTIST_DATA_KEY);
+        }
+    }
+  };
+
+  // --- CRITICAL: RELEASE FILE LOCK FOR EDITING ---
+  const handleReleaseFileLock = () => {
+    if (audioRef.current) {
+        audioRef.current.pause();
+        audioRef.current.src = ""; // Explicitly clear src
+        audioRef.current.removeAttribute('src'); // Hard removal
+        audioRef.current.load(); // Force reset
+        setPlayerState(prev => ({ ...prev, playbackState: PlaybackState.PAUSED }));
+    }
+  };
+
   const handleFileSelect = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const files = event.target.files;
     if (!files) return;
@@ -311,18 +395,31 @@ const App: React.FC = () => {
     const audioFiles = fileList.filter(file => file.type.startsWith('audio/'));
     const newTracks: Track[] = [];
 
+    // Process files
     for (const file of audioFiles) {
         const id = Math.random().toString(36).substr(2, 9);
         const fileName = file.name.replace(/\.[^/.]+$/, "");
         const metadata = await parseFileMetadata(file);
-        const realPath = (file as any).path; 
+        const realPath = (file as any).path;
+        
+        const artist = metadata.artist || "Неизвестный артист";
+        const title = metadata.title || fileName;
+        const album = metadata.album || "Локальный импорт";
+
+        let coverUrl = metadata.coverUrl;
+
+        // Fallback to mock if no embedded cover found
+        if (!coverUrl) {
+            coverUrl = generateMockCover(fileName);
+        }
+
         newTracks.push({
           id,
-          title: metadata.title || fileName,
-          artist: metadata.artist || "Неизвестный артист",
-          album: metadata.album || "Локальный импорт",
+          title,
+          artist,
+          album: album,
           duration: 0,
-          coverUrl: metadata.coverUrl || generateMockCover(fileName),
+          coverUrl: coverUrl,
           fileUrl: URL.createObjectURL(file),
           path: realPath,
           isLiked: false,
@@ -330,17 +427,14 @@ const App: React.FC = () => {
           source: 'local'
         });
     }
-    setTracks(prev => [...prev, ...newTracks]);
+    // Sort combined tracks immediately upon import
+    setTracks(prev => sortTracks([...prev, ...newTracks]));
   };
 
   return (
     <div className="relative w-full h-screen flex overflow-hidden bg-black text-white selection:text-white">
-      {/* Seasonal Snow Effect */}
       {theme.seasonalTheme && <SnowEffect />}
-
-      {/* Background Component is always rendered now, it handles enableGlass internally */}
       <Background config={theme} />
-
       <Sidebar 
         onImportClick={() => fileInputRef.current?.click()} 
         onSettingsClick={() => setSettingsOpen(true)}
@@ -372,12 +466,12 @@ const App: React.FC = () => {
           artistMetadata={artistMetadata}
           onUpdateArtist={handleUpdateArtist}
           searchQuery={searchQuery}
+          onRequestFileUnlock={handleReleaseFileLock} // PASSED HERE
         />
-        
         <PlayerControls 
           currentTrack={playerState.currentTrack}
           playbackState={playerState.playbackState}
-          onPlayPause={() => playerState.currentTrack && handlePlay(playerState.currentTrack)}
+          onPlayPause={() => playerState.currentTrack ? handlePlay(playerState.currentTrack) : null}
           onNext={handleNext}
           onPrev={handlePrev}
           currentTime={playerState.currentTime}
@@ -388,15 +482,16 @@ const App: React.FC = () => {
           isShuffled={playerState.isShuffled}
           onToggleShuffle={toggleShuffle}
           onToggleSidebar={() => setSidebarOpen(!sidebarOpen)}
-          onToggleFullScreen={() => setFullScreenMode('player')} // Click on Art -> Player Mode
-          onOpenLyrics={() => setFullScreenMode('lyrics')} // Click on T -> Lyrics Mode
+          onToggleFullScreen={() => setFullScreenMode('cover')}
+          onOpenLyrics={() => setFullScreenMode('lyrics')}
           onToggleLike={handleToggleLike}
           accentColor={theme.accentColor}
           onGoToArtist={handleGoToArtist}
           onGoToAlbum={handleGoToAlbum}
+          playerStyle={theme.playerStyle}
         />
       </div>
-
+      
       {fullScreenMode !== 'none' && playerState.currentTrack && (
         <FullScreenPlayer 
             track={playerState.currentTrack}
@@ -418,15 +513,22 @@ const App: React.FC = () => {
         />
       )}
 
-      {/* Settings Modal */}
       <SettingsModal 
-        isOpen={settingsOpen}
-        onClose={() => setSettingsOpen(false)}
-        config={theme}
+        isOpen={settingsOpen} 
+        onClose={() => setSettingsOpen(false)} 
+        config={theme} 
         onUpdate={handleUpdateTheme}
+        onClearLibrary={handleClearLibrary}
       />
 
-      <input type="file" ref={fileInputRef} onChange={handleFileSelect} className="hidden" multiple accept="audio/*" />
+      <input 
+        type="file" 
+        ref={fileInputRef} 
+        onChange={handleFileSelect} 
+        multiple 
+        accept="audio/*" 
+        className="hidden" 
+      />
     </div>
   );
 };

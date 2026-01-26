@@ -27,6 +27,7 @@ interface PlayerControlsProps {
   accentColor: string;
   onGoToArtist: (artist: string) => void;
   onGoToAlbum: (album: string) => void;
+  playerStyle?: 'floating' | 'classic'; // Added prop
 }
 
 const PlayerControls: React.FC<PlayerControlsProps> = ({
@@ -48,10 +49,13 @@ const PlayerControls: React.FC<PlayerControlsProps> = ({
   onToggleLike,
   accentColor,
   onGoToArtist,
-  onGoToAlbum
+  onGoToAlbum,
+  playerStyle = 'classic' // Default if not provided
 }) => {
   const isPlaying = playbackState === PlaybackState.PLAYING;
   const progressPercent = duration ? (currentTime / duration) * 100 : 0;
+  
+  const isFloating = playerStyle === 'floating';
 
   const renderArtists = (artistString: string) => {
     const artists = artistString.split(/[,;]/).map(a => a.trim());
@@ -68,10 +72,15 @@ const PlayerControls: React.FC<PlayerControlsProps> = ({
     ));
   };
 
+  // Class Names based on style
+  const containerClasses = isFloating 
+    ? "fixed bottom-6 left-6 right-6 h-[88px] rounded-3xl glass-panel z-50 flex flex-col justify-center px-6 md:px-8 shadow-2xl transition-all duration-300 mx-auto max-w-screen-2xl border border-white/10"
+    : "fixed bottom-0 left-0 right-0 h-[88px] w-full glass-panel border-t-0 border-l-0 border-r-0 border-b-0 rounded-t-none md:rounded-b-none md:rounded-t-none z-50 flex flex-col justify-center px-6 md:px-8 bg-black/20";
+
   return (
-    <div className="h-[88px] w-full glass-panel border-t-0 border-l-0 border-r-0 border-b-0 rounded-t-none md:rounded-b-none md:rounded-t-none fixed bottom-0 left-0 right-0 z-50 flex flex-col justify-center px-6 md:px-8 bg-black/20">
+    <div className={containerClasses}>
       
-      <div className="flex items-center justify-between h-full max-w-screen-2xl mx-auto w-full gap-4">
+      <div className="flex items-center justify-between h-full w-full gap-4">
         
         {/* Track Info */}
         <div className="flex items-center gap-4 w-1/3 min-w-[200px] z-20">

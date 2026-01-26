@@ -43,6 +43,7 @@ export interface ThemeConfig {
   brightness: number; // 0.1 to 1.0 (overlay opacity)
   enableGlass: boolean; // New toggle for global glass effect
   seasonalTheme: boolean; // Winter/Christmas mode
+  playerStyle: 'floating' | 'classic'; // New toggle for player bar UI
 }
 
 export interface ArtistMetadata {

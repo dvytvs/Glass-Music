@@ -1,5 +1,5 @@
 
-import { LyricLine } from "./types";
+import { LyricLine, Track } from "./types";
 
 // Using global jsmediatags from CDN
 const jsmediatags = (window as any).jsmediatags;
@@ -50,7 +50,6 @@ export const parseFileMetadata = (file: File): Promise<{ title?: string, artist?
         });
       },
       onError: (error: any) => {
-        console.log('Error reading tags:', error);
         resolve({});
       }
     });
@@ -79,11 +78,9 @@ export const parseLrc = (lrcString: string): LyricLine[] => {
     const lyrics: LyricLine[] = [];
     const timeRegex = /\[(\d{2}):(\d{2})\.(\d{2,3})\]/;
     
-    // Check if the text actually has timestamps
     const hasTimestamps = lines.some(line => timeRegex.test(line));
 
     if (!hasTimestamps) {
-        // Plain text mode: return lines with time -1 to indicate no sync
         return lines
             .map(line => line.trim())
             .filter(line => line.length > 0)
@@ -106,3 +103,70 @@ export const parseLrc = (lrcString: string): LyricLine[] => {
 
     return lyrics.sort((a, b) => a.time - b.time);
 };
+
+// --- SORTING HELPER ---
+export const sortTracks = (tracks: Track[]): Track[] => {
+    return [...tracks].sort((a, b) => {
+        const titleA = (a.title || "").trim();
+        const titleB = (b.title || "").trim();
+        
+        // Check if starts with English letter (A-Z, a-z)
+        const isEngA = /^[a-zA-Z]/.test(titleA);
+        const isEngB = /^[a-zA-Z]/.test(titleB);
+
+        // Logic: Non-English (Russian, Symbols) comes BEFORE English
+        if (!isEngA && isEngB) return -1;
+        if (isEngA && !isEngB) return 1;
+
+        // Otherwise, standard alphabetical sort (case insensitive)
+        return titleA.localeCompare(titleB, undefined, { numeric: true, sensitivity: 'base' });
+    });
+};
+
+// --- WIKIDATA ARTIST FETCH ONLY ---
+const cleanString = (str: string) => {
+    return str.replace(/\(.*\)/g, '').replace(/\[.*\]/g, '').replace(/feat\.|ft\./gi, '').trim();
+};
+
+export const fetchOpenSourceArtistImage_Safe = async (artistName: string): Promise<{ avatar: string, banner: string } | null> => {
+    try {
+        const cArtist = cleanString(artistName);
+
+        // 1. Search Wikidata
+        const searchUrl = `https://www.wikidata.org/w/api.php?action=wbsearchentities&search=${encodeURIComponent(cArtist)}&language=en&limit=1&format=json&origin=*`;
+        const searchRes = await fetch(searchUrl);
+        const searchData = await searchRes.json();
+
+        if (!searchData.search || searchData.search.length === 0) return null;
+        const qid = searchData.search[0].id;
+
+        // 2. Get Claims (Image = P18)
+        const claimsUrl = `https://www.wikidata.org/w/api.php?action=wbgetclaims&entity=${qid}&property=P18&format=json&origin=*`;
+        const claimsRes = await fetch(claimsUrl);
+        const claimsData = await claimsRes.json();
+
+        const claims = claimsData.claims?.P18;
+        if (!claims || claims.length === 0) return null;
+
+        // 3. Resolve Image URL
+        const fileName = claims[0].mainsnak.datavalue.value;
+        const imageInfoUrl = `https://commons.wikimedia.org/w/api.php?action=query&titles=File:${encodeURIComponent(fileName)}&prop=imageinfo&iiprop=url&format=json&origin=*`;
+        
+        const imgRes = await fetch(imageInfoUrl);
+        const imgData = await imgRes.json();
+
+        const pages = imgData.query.pages;
+        const pageId = Object.keys(pages)[0];
+        if (pageId === '-1') return null;
+
+        const finalUrl = pages[pageId].imageinfo[0].url;
+        return { avatar: finalUrl, banner: finalUrl };
+
+    } catch (e) {
+        // Silent fail - user won't see errors, just no image.
+        return null;
+    }
+};
+
+// Placeholder for deleted function to prevent import errors if any remain
+export const fetchOpenSourceCover = async () => null;
