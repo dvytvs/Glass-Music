@@ -4,14 +4,14 @@ export interface Track {
   title: string;
   artist: string;
   album: string;
-  duration: number; // in seconds
+  duration: number;
   coverUrl: string;
   fileUrl: string;
-  path?: string; // Real file system path for persistence
+  path?: string;
   year?: string;
   isLiked?: boolean;
   source?: 'local' | 'web';
-  lyrics?: string; // LRC format string
+  lyrics?: string;
 }
 
 export enum PlaybackState {
@@ -26,10 +26,11 @@ export interface UserProfile {
   name: string;
   avatarUrl: string | null;
   bannerUrl: string | null;
+  onboardingDone?: boolean;
 }
 
 export interface PlayerState {
-  currentTrack: Track | null;
+  currentTrack: null | Track;
   queue: Track[];
   playbackState: PlaybackState;
   volume: number;
@@ -38,26 +39,27 @@ export interface PlayerState {
   isShuffled: boolean;
   isRepeating: boolean;
   currentView: ViewType;
-  history: string[]; // Track IDs of played songs for "Previous" logic
+  history: string[];
 }
 
 export interface ThemeConfig {
-  accentColor: string; // Hex code
+  accentColor: string;
   backgroundType: 'liquid' | 'image' | 'video';
-  backgroundSource: string | null; // URL or DataURI
-  blurLevel: number; // px
-  brightness: number; // 0.1 to 1.0 (overlay opacity)
-  enableGlass: boolean; // New toggle for global glass effect
-  seasonalTheme: boolean; // Winter/Christmas mode
-  playerStyle: 'floating' | 'classic'; // New toggle for player bar UI
+  backgroundSource: string | null;
+  blurLevel: number;
+  brightness: number;
+  enableGlass: boolean;
+  seasonalTheme: boolean;
+  playerStyle: 'floating' | 'classic';
 }
 
 export interface ArtistMetadata {
     avatar?: string;
     banner?: string;
+    bio?: string;
 }
 
 export interface LyricLine {
-    time: number; // seconds
+    time: number;
     text: string;
 }

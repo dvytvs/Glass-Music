@@ -1,11 +1,11 @@
 {
   "name": "glass-music",
-  "version": "1.8.2",
+  "version": "1.9.0",
   "description": "A futuristic, liquid-glass aesthetic music player for Linux",
   "main": "main.js",
   "homepage": "https://github.com/glass-music/app",
   "author": {
-    "name": "Glass Music Team",
+    "name": "Glass Music",
     "email": "info@glassmusic.app"
   },
   "scripts": {
