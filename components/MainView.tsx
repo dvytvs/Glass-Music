@@ -1,15 +1,18 @@
 
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useMemo } from 'react';
 import { Track, PlaybackState, ViewType, ArtistMetadata } from '../types';
-import { Play, MoreHorizontal, Music, Disc, Mic2, Edit, Trash2, ArrowRight, X, Check, Upload, ArrowLeft, Heart, Image, Search, Quote, Sliders } from './Icons';
-import { formatTime, fetchOpenSourceArtistImage_Safe } from '../utils';
+import { 
+  Play, Music, Disc, Mic2, Edit, Trash2, ArrowLeft, Heart, 
+  Upload, X, Check, Quote, Image as ImageIcon, Search, MoreHorizontal, User
+} from './Icons';
+import { formatTime, fileToDataURL } from '../utils';
 
 interface MainViewProps {
   tracks: Track[];
   currentTrack: Track | null;
   playbackState: PlaybackState;
-  onPlay: (track: Track) => void;
-  onShuffleAll: () => void;
+  onPlay: (track: Track, queue?: Track[]) => void;
+  onShuffleAll: (queue: Track[]) => void;
   currentView: ViewType;
   selectedArtist: string | null;
   selectedAlbum: string | null;
@@ -22,633 +25,376 @@ interface MainViewProps {
   artistMetadata?: Record<string, ArtistMetadata>;
   onUpdateArtist?: (artist: string, data: Partial<ArtistMetadata>) => void;
   searchQuery?: string;
-  onRequestFileUnlock: () => void; // Added this prop
+  onRequestFileUnlock: () => void;
 }
+
+const ARTIST_SPLIT_REGEX = /\s*(?:,|;|feat\.?|ft\.?|&|\/|featuring)\s+/i;
 
 const MainView: React.FC<MainViewProps> = ({ 
   tracks, currentTrack, playbackState, onPlay, onShuffleAll, currentView, 
   selectedArtist, selectedAlbum, onUpdateTrack, onDeleteTrack, onGoToArtist, onGoToAlbum, onBack, accentColor,
   artistMetadata = {}, onUpdateArtist, searchQuery = "", onRequestFileUnlock
 }) => {
-  const [activeMenuId, setActiveMenuId] = useState<string | null>(null);
   const [editingTrack, setEditingTrack] = useState<Track | null>(null);
-  const [isSaving, setIsSaving] = useState(false);
-  const menuRef = useRef<HTMLDivElement>(null);
-  const fileInputRef = useRef<HTMLInputElement>(null);
-  
-  // Refs for artist upload
-  const bannerInputRef = useRef<HTMLInputElement>(null);
-  const avatarInputRef = useRef<HTMLInputElement>(null);
+  const [isSearchingMetadata, setIsSearchingMetadata] = useState(false);
+  const coverInputRef = useRef<HTMLInputElement>(null);
 
-  useEffect(() => {
-    const handleClickOutside = (event: MouseEvent) => {
-      if (menuRef.current && !menuRef.current.contains(event.target as Node)) {
-        setActiveMenuId(null);
-      }
-    };
-    document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, []);
+  const isElectron = () => (window as any).require && (window as any).require('electron');
 
-  useEffect(() => {
-      if (currentView === 'artist_detail' && selectedArtist && onUpdateArtist) {
-          const meta = artistMetadata[selectedArtist];
-          if (!meta || !meta.avatar) {
-              fetchOpenSourceArtistImage_Safe(selectedArtist).then(data => {
-                  if (data) {
-                      onUpdateArtist(selectedArtist, data);
-                  }
-              });
-          }
-      }
-  }, [currentView, selectedArtist]);
-
-
-  const handleEditSave = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!editingTrack) return;
-
-    setIsSaving(true);
-    
-    // Detect Electron
-    const electron = (window as any).require ? (window as any).require('electron') : null;
-
-    // Prepare data to save locally regardless of file write success
-    const newTrackData = {
-        title: editingTrack.title,
-        artist: editingTrack.artist,
-        album: editingTrack.album,
-        year: editingTrack.year,
-        coverUrl: editingTrack.coverUrl,
-        lyrics: editingTrack.lyrics
-    };
-
-    if (electron && editingTrack.path) {
-        try {
-            // STEP 1: FORCE RELEASE FILE LOCK
-            onRequestFileUnlock();
-            
-            // Wait 500ms for FS release
-            await new Promise(resolve => setTimeout(resolve, 500));
-
-            const { ipcRenderer } = electron;
-            
-            // Invoke write (Best Effort)
-            const result = await ipcRenderer.invoke('write-metadata', {
-                filePath: editingTrack.path,
-                tags: newTrackData
+  // --- METADATA SEARCH (API) ---
+  const handleFetchMetadata = async () => {
+    if (!editingTrack || !isElectron()) return;
+    setIsSearchingMetadata(true);
+    try {
+        const { ipcRenderer } = (window as any).require('electron');
+        const query = `${editingTrack.title} ${editingTrack.artist}`;
+        const result = await ipcRenderer.invoke('get-metadata', query);
+        
+        if (result) {
+            setEditingTrack({
+                ...editingTrack,
+                title: result.title || editingTrack.title,
+                artist: result.artist || editingTrack.artist,
+                album: result.album || editingTrack.album,
+                coverUrl: result.cover || editingTrack.coverUrl
             });
-
-            if (!result.success) {
-                console.warn(`File write failed (${result.error}), saving to local library only.`);
-            }
-
-        } catch (err: any) {
-            console.error("IPC Error ignored:", err);
+        } else {
+            alert("Ничего не найдено");
         }
-    } else if (editingTrack.source === 'local' && !electron) {
-        // Web version warning
-        console.warn("Web version: Saving to local storage only.");
+    } catch (e) {
+        console.error("Metadata fetch error:", e);
+    } finally {
+        setIsSearchingMetadata(false);
     }
-    
-    // ALWAYS Update UI / Local State
-    onUpdateTrack(editingTrack.id, newTrackData);
-    
-    setEditingTrack(null);
-    setActiveMenuId(null);
-    setIsSaving(false);
   };
 
-  const handleShowInFolder = async (path: string) => {
-      if ((window as any).require) {
-          const { ipcRenderer } = (window as any).require('electron');
-          await ipcRenderer.invoke('show-item-in-folder', path);
-          setActiveMenuId(null);
+  // --- DATA AGGREGATION ---
+  const albums = useMemo(() => {
+    const map = new Map<string, { title: string, artist: string, cover: string, year?: string }>();
+    tracks.forEach(t => {
+      const key = `${t.album}-${t.artist}`;
+      if (!map.has(key)) {
+        map.set(key, { title: t.album, artist: t.artist, cover: t.coverUrl, year: t.year });
       }
-  };
+    });
+    return Array.from(map.values()).sort((a, b) => a.title.localeCompare(b.title));
+  }, [tracks]);
 
-  const handleCoverUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (e.target.files && e.target.files[0] && editingTrack) {
-      const file = e.target.files[0];
-      const reader = new FileReader();
-      reader.onload = (ev) => {
-        if (ev.target?.result) {
-          setEditingTrack({ ...editingTrack, coverUrl: ev.target.result as string });
-        }
-      };
-      reader.readAsDataURL(file);
-    }
-  };
+  const artists = useMemo(() => {
+    const artistSet = new Set<string>();
+    tracks.forEach(t => {
+      const splitNames = t.artist.split(ARTIST_SPLIT_REGEX).map(n => n.trim()).filter(Boolean);
+      splitNames.forEach(name => artistSet.add(name));
+    });
+    return Array.from(artistSet).sort((a, b) => a.localeCompare(b));
+  }, [tracks]);
 
-  const handleArtistImageUpload = (e: React.ChangeEvent<HTMLInputElement>, type: 'banner' | 'avatar') => {
-      if (!selectedArtist || !onUpdateArtist) return;
-      if (e.target.files && e.target.files[0]) {
-          const file = e.target.files[0];
-          const reader = new FileReader();
-          reader.onload = (ev) => {
-              if (ev.target?.result) {
-                  onUpdateArtist(selectedArtist, { [type]: ev.target.result as string });
-              }
-          };
-          reader.readAsDataURL(file);
+  const filteredTracks = useMemo(() => {
+    return tracks.filter(t => {
+      if (currentView === 'favorites') return t.isLiked;
+      if (currentView === 'artist_detail') {
+          const names = t.artist.split(ARTIST_SPLIT_REGEX).map(n => n.trim().toLowerCase());
+          return names.includes(selectedArtist?.toLowerCase() || "");
       }
+      if (currentView === 'album_detail') return t.album === selectedAlbum;
+      if (currentView === 'search' && searchQuery) {
+          const query = searchQuery.toLowerCase();
+          return t.title.toLowerCase().includes(query) || 
+                 t.artist.toLowerCase().includes(query) || 
+                 t.album.toLowerCase().includes(query);
+      }
+      return true;
+    });
+  }, [tracks, currentView, selectedArtist, selectedAlbum, searchQuery]);
+
+  const renderArtistLinks = (artistString: string) => {
+    const names = artistString.split(ARTIST_SPLIT_REGEX).map(n => n.trim()).filter(Boolean);
+    return names.map((name, i) => (
+        <React.Fragment key={i}>
+            <span 
+                className="hover:text-white hover:underline cursor-pointer" 
+                onClick={(e) => { e.stopPropagation(); onGoToArtist(name); }}
+            >
+                {name}
+            </span>
+            {i < names.length - 1 && <span className="mx-1 text-white/20">/</span>}
+        </React.Fragment>
+    ));
   };
 
-  const isPlaying = (id: string) => currentTrack?.id === id && playbackState === PlaybackState.PLAYING;
-
-  const parseArtists = (artistString: string): string[] => {
-      return artistString.split(/[,;]/).map(a => a.trim()).filter(a => a.length > 0);
-  };
-
-  const renderContent = () => {
-    let displayTracks = tracks;
-    let title = "";
-    let subtitle = "";
-    let showHeaderImage = false;
-    let currentArtistMeta: ArtistMetadata | undefined;
-
-    if (currentView === 'search') {
-        const query = searchQuery.toLowerCase();
-        displayTracks = tracks.filter(t => 
-            t.title.toLowerCase().includes(query) || 
-            t.artist.toLowerCase().includes(query) || 
-            t.album.toLowerCase().includes(query)
-        );
-        title = "Поиск";
-        subtitle = `Результаты для "${searchQuery}"`;
-    } else if (currentView === 'artist_detail' && selectedArtist) {
-        displayTracks = tracks.filter(t => {
-            const artists = parseArtists(t.artist);
-            return artists.includes(selectedArtist);
-        });
-        title = selectedArtist;
-        subtitle = "Исполнитель";
-        showHeaderImage = true;
-        currentArtistMeta = artistMetadata[selectedArtist];
-    } else if (currentView === 'album_detail' && selectedAlbum) {
-        displayTracks = tracks.filter(t => t.album === selectedAlbum);
-        title = selectedAlbum;
-        subtitle = `Альбом • ${displayTracks[0]?.artist || ''}`;
-    } else if (currentView === 'favorites') {
-        displayTracks = tracks.filter(t => t.isLiked);
-        title = "Избранное";
-        subtitle = `${displayTracks.length} треков`;
-    }
-
-    if (tracks.length === 0 && currentView !== 'favorites' && currentView !== 'search') {
-      return (
-        <div className="w-full h-full flex flex-col items-center justify-center text-white/50 animate-fade-in-view">
-          <div className="w-24 h-24 rounded-full bg-white/5 flex items-center justify-center mb-6">
-            <Music className="w-10 h-10 opacity-30" />
+  const renderTrackList = (tracksToRender: Track[]) => (
+    <div className="space-y-1">
+      {tracksToRender.map((track) => {
+        const isActive = currentTrack?.id === track.id;
+        return (
+          <div 
+            key={track.id}
+            className={`group flex items-center gap-4 p-3 rounded-2xl transition-all hover:bg-white/5 cursor-pointer ${isActive ? 'bg-white/10 shadow-lg' : ''}`}
+            onClick={() => onPlay(track, tracksToRender)}
+          >
+             <div className="w-12 h-12 rounded-xl overflow-hidden relative shrink-0 shadow-md border border-white/10">
+                <img src={track.coverUrl} className="w-full h-full object-cover" />
+                {isActive && (
+                    <div className="absolute inset-0 bg-black/50 flex items-center justify-center">
+                        <div className="flex gap-1 items-end h-4">
+                            <div className="w-1 bg-white rounded-full animate-pulse" style={{ height: '60%' }}></div>
+                            <div className="w-1 bg-white rounded-full animate-pulse" style={{ height: '100%' }}></div>
+                            <div className="w-1 bg-white rounded-full animate-pulse" style={{ height: '80%' }}></div>
+                        </div>
+                    </div>
+                )}
+             </div>
+             <div className="flex-1 min-w-0">
+                <p 
+                    className={`text-sm font-bold truncate hover:underline ${isActive ? '' : 'text-white'}`} 
+                    style={{ color: isActive ? accentColor : undefined }}
+                    onClick={(e) => { e.stopPropagation(); onGoToAlbum(track.album); }}
+                >
+                    {track.title}
+                </p>
+                <div className="flex items-center gap-1.5 text-xs text-white/40 truncate font-medium">
+                    <div className="flex items-center">{renderArtistLinks(track.artist)}</div>
+                    <span>—</span>
+                    <span className="hover:text-white hover:underline cursor-pointer" onClick={(e) => { e.stopPropagation(); onGoToAlbum(track.album); }}>{track.album}</span>
+                </div>
+             </div>
+             <div className="text-xs text-white/20 font-mono hidden md:block">{formatTime(track.duration || 0)}</div>
+             <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                <button 
+                    className={`p-2 hover:bg-white/10 rounded-full transition-colors ${track.isLiked ? '' : 'text-white/30 hover:text-white'}`}
+                    style={{ color: track.isLiked ? accentColor : undefined }}
+                    onClick={(e) => { e.stopPropagation(); onUpdateTrack(track.id, { isLiked: !track.isLiked }); }}
+                >
+                    <Heart className={`w-4 h-4 ${track.isLiked ? 'fill-current' : ''}`} />
+                </button>
+                <button 
+                    className="p-2 hover:bg-white/10 rounded-full transition-colors text-white/40 hover:text-white"
+                    onClick={(e) => { e.stopPropagation(); setEditingTrack(track); }}
+                >
+                    <Edit className="w-4 h-4" />
+                </button>
+                <button 
+                    className="p-2 hover:bg-white/10 rounded-full transition-colors text-white/40 hover:text-red-400"
+                    onClick={(e) => { e.stopPropagation(); onDeleteTrack(track.id); }}
+                >
+                    <Trash2 className="w-4 h-4" />
+                </button>
+             </div>
           </div>
-          <h2 className="text-2xl font-bold text-white mb-2">Музыка не найдена</h2>
-          <p className="max-w-md text-center">Импортируйте локальные файлы.</p>
-        </div>
-      );
-    }
-    
-    if (currentView === 'favorites' && displayTracks.length === 0) {
-        return (
-            <div className="w-full h-full flex flex-col items-center justify-center text-white/50 animate-fade-in-view">
-                <div className="w-24 h-24 rounded-full bg-white/5 flex items-center justify-center mb-6">
-                    <Heart className="w-10 h-10 opacity-30" />
-                </div>
-                <h2 className="text-2xl font-bold text-white mb-2">Здесь пока пусто</h2>
-                <p className="max-w-md text-center">Добавляйте любимые треки, нажимая на сердечко.</p>
-            </div>
-        )
-    }
+        );
+      })}
+    </div>
+  );
 
-    if (currentView === 'search' && displayTracks.length === 0 && searchQuery) {
+  const renderView = () => {
+    switch (currentView) {
+      case 'albums':
         return (
-            <div className="w-full h-full flex flex-col items-center justify-center text-white/50 animate-fade-in-view">
-                <div className="w-24 h-24 rounded-full bg-white/5 flex items-center justify-center mb-6">
-                    <Search className="w-10 h-10 opacity-30" />
-                </div>
-                <h2 className="text-2xl font-bold text-white mb-2">Ничего не найдено</h2>
-                <p className="max-w-md text-center">Попробуйте изменить запрос.</p>
-            </div>
-        )
-    }
-
-    if (currentView === 'albums') {
-      const albums = Array.from(new Set(tracks.map(t => t.album)));
-      return (
-        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6 p-2 stagger-list">
-          {albums.map(albumName => {
-            const albumTrack = tracks.find(t => t.album === albumName);
-            return (
-              <div 
-                key={albumName} 
-                className="group flex flex-col gap-3 p-4 rounded-3xl glass-button transition-all cursor-pointer hover:scale-[1.02] active:scale-[0.98] border-transparent hover:border-white/20"
-                onClick={() => onGoToAlbum(albumName)}
-              >
-                <div className="aspect-square rounded-2xl overflow-hidden shadow-lg relative">
-                  <img src={albumTrack?.coverUrl} alt={albumName} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
+          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-6 stagger-list">
+            {albums.map((album, i) => (
+              <div key={i} className="group cursor-pointer" onClick={() => onGoToAlbum(album.title)}>
+                <div className="aspect-square rounded-2xl overflow-hidden shadow-xl mb-3 relative border border-white/5 transition-transform group-hover:scale-[1.03] group-active:scale-95">
+                  <img src={album.cover} className="w-full h-full object-cover" />
                   <div className="absolute inset-0 bg-black/20 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
-                    <button 
-                      onClick={(e) => { e.stopPropagation(); albumTrack && onPlay(albumTrack); }}
-                      className="w-12 h-12 rounded-full bg-white/20 backdrop-blur-md flex items-center justify-center text-white hover:scale-110 transition-all shadow-xl"
-                      style={{ backgroundColor: accentColor }}
-                    >
-                      <Play className="w-5 h-5 fill-current ml-1" />
-                    </button>
+                    <div className="w-12 h-12 rounded-full bg-white/20 backdrop-blur-md flex items-center justify-center">
+                      <Play className="w-6 h-6 text-white fill-current" />
+                    </div>
                   </div>
                 </div>
-                <div>
-                  <h3 className="text-white font-medium truncate">{albumName}</h3>
-                  <p className="text-white/50 text-sm truncate">{albumTrack?.artist}</p>
-                </div>
+                <h3 className="text-sm font-bold truncate text-white">{album.title}</h3>
+                <p className="text-xs text-white/40 truncate">{album.artist}</p>
               </div>
-            );
-          })}
-        </div>
-      );
-    }
+            ))}
+          </div>
+        );
 
-    if (currentView === 'artists') {
-      const uniqueArtists = new Set<string>();
-      tracks.forEach(track => {
-          parseArtists(track.artist).forEach(artist => uniqueArtists.add(artist));
-      });
-      const artists = Array.from(uniqueArtists).sort();
-
-      return (
-        <div className="space-y-2 p-2 stagger-list">
-          {artists.map(artist => {
-            const artistMeta = artistMetadata[artist];
-            return (
-                <div 
-                    key={artist} 
-                    className="flex items-center gap-4 p-4 rounded-2xl glass-button transition-all cursor-pointer group hover:scale-[1.01] active:scale-[0.99] border-transparent hover:border-white/20"
-                    onClick={() => onGoToArtist(artist)}
-                >
-                <div className="w-16 h-16 rounded-full bg-white/10 flex items-center justify-center text-white/50 overflow-hidden relative shadow-inner">
-                    {artistMeta?.avatar ? (
-                        <img src={artistMeta.avatar} className="w-full h-full object-cover" />
-                    ) : (
-                        <Mic2 className="w-6 h-6" />
-                    )}
+      case 'artists':
+        return (
+          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-8 stagger-list">
+            {artists.map((artist, i) => {
+              const meta = artistMetadata[artist];
+              return (
+                <div key={i} className="group cursor-pointer flex flex-col items-center text-center" onClick={() => onGoToArtist(artist)}>
+                  <div className="w-full aspect-square rounded-full overflow-hidden shadow-2xl mb-4 relative border border-white/10 transition-transform group-hover:scale-[1.03] group-active:scale-95 bg-white/5">
+                    {meta?.avatar ? <img src={meta.avatar} className="w-full h-full object-cover" /> : <div className="w-full h-full flex items-center justify-center text-white/20"><User className="w-1/2 h-1/2" /></div>}
+                  </div>
+                  <h3 className="text-sm font-bold truncate text-white w-full">{artist}</h3>
+                  <p className="text-[10px] text-white/40 uppercase tracking-widest mt-1">Артист</p>
                 </div>
-                <div className="flex-1">
-                    <h3 className="text-lg font-medium text-white transition-colors" style={{ color: `var(--hover-color, white)` }}
-                        onMouseEnter={(e) => e.currentTarget.style.color = accentColor}
-                        onMouseLeave={(e) => e.currentTarget.style.color = 'white'}
-                    >{artist}</h3>
-                    <p className="text-white/40 text-sm">Исполнитель</p>
+              );
+            })}
+          </div>
+        );
+
+      case 'artist_detail':
+        const metaDetail = selectedArtist ? artistMetadata[selectedArtist] : null;
+        return (
+          <div className="animate-fade-in-view">
+            <div className="relative h-[40vh] min-h-[300px] -mx-8 -mt-8 mb-12 group">
+                <div className="absolute inset-0 overflow-hidden">
+                    {metaDetail?.banner ? <img src={metaDetail.banner} className="w-full h-full object-cover" /> : <div className="w-full h-full bg-gradient-to-br from-neutral-800 to-neutral-900" />}
+                    <div className="absolute inset-0 bg-gradient-to-t from-black via-black/20 to-transparent" />
                 </div>
-                <div className="w-8 h-8 rounded-full border border-white/20 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
-                    <ArrowRight className="w-4 h-4 text-white" />
+                <div className="absolute bottom-0 left-0 right-0 p-12 flex flex-col md:flex-row items-center md:items-end gap-8">
+                    <div className="w-48 h-48 rounded-full border-4 border-black/40 shadow-2xl overflow-hidden relative group/avatar bg-white/5">
+                        {metaDetail?.avatar ? <img src={metaDetail.avatar} className="w-full h-full object-cover" /> : <User className="w-full h-full p-12 text-white/10" />}
+                    </div>
+                    <div className="flex-1 text-center md:text-left">
+                        <h1 className="text-6xl font-black text-white mb-2 drop-shadow-2xl">{selectedArtist}</h1>
+                        <p className="text-white/60 font-medium uppercase tracking-[0.3em]">{filteredTracks.length} Песен в коллекции</p>
+                    </div>
+                    <div className="flex gap-4">
+                        <button onClick={() => filteredTracks.length > 0 && onPlay(filteredTracks[0], filteredTracks)} className="bg-white text-black px-8 py-3 rounded-full font-bold hover:scale-105 transition-transform flex items-center gap-2 shadow-xl">
+                            <Play className="w-5 h-5 fill-current" /> Слушать
+                        </button>
+                    </div>
                 </div>
-                </div>
-            );
-          })}
-        </div>
-      );
-    }
-
-    return (
-      <div className="space-y-1">
-        {(currentView === 'artist_detail' || currentView === 'album_detail' || currentView === 'favorites' || currentView === 'search') && (
-            <div className={`flex flex-col mb-8 animate-fade-in-view relative overflow-hidden rounded-3xl ${showHeaderImage ? 'min-h-[300px] justify-end p-8' : 'flex-row items-center gap-6 px-2'}`}>
-                 
-                 {/* Artist Banner Background */}
-                 {showHeaderImage && (
-                     <>
-                        <div className="absolute inset-0 bg-neutral-900">
-                             {currentArtistMeta?.banner ? (
-                                 <img src={currentArtistMeta.banner} className="w-full h-full object-cover" />
-                             ) : (
-                                 <div className="w-full h-full bg-gradient-to-b from-neutral-800 to-neutral-900" />
-                             )}
-                        </div>
-                        <div className="absolute inset-0 bg-gradient-to-t from-black via-black/40 to-transparent"></div>
-                        
-                        {/* Upload Banner Button (Top Right) */}
-                        <div className="absolute top-4 right-4 opacity-0 hover:opacity-100 transition-opacity z-20">
-                            <button 
-                                onClick={() => bannerInputRef.current?.click()}
-                                className="bg-black/50 hover:bg-black/70 text-white px-3 py-1.5 rounded-lg text-xs backdrop-blur-md flex items-center gap-2 glass-button"
-                            >
-                                <Image className="w-3 h-3" /> Изменить обложку
-                            </button>
-                            <input type="file" ref={bannerInputRef} onChange={(e) => handleArtistImageUpload(e, 'banner')} className="hidden" accept="image/*" />
-                        </div>
-                     </>
-                 )}
-
-                 {/* Content Wrapper */}
-                 <div className={`relative z-10 flex items-end gap-6 ${showHeaderImage ? 'w-full' : ''}`}>
-                     
-                     {currentView === 'album_detail' && (
-                         <div className="w-40 h-40 rounded-xl overflow-hidden shadow-2xl">
-                             <img src={displayTracks[0]?.coverUrl} className="w-full h-full object-cover" />
-                         </div>
-                     )}
-                     
-                     {currentView === 'artist_detail' && (
-                         <div className="w-32 h-32 md:w-40 md:h-40 rounded-full overflow-hidden shadow-2xl bg-white/10 relative group border-4 border-black/20">
-                             {currentArtistMeta?.avatar ? (
-                                 <img src={currentArtistMeta.avatar} className="w-full h-full object-cover" />
-                             ) : (
-                                 <div className="w-full h-full flex items-center justify-center">
-                                     <Mic2 className="w-10 h-10 text-white/50" />
-                                 </div>
-                             )}
-                             <div 
-                                className="absolute inset-0 bg-black/50 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer"
-                                onClick={() => avatarInputRef.current?.click()}
-                             >
-                                 <Upload className="w-6 h-6 text-white" />
-                             </div>
-                             <input type="file" ref={avatarInputRef} onChange={(e) => handleArtistImageUpload(e, 'avatar')} className="hidden" accept="image/*" />
-                         </div>
-                     )}
-
-                     {currentView === 'favorites' && (
-                         <div className="w-24 h-24 rounded-2xl bg-gradient-to-br from-pink-500 to-rose-600 flex items-center justify-center shadow-lg">
-                             <Heart className="w-10 h-10 text-white fill-white" />
-                         </div>
-                     )}
-                     
-                     {currentView === 'search' && (
-                         <div className="w-20 h-20 rounded-2xl bg-white/10 flex items-center justify-center shadow-lg backdrop-blur-md border border-white/10">
-                             <Search className="w-8 h-8 text-white" />
-                         </div>
-                     )}
-
-                     <div className="flex-1">
-                        <h1 className={`${showHeaderImage ? 'text-5xl md:text-7xl' : 'text-4xl'} font-bold text-white mb-2 tracking-tight shadow-black drop-shadow-lg`}>{title}</h1>
-                        <p className="text-white/80 text-lg font-medium drop-shadow-md">{subtitle}</p>
-                        
-                        {/* Play Button Row */}
-                        <div className="flex gap-3 mt-6">
-                             {displayTracks.length > 0 && (
-                                <button 
-                                    onClick={() => onPlay(displayTracks[0])} 
-                                    className="text-white px-8 py-3 rounded-full text-base font-bold transition-all shadow-lg flex items-center gap-2 hover:opacity-90 hover:scale-105 active:scale-95 glass-button border-0"
-                                    style={{ backgroundColor: accentColor, boxShadow: `0 8px 30px ${accentColor}50` }}
-                                >
-                                    <Play className="w-5 h-5 fill-current" />
-                                    Слушать
-                                </button>
-                             )}
-                        </div>
-                     </div>
-                 </div>
             </div>
-        )}
+            <h2 className="text-2xl font-bold mb-6 flex items-center gap-2">
+                <Music className="w-5 h-5" style={{ color: accentColor }} /> Песни
+            </h2>
+            {renderTrackList(filteredTracks)}
+          </div>
+        );
 
-        {/* Column Headers */}
-        <div className="grid grid-cols-[auto_1fr_auto] md:grid-cols-[40px_3fr_2fr_1.5fr_120px] gap-4 text-xs font-semibold text-white/40 uppercase tracking-wider border-b border-white/5 pb-2 mb-2 px-2 animate-fade-in-view items-center">
-          <div className="text-center">#</div>
-          <div>Название</div>
-          <div className="hidden md:block">Альбом</div>
-          <div className="hidden md:block">Год</div>
-          <div className="text-right pr-2">Время</div>
-        </div>
-
-        {/* Tracks List */}
-        <div className="stagger-list pb-8">
-          {displayTracks.map((track, index) => {
-            const active = currentTrack?.id === track.id;
-            const isMenuOpen = activeMenuId === track.id;
-
-            return (
-              <div 
-                key={track.id}
-                style={{ zIndex: isMenuOpen ? 50 : 'auto', position: 'relative' }}
-                className={`group grid grid-cols-[auto_1fr_auto] md:grid-cols-[40px_3fr_2fr_1.5fr_120px] gap-4 items-center py-2 px-2 rounded-xl cursor-pointer transition-all duration-200 border border-transparent ${
-                  active 
-                    ? 'bg-white/15 shadow-[inset_0_0_20px_rgba(255,255,255,0.05)] border-white/10' 
-                    : 'hover:bg-white/5 hover:border-white/5'
-                }`}
-              >
-                <div 
-                  className="w-full flex justify-center text-white/40 text-sm font-medium"
-                  onClick={() => onPlay(track)}
-                >
-                  <span className={`group-hover:hidden ${active ? 'hidden' : 'block'}`}>{index + 1}</span>
-                  <button className={`hidden group-hover:block ${active ? 'block' : ''} text-white`}>
-                    {active && playbackState === PlaybackState.PLAYING ? (
-                      <div className="flex gap-[2px] items-end h-3 w-3">
-                        <div className="w-0.5 h-full animate-[bounce_0.8s_infinite]" style={{ backgroundColor: accentColor }}></div>
-                        <div className="w-0.5 h-2/3 animate-[bounce_1.1s_infinite]" style={{ backgroundColor: accentColor }}></div>
-                        <div className="w-0.5 h-full animate-[bounce_0.6s_infinite]" style={{ backgroundColor: accentColor }}></div>
-                      </div>
-                    ) : (
-                      <Play className="w-3 h-3 fill-current" />
-                    )}
-                  </button>
+      case 'album_detail':
+        return (
+            <div className="animate-fade-in-view">
+                <div className="flex flex-col md:flex-row gap-10 mb-12 items-center md:items-end">
+                    <div className="w-64 h-64 rounded-3xl overflow-hidden shadow-2xl border border-white/10 shrink-0">
+                        <img src={filteredTracks[0]?.coverUrl} className="w-full h-full object-cover" />
+                    </div>
+                    <div className="flex-1 text-center md:text-left">
+                        <p className="text-[12px] uppercase tracking-[0.4em] text-white/40 mb-2 font-bold">Альбом</p>
+                        <h1 className="text-5xl font-black text-white mb-4">{selectedAlbum}</h1>
+                        <div className="flex items-center justify-center md:justify-start gap-3 mb-6">
+                            <span className="text-lg font-bold hover:underline cursor-pointer" onClick={() => onGoToArtist(filteredTracks[0]?.artist.split(ARTIST_SPLIT_REGEX)[0])}>{filteredTracks[0]?.artist}</span>
+                        </div>
+                        <div className="flex gap-4 justify-center md:justify-start">
+                            <button onClick={() => filteredTracks.length > 0 && onPlay(filteredTracks[0], filteredTracks)} className="bg-white text-black px-10 py-3 rounded-full font-bold hover:scale-105 transition-transform shadow-xl">Воспроизвести</button>
+                            <button onClick={() => onShuffleAll(filteredTracks)} className="glass-button px-10 py-3 rounded-full font-bold">Перемешать</button>
+                        </div>
+                    </div>
                 </div>
+                {renderTrackList(filteredTracks)}
+            </div>
+        );
 
-                <div className="flex items-center gap-3 min-w-0" onClick={() => onPlay(track)}>
-                  <img src={track.coverUrl} alt="" className="w-10 h-10 rounded-lg shadow-md object-cover bg-neutral-800 flex-shrink-0" />
-                  <div className="flex flex-col min-w-0">
-                    <span className={`text-sm font-medium truncate ${active ? '' : 'text-white'}`} style={{ color: active ? accentColor : undefined }}>{track.title}</span>
-                    <span className="text-xs text-white/50 truncate group-hover:text-white/70">
-                       {/* Render Artists Clickable */}
-                       {parseArtists(track.artist).map((artist, i, arr) => (
-                           <span key={i} onClick={(e) => { e.stopPropagation(); onGoToArtist(artist); }} className="hover:text-white hover:underline cursor-pointer relative z-20">
-                               {artist}{i < arr.length - 1 ? ', ' : ''}
-                           </span>
-                       ))}
-                    </span>
-                  </div>
-                </div>
-
-                {/* Render Album Clickable */}
-                <div 
-                    className="text-sm text-white/50 truncate min-w-0 group-hover:text-white/70 hidden md:block" 
-                    onClick={() => onPlay(track)}
-                >
-                    <span onClick={(e) => { e.stopPropagation(); onGoToAlbum(track.album); }} className="hover:text-white hover:underline cursor-pointer relative z-20">
-                        {track.album}
-                    </span>
-                </div>
-                
-                <div className="text-sm text-white/40 truncate min-w-0 hidden md:block">{track.year || '-'}</div>
-
-                {/* Fixed Right Column */}
-                <div className="flex items-center justify-end gap-4 relative md:justify-self-end w-full pr-2">
-                  <span className={`text-sm font-mono text-white/40 group-hover:text-white/70 ${isMenuOpen ? 'hidden' : 'group-hover:hidden block'}`}>{formatTime(track.duration)}</span>
-                  <button 
-                      onMouseDown={(e) => e.stopPropagation()} 
-                      onClick={(e) => {
-                          e.stopPropagation();
-                          setActiveMenuId(isMenuOpen ? null : track.id);
-                      }}
-                      className={`items-center justify-center p-1.5 rounded-md hover:bg-white/10 transition-colors ${isMenuOpen ? 'flex bg-white/10 text-white' : 'hidden group-hover:flex'}`}
-                  >
-                      <MoreHorizontal className="w-5 h-5" />
-                  </button>
-
-                  {isMenuOpen && (
-                      <div 
-                        ref={menuRef} 
-                        onMouseDown={(e) => e.stopPropagation()} 
-                        className="absolute top-8 right-0 w-48 bg-[#1e1e20]/90 backdrop-blur-xl border border-white/10 rounded-xl shadow-2xl z-50 overflow-hidden animate-zoom-in origin-top-right"
-                      >
-                          <div className="p-1">
-                              <button 
-                                  onClick={(e) => { e.stopPropagation(); setEditingTrack(track); setActiveMenuId(null); }}
-                                  className="w-full text-left px-3 py-2 rounded-lg text-sm text-white hover:bg-white/10 flex items-center gap-2"
-                              >
-                                  <Edit className="w-4 h-4 text-white/60" /> Редактировать
-                              </button>
-                              
-                              {/* Show In Folder Option */}
-                              {track.path && (
-                                <button 
-                                    onClick={(e) => { e.stopPropagation(); handleShowInFolder(track.path!); }}
-                                    className="w-full text-left px-3 py-2 rounded-lg text-sm text-white hover:bg-white/10 flex items-center gap-2"
-                                >
-                                    <Sliders className="w-4 h-4 text-white/60" /> Показать в папке
-                                </button>
-                              )}
-
-                              <button 
-                                  onClick={(e) => { e.stopPropagation(); onGoToAlbum(track.album); setActiveMenuId(null); }}
-                                  className="w-full text-left px-3 py-2 rounded-lg text-sm text-white hover:bg-white/10 flex items-center gap-2"
-                              >
-                                  <Disc className="w-4 h-4 text-white/60" /> Перейти к альбому
-                              </button>
-                              <div className="h-px bg-white/10 my-1"></div>
-                              <button 
-                                  onClick={(e) => { e.stopPropagation(); onDeleteTrack(track.id); setActiveMenuId(null); }}
-                                  className="w-full text-left px-3 py-2 rounded-lg text-sm text-red-400 hover:bg-red-500/10 flex items-center gap-2"
-                              >
-                                  <Trash2 className="w-4 h-4" /> Удалить
-                              </button>
-                          </div>
-                      </div>
-                  )}
-                </div>
-              </div>
-            );
-          })}
-        </div>
-      </div>
-    );
+      default:
+        return renderTrackList(filteredTracks);
+    }
   };
 
   const getTitle = () => {
-    switch(currentView) {
-      case 'albums': return 'Альбомы';
-      case 'artists': return 'Артисты';
-      case 'recent': return 'Недавно добавленные';
+    switch (currentView) {
+      case 'listen_now': return 'Слушать сейчас';
       case 'browse': return 'Обзор';
       case 'radio': return 'Радио';
-      case 'listen_now': return 'Слушать';
-      case 'artist_detail': return 'Артист';
-      case 'album_detail': return 'Альбом';
+      case 'recent': return 'Недавно';
+      case 'albums': return 'Альбомы';
+      case 'artists': return 'Артисты';
+      case 'songs': return 'Песни';
       case 'favorites': return 'Избранное';
-      case 'search': return 'Поиск';
-      default: return 'Песни';
+      case 'search': return searchQuery ? `Результаты: ${searchQuery}` : 'Поиск';
+      default: return '';
     }
-  }
+  };
+
+  const handleCoverChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file && editingTrack) {
+        const url = await fileToDataURL(file);
+        setEditingTrack({ ...editingTrack, coverUrl: url });
+    }
+  };
 
   return (
     <div className="flex-1 h-full overflow-y-auto pb-32 pt-8 px-8 custom-scrollbar relative">
-      {/* Edit Modal */}
       {editingTrack && (
-        <div 
-          className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 backdrop-blur-md p-4 animate-fade-in-view"
-          onMouseDown={(e) => e.stopPropagation()}
-        >
-             <div className="bg-[#1c1c1e]/90 backdrop-blur-xl border border-white/10 w-full max-w-2xl rounded-3xl shadow-2xl overflow-hidden animate-zoom-in flex flex-col max-h-[90vh]" onMouseDown={e => e.stopPropagation()}>
-                <div className="p-6 border-b border-white/10 flex justify-between items-center flex-shrink-0">
-                    <h3 className="text-xl font-bold text-white">Редактировать трек</h3>
-                    <button onClick={() => setEditingTrack(null)} className="text-white/40 hover:text-white"><X className="w-5 h-5"/></button>
-                </div>
-                <form onSubmit={handleEditSave} className="p-6 overflow-y-auto custom-scrollbar flex-1">
-                    <div className="flex gap-6 mb-6">
-                        <div className="w-32 h-32 rounded-2xl bg-white/5 border border-white/10 flex flex-col items-center justify-center relative overflow-hidden group shrink-0">
-                            <img src={editingTrack.coverUrl} className="absolute inset-0 w-full h-full object-cover" />
-                            <div className="absolute inset-0 bg-black/40 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer">
-                                <Upload className="w-6 h-6 text-white mb-1" />
-                            </div>
-                            <input type="file" ref={fileInputRef} onChange={handleCoverUpload} accept="image/*" className="absolute inset-0 opacity-0 cursor-pointer" />
-                        </div>
-                        <div className="flex-1 space-y-4">
-                            <div>
-                                <label className="block text-xs font-medium text-white/40 mb-1">Название</label>
-                                <input type="text" value={editingTrack.title} onChange={e => setEditingTrack({...editingTrack, title: e.target.value})} className="w-full glass-input rounded-xl px-3 py-2 text-white text-sm focus:outline-none focus:border-[var(--accent)]" style={{ borderColor: 'rgba(255,255,255,0.1)' }} />
-                            </div>
-                             <div>
-                                <label className="block text-xs font-medium text-white/40 mb-1">Исполнитель</label>
-                                <input type="text" value={editingTrack.artist} onChange={e => setEditingTrack({...editingTrack, artist: e.target.value})} className="w-full glass-input rounded-xl px-3 py-2 text-white text-sm focus:outline-none" />
-                            </div>
-                             <div className="grid grid-cols-2 gap-4">
-                                <div>
-                                    <label className="block text-xs font-medium text-white/40 mb-1">Альбом</label>
-                                    <input type="text" value={editingTrack.album} onChange={e => setEditingTrack({...editingTrack, album: e.target.value})} className="w-full glass-input rounded-xl px-3 py-2 text-white text-sm focus:outline-none" />
-                                </div>
-                                <div>
-                                    <label className="block text-xs font-medium text-white/40 mb-1">Год</label>
-                                    <input type="text" value={editingTrack.year || ''} onChange={e => setEditingTrack({...editingTrack, year: e.target.value})} className="w-full glass-input rounded-xl px-3 py-2 text-white text-sm focus:outline-none" placeholder="2024" />
-                                </div>
-                             </div>
-                        </div>
-                    </div>
-                    
-                    {/* Lyrics Editor */}
-                    <div className="border-t border-white/10 pt-6">
-                        <label className="block text-sm font-medium text-white/60 mb-2 flex items-center gap-2">
-                            <Quote className="w-4 h-4" /> Текст песни
-                        </label>
-                        <div className="text-xs text-white/40 mb-2">
-                             Вставьте текст песни. Можно просто текст (без таймингов), либо в формате LRC (<code>[мм:сс] Строка</code>).
-                        </div>
-                        <textarea 
-                            value={editingTrack.lyrics || ''}
-                            onChange={e => setEditingTrack({...editingTrack, lyrics: e.target.value})}
-                            className="w-full h-48 glass-input rounded-xl p-3 text-white/80 text-sm font-mono focus:outline-none resize-none leading-relaxed"
-                            placeholder="Просто вставьте текст сюда..."
-                        />
-                    </div>
-
-                     <div className="flex justify-end gap-3 pt-6 sticky bottom-0 bg-[#1c1c1e] z-10">
-                         <button type="button" onClick={() => setEditingTrack(null)} className="px-4 py-2 rounded-lg text-white/60 hover:text-white text-sm font-medium glass-button border-0">Отмена</button>
-                         <button 
-                            type="submit" 
-                            disabled={isSaving}
-                            className="px-6 py-2 rounded-lg text-white text-sm font-medium flex items-center gap-2 glass-button border-0 disabled:opacity-50" 
-                            style={{ backgroundColor: accentColor }}
+        <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/60 backdrop-blur-xl p-4 animate-fade-in-view">
+             <div className="bg-[#1c1c1e]/95 border border-white/10 w-full max-w-3xl rounded-[32px] shadow-2xl overflow-hidden animate-zoom-in flex flex-col max-h-[95vh]">
+                <div className="p-6 border-b border-white/10 flex justify-between items-center bg-white/5">
+                    <h3 className="text-xl font-bold text-white flex items-center gap-2">
+                        Редактировать сведения
+                        <button 
+                            type="button"
+                            onClick={handleFetchMetadata} 
+                            disabled={isSearchingMetadata}
+                            className={`ml-4 p-2 rounded-lg bg-white/5 hover:bg-white/10 transition-all flex items-center gap-2 text-xs font-bold ${isSearchingMetadata ? 'animate-pulse opacity-50' : ''}`}
+                            title="Автозаполнение через YouTube Music API"
                         >
-                             {isSaving ? <span className="animate-spin">⌛</span> : <Check className="w-4 h-4" />}
-                             {isSaving ? 'Сохранить' : 'Сохранить'}
-                         </button>
-                     </div>
+                            {isSearchingMetadata ? 'Поиск...' : '✨ Магия API'}
+                        </button>
+                    </h3>
+                    <button onClick={() => setEditingTrack(null)} className="text-white/40 hover:text-white transition-colors p-2"><X className="w-5 h-5"/></button>
+                </div>
+                <form onSubmit={(e) => { e.preventDefault(); if (editingTrack) onUpdateTrack(editingTrack.id, editingTrack); setEditingTrack(null); }} className="p-8 overflow-y-auto custom-scrollbar flex-1 space-y-8">
+                    <div className="flex flex-col md:flex-row gap-8">
+                        <div className="flex flex-col items-center gap-4">
+                            <div className="w-48 h-48 rounded-3xl bg-white/5 border border-white/10 relative overflow-hidden group cursor-pointer shadow-2xl" onClick={() => coverInputRef.current?.click()}>
+                                <img src={editingTrack.coverUrl} className="w-full h-full object-cover transition-transform group-hover:scale-110" />
+                                <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity"><Upload className="w-8 h-8 text-white" /></div>
+                            </div>
+                            <button type="button" onClick={() => coverInputRef.current?.click()} className="text-xs font-bold text-white/40 uppercase tracking-widest hover:text-white transition-colors">Изменить обложку</button>
+                            <input type="file" ref={coverInputRef} className="hidden" accept="image/*" onChange={handleCoverChange} />
+                        </div>
+                        <div className="flex-1 grid grid-cols-1 gap-6">
+                            <div>
+                                <label className="block text-xs font-bold text-white/30 uppercase tracking-widest mb-2">Название песни</label>
+                                <input type="text" value={editingTrack.title} onChange={e => setEditingTrack({...editingTrack, title: e.target.value})} className="w-full glass-input rounded-xl px-4 py-3 text-lg font-bold" placeholder="Название" />
+                            </div>
+                            <div>
+                                <label className="block text-xs font-bold text-white/30 uppercase tracking-widest mb-2">Артисты (через запятую)</label>
+                                <input type="text" value={editingTrack.artist} onChange={e => setEditingTrack({...editingTrack, artist: e.target.value})} className="w-full glass-input rounded-xl px-4 py-3" placeholder="Артист" />
+                            </div>
+                            <div className="grid grid-cols-2 gap-4">
+                                <div>
+                                    <label className="block text-xs font-bold text-white/30 uppercase tracking-widest mb-2">Альбом</label>
+                                    <input type="text" value={editingTrack.album} onChange={e => setEditingTrack({...editingTrack, album: e.target.value})} className="w-full glass-input rounded-xl px-4 py-3" placeholder="Альбом" />
+                                </div>
+                                <div>
+                                    <label className="block text-xs font-bold text-white/30 uppercase tracking-widest mb-2">Год выпуска</label>
+                                    <input type="text" value={editingTrack.year || ""} onChange={e => setEditingTrack({...editingTrack, year: e.target.value})} className="w-full glass-input rounded-xl px-4 py-3" placeholder="2024" />
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div>
+                        <label className="block text-xs font-bold text-white/30 uppercase tracking-widest mb-3 flex items-center gap-2"><Quote className="w-3 h-3"/> Текст песни (Поддерживается LRC)</label>
+                        <textarea value={editingTrack.lyrics || ""} onChange={e => setEditingTrack({...editingTrack, lyrics: e.target.value})} className="w-full glass-input rounded-2xl px-4 py-4 min-h-[200px] font-mono text-sm leading-relaxed" placeholder="Вставьте текст песни здесь...&#10;[00:15.00]Первая строчка" />
+                    </div>
+                    <div className="flex justify-end gap-4 pt-4 sticky bottom-0 bg-[#1c1c1e]/95 py-4">
+                         <button type="button" onClick={() => setEditingTrack(null)} className="px-8 py-3 text-white/60 font-bold hover:text-white transition-colors">Отмена</button>
+                         <button type="submit" className="px-12 py-3 rounded-2xl text-white font-bold shadow-xl hover:scale-105 active:scale-95 transition-all" style={{ backgroundColor: accentColor }}>Сохранить изменения</button>
+                    </div>
                 </form>
-            </div>
+             </div>
         </div>
       )}
 
-      {(currentView !== 'artist_detail' && currentView !== 'album_detail' && currentView !== 'favorites' && currentView !== 'search') && (
-        <div className="flex items-end justify-between mb-8 sticky top-0 z-10 py-4 -mx-8 px-8 backdrop-blur-md bg-transparent transition-all animate-fade-in-view">
-            <div>
-            <h2 className="text-4xl font-bold text-white mb-1 tracking-tight drop-shadow-lg">{getTitle()}</h2>
-            <p className="text-white/40 text-sm font-medium">{tracks.length} Композиций</p>
-            </div>
-            <div className="flex gap-2">
-            <button onClick={() => tracks.length > 0 && onPlay(tracks[0])} className="bg-white text-black px-6 py-2 rounded-full text-sm font-semibold hover:bg-white/90 hover:scale-105 active:scale-95 transition-all shadow-lg shadow-white/10">Play</button>
-            <button onClick={onShuffleAll} className="glass-button text-white px-6 py-2 rounded-full text-sm font-semibold hover:scale-105 active:scale-95 transition-all backdrop-blur-md">Перемешать</button>
-            </div>
-        </div>
+      {currentView !== 'artist_detail' && currentView !== 'album_detail' && (
+          <div className="flex items-end justify-between mb-10 animate-fade-in-view">
+              <div>
+                <h1 className="text-4xl md:text-5xl font-black text-white tracking-tighter drop-shadow-xl">{getTitle()}</h1>
+                <p className="text-white/40 font-bold uppercase tracking-widest text-xs mt-2">{filteredTracks.length} Элементов в категории</p>
+              </div>
+              {currentView === 'favorites' && (
+                  <div className="flex gap-3">
+                      <button onClick={() => onShuffleAll(filteredTracks)} className="glass-button px-8 py-3 rounded-full font-bold flex items-center gap-2">
+                          <Play className="w-4 h-4 fill-current" /> Перемешать всё
+                      </button>
+                  </div>
+              )}
+          </div>
       )}
 
-      {(currentView === 'artist_detail' || currentView === 'album_detail' || currentView === 'favorites' || currentView === 'search') && (
-          <button onClick={onBack} className="flex items-center gap-2 text-white/50 hover:text-white mb-4 transition-colors animate-fade-in-view absolute top-8 left-8 z-30 glass-button px-4 py-2 rounded-full border-0">
-              <ArrowLeft className="w-4 h-4" /> Назад
+      {(currentView === 'artist_detail' || currentView === 'album_detail') && (
+          <button onClick={onBack} className="mb-8 p-3 bg-white/5 hover:bg-white/10 rounded-full transition-all group sticky top-0 z-20 backdrop-blur-md">
+              <ArrowLeft className="w-6 h-6 text-white group-hover:-translate-x-1 transition-transform" />
           </button>
       )}
 
-      {/* Force animation on view change by using key */}
-      <div key={currentView}>
-        {renderContent()}
-      </div>
-      <div className="h-10" />
+      <div className="min-h-[50vh]">{renderView()}</div>
     </div>
   );
 };

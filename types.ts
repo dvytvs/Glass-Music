@@ -22,6 +22,12 @@ export enum PlaybackState {
 
 export type ViewType = 'listen_now' | 'browse' | 'radio' | 'recent' | 'albums' | 'artists' | 'songs' | 'artist_detail' | 'album_detail' | 'favorites' | 'search';
 
+export interface UserProfile {
+  name: string;
+  avatarUrl: string | null;
+  bannerUrl: string | null;
+}
+
 export interface PlayerState {
   currentTrack: Track | null;
   queue: Track[];

@@ -1,11 +1,12 @@
 
 import React from 'react';
-import { Music, LayoutGrid, Mic2, Disc, ListMusic, Search, Play, Settings, Heart } from './Icons';
-import { ViewType } from '../types';
+import { Music, LayoutGrid, Mic2, Disc, ListMusic, Search, Play, Settings, Heart, User } from './Icons';
+import { ViewType, UserProfile } from '../types';
 
 interface SidebarProps {
   onImportClick: () => void;
   onSettingsClick: () => void;
+  onProfileClick: () => void;
   currentView: ViewType;
   onChangeView: (view: ViewType) => void;
   isOpen: boolean;
@@ -13,11 +14,12 @@ interface SidebarProps {
   searchQuery: string;
   onSearchChange: (query: string) => void;
   enableGlass: boolean;
+  user: UserProfile;
 }
 
 const Sidebar: React.FC<SidebarProps> = ({ 
-  onImportClick, onSettingsClick, currentView, onChangeView, isOpen, accentColor,
-  searchQuery, onSearchChange, enableGlass
+  onImportClick, onSettingsClick, onProfileClick, currentView, onChangeView, isOpen, accentColor,
+  searchQuery, onSearchChange, enableGlass, user
 }) => {
   
   const handleSearch = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -31,13 +33,32 @@ const Sidebar: React.FC<SidebarProps> = ({
   return (
     <div 
       className={`h-full flex flex-col glass-sidebar z-20 relative transition-all duration-500 ease-[cubic-bezier(0.32,0.72,0,1)] overflow-hidden ${
-        isOpen ? 'w-64 pt-8 pb-4 px-4 opacity-100 translate-x-0' : 'w-0 pt-8 pb-4 px-0 opacity-0 -translate-x-10'
+        isOpen ? 'w-64 pt-6 pb-4 px-4 opacity-100 translate-x-0' : 'w-0 pt-6 pb-4 px-0 opacity-0 -translate-x-10'
       }`}
     >
       <div className="w-56 flex flex-col h-full min-w-[14rem]">
-        <div className="flex items-center gap-3 px-4 mb-8">
-          <h1 className="text-2xl font-bold text-white tracking-tight drop-shadow-md">Музыка</h1>
-        </div>
+        
+        {/* User Profile Block */}
+        <button 
+          onClick={onProfileClick}
+          className="flex items-center gap-3 px-4 py-3 mb-6 rounded-2xl hover:bg-white/5 active:scale-95 transition-all group"
+        >
+          <div className="w-10 h-10 rounded-full bg-white/10 flex-shrink-0 overflow-hidden border border-white/10 shadow-lg">
+            {user.avatarUrl ? (
+              <img src={user.avatarUrl} className="w-full h-full object-cover" />
+            ) : (
+              <div className="w-full h-full flex items-center justify-center text-white/30">
+                <User className="w-5 h-5" />
+              </div>
+            )}
+          </div>
+          <div className="flex flex-col items-start min-w-0">
+            <span className="text-sm font-bold text-white truncate group-hover:text-[var(--accent)] transition-colors" style={{ '--accent': accentColor } as any}>
+              {user.name || 'Настроить профиль'}
+            </span>
+            <span className="text-[10px] text-white/30 uppercase tracking-widest font-bold">Профиль</span>
+          </div>
+        </button>
 
         <div className="px-4 mb-6">
           <div className="relative group">

@@ -1,53 +1,74 @@
 
-<img width="512" height="512" alt="icon" src="https://github.com/user-attachments/assets/931a74fd-4177-4a0a-b962-53baebacb415" />
+<p align="center">
+  <img width="256" height="256" alt="icon" src="https://github.com/user-attachments/assets/931a74fd-4177-4a0a-b962-53baebacb415" />
+</p>
 
+<h1 align="center">Glass Music</h1>
 
-<img width="2560" height="1361" alt="Снимок экрана_20260114_011516" src="https://github.com/user-attachments/assets/b5448e12-5651-4a21-b044-effa1aafb912" />
+<p align="center">
+  <img src="https://img.shields.io/badge/Platform-GNU/Linux-orange?style=for-the-badge&logo=linux" />
+  <img src="https://img.shields.io/badge/UI-Liquid%20Glass-blue?style=for-the-badge" />
+  <img src="https://img.shields.io/badge/Privacy-Local--First-green?style=for-the-badge" />
+</p>
 
+---
 
+<img width="2560" height="1361" alt="Main Interface" src="https://github.com/user-attachments/assets/b5448e12-5651-4a21-b044-effa1aafb912" />
 
-RU:
+## RU: О проекте
 
-Glass Music — это локальный музыкальный плеер для GNU/Linux, сделанный для тех, кому важны визуал, контроль и ощущение «дорогого» интерфейса. Приложение построено на Electron + Node.js, работает стабильно и не завязано ни на какие стриминги — вся музыка хранится у тебя.
+**Glass Music** — это не просто плеер, это визуальный манифест для пользователей GNU/Linux. Мы объединили эстетику будущего (MacOS 26.2 Concept) с мощными инструментами управления локальной медиатекой. 
 
-<img width="2560" height="1361" alt="Снимок экрана_20260114_011454" src="https://github.com/user-attachments/assets/62c8c863-6cc6-4a77-a9f2-a7ef3e68a48a" />
+### 💎 Liquid Glass Engine
+Наша гордость — движок интерфейса, использующий глубокое многослойное размытие (24px+), динамическую сатурацию (180%) и аппаратное ускорение GPU. Интерфейс ощущается живым и "глубоким", подстраиваясь под обложку текущего трека.
 
+### ✨ Магия метаданных (Magic API)
+Забудьте о ручном вводе тегов. Встроенный редактор оснащен кнопкой **"✨ Магия API"**, которая через интеграцию с YouTube Music API автоматически находит:
+- Оригинальные обложки в высоком качестве.
+- Правильные имена артистов и названия альбомов.
+- Год выпуска и жанры.
+- Текст песен (включая синхронизированный LRC формат).
 
+### 🛡️ Манифест приватности
+Мы считаем, что ваши музыкальные вкусы — это ваше личное дело.
+- **Никакой телеметрии:** Мы не знаем, что вы слушаете.
+- **Offline-First:** Плеер не требует интернета для работы (кроме поиска метаданных).
+- **Локальное хранение:** Ваши лайки, плейлисты и настройки хранятся в зашифрованном виде в `~/.config/glass-music`.
 
-По дизайну Glass Music вдохновлён Apple Music, но адаптирован именно под локальный плеер. Здесь можно свободно редактировать треки: менять название, дату, добавлять текст, устанавливать обложки, разворачивать интерфейс на весь экран. Никаких ограничений — твоя медиатека выглядит так, как ты хочешь.
+### 🎨 Кастомизация без границ
+- **Живые обои:** Поддержка видео (MP4) и изображений на фоне плеера.
+- **Профили:** Настраиваемый баннер и аватар слушателя.
+- **Сезонность:** Автоматический зимний режим (снег и гирлянды), который включается сам в декабре.
 
+---
 
-<img width="2560" height="1361" alt="Снимок экрана_20260114_011522" src="https://github.com/user-attachments/assets/a83f70cd-fa7c-48b1-b951-40be4219b7d2" />
+## EN: About the Project
 
+**Glass Music** is more than just a player; it's a visual manifesto for GNU/Linux users. We've combined futuristic aesthetics (MacOS 26.2 Concept) with powerful local media management tools.
 
-Отдельное внимание уделено кастомизации. Можно поставить своё изображение или видео на фон, настроить внешний вид под настроение или сетап. В карточке музыканта — любое фото на аватар и отдельный фон, без навязанных шаблонов.
+### 💎 Liquid Glass Engine
+Our pride is the UI engine featuring deep multi-layered blurring (24px+), dynamic saturation (180%), and GPU hardware acceleration. The interface feels alive and "deep," adapting to the current track's artwork.
 
-<img width="2560" height="1361" alt="Снимок экрана_20260114_011540" src="https://github.com/user-attachments/assets/3b664955-2da3-40fa-bc5c-09f4b146ab90" />
+### ✨ Metadata Magic (Magic API)
+Forget about manual tag entry. The built-in editor features a **"✨ Magic API"** button that leverages YouTube Music API integration to automatically find:
+- High-quality original cover art.
+- Correct artist names and album titles.
+- Release year and genres.
+- Lyrics (including synchronized LRC format).
 
-(плеер подстраивается под трек темой)
+### 🛡️ Privacy Manifesto
+We believe your music tastes are your private business.
+- **Zero Telemetry:** We don't know what you're listening to.
+- **Offline-First:** The player doesn't require an internet connection (except for metadata fetching).
+- **Local Storage:** Your likes, playlists, and settings are stored locally in `~/.config/glass-music`.
 
-Главная фишка Glass Music — Liquid Glass. Это фирменный стиль с прозрачными элементами, размытием и эффектом «жидкого стекла». Интерфейс выглядит живым, современным и реально приятно воспринимается, особенно на тёмных темах.
-Дополнительно есть сезонное новогоднее оформление, которое автоматически доступно с декабря по февраль и исчезает в марте — каждый год. Если не зашло, всё это (и Liquid Glass, и новогодний стиль) можно спокойно отключить в настройках.
+### 🎨 Boundaryless Customization
+- **Live Backgrounds:** Support for video (MP4) and images behind the player UI.
+- **Profiles:** Customizable listener banners and avatars.
+- **Seasonality:** An automatic winter mode (snow and lights) that activates itself in December.
 
-Glass Music — это не просто плеер «чтобы играть треки», а полноценный визуальный музыкальный центр для Linux-пользователей, которым важны эстетика, свобода настройки и локальное хранение музыки без облаков и лишнего мусора.
+---
 
-🐧 Только для GNU/Linux. Весь код открыт и свободен.
-
-
-ENG:
-
-Glass Music is a local music player for GNU/Linux, designed for those who value visuals, control, and the feel of a premium interface. Built on Electron and Node.js, the app is stable and doesn't rely on any streaming services—all your music is stored locally.
-
-Glass Music's design is inspired by Apple Music, but tailored specifically for a local player. You can freely edit tracks: change the title, date, add lyrics, set cover art, and expand the interface to full screen. No restrictions—your media library looks the way you want.
-
-Special attention has been paid to customization. You can add your own image or video as a background, tailoring the appearance to your mood or setup. The musician profile features any photo for an avatar and a custom background, without any imposed templates.
-
-(The player adapts to the track using the theme)
-
-Glass Music's main feature is Liquid Glass. This is a signature style with transparent elements, blur, and a "liquid glass" effect. The interface looks vibrant, modern, and truly pleasing to the eye, especially with dark themes.
-
-There's also a seasonal New Year's theme, which is automatically available from December to February and disappears in March every year. If you don't like it, you can easily disable both Liquid Glass and the New Year's theme in the settings.
-
-Glass Music isn't just a player for playing tracks, but a full-fledged visual music center for Linux users who value aesthetics, customization options, and local music storage without the cloud or unnecessary clutter.
-
-🐧 GNU/Linux only. All code is open source.
+<p align="center">
+  <i>Designed with ❤️ for the Linux Community. Keep your music local, keep your UI beautiful.</i>
+</p>

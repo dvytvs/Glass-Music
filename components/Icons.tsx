@@ -7,7 +7,7 @@ import {
   MoreHorizontal, Airplay, Maximize2, Minimize2,
   Trash2, Edit, X, Check, ArrowLeft, ArrowRight,
   Settings, Image, Video, Droplet, Palette, Sliders,
-  MicVocal, Snowflake, Quote
+  MicVocal, Snowflake, Quote, User, Youtube
 } from 'lucide-react';
 
 export { 
@@ -17,5 +17,5 @@ export {
   MoreHorizontal, Airplay, Maximize2, Minimize2,
   Trash2, Edit, X, Check, ArrowLeft, ArrowRight,
   Settings, Image, Video, Droplet, Palette, Sliders,
-  MicVocal, Snowflake, Quote
+  MicVocal, Snowflake, Quote, User, Youtube
 };

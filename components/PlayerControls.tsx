@@ -30,6 +30,8 @@ interface PlayerControlsProps {
   playerStyle?: 'floating' | 'classic'; // Added prop
 }
 
+const ARTIST_SPLIT_REGEX = /\s*(?:,|;|feat\.?|ft\.?|&|\/|featuring)\s+/i;
+
 const PlayerControls: React.FC<PlayerControlsProps> = ({
   currentTrack,
   playbackState,
@@ -58,7 +60,7 @@ const PlayerControls: React.FC<PlayerControlsProps> = ({
   const isFloating = playerStyle === 'floating';
 
   const renderArtists = (artistString: string) => {
-    const artists = artistString.split(/[,;]/).map(a => a.trim());
+    const artists = artistString.split(ARTIST_SPLIT_REGEX).map(a => a.trim()).filter(Boolean);
     return artists.map((artist, index) => (
       <React.Fragment key={index}>
         <span 
@@ -67,12 +69,11 @@ const PlayerControls: React.FC<PlayerControlsProps> = ({
         >
           {artist}
         </span>
-        {index < artists.length - 1 && <span>, </span>}
+        {index < artists.length - 1 && <span className="mx-0.5 opacity-40">/</span>}
       </React.Fragment>
     ));
   };
 
-  // Class Names based on style
   const containerClasses = isFloating 
     ? "fixed bottom-6 left-6 right-6 h-[88px] rounded-3xl glass-panel z-50 flex flex-col justify-center px-6 md:px-8 shadow-2xl transition-all duration-300 mx-auto max-w-screen-2xl border border-white/10"
     : "fixed bottom-0 left-0 right-0 h-[88px] w-full glass-panel border-t-0 border-l-0 border-r-0 border-b-0 rounded-t-none md:rounded-b-none md:rounded-t-none z-50 flex flex-col justify-center px-6 md:px-8 bg-black/20";
@@ -177,7 +178,6 @@ const PlayerControls: React.FC<PlayerControlsProps> = ({
 
         {/* Volume & Extras */}
         <div className="flex items-center justify-end gap-4 w-1/3 z-20">
-           {/* Lyrics Button */}
            <button 
               onClick={onOpenLyrics} 
               className="text-white/40 hover:text-white transition-colors p-2 rounded-full hover:bg-white/5"
