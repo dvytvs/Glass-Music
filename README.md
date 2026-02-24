@@ -29,7 +29,7 @@
 
 
 ### ✨ Магия метаданных (Magic API)
-Забудьте о ручном вводе тегов. Встроенный редактор оснащен кнопкой **"✨ Магия API"**, которая через интеграцию с YouTube Music API автоматически находит:
+Забудьте о ручном вводе тегов. Встроенный редактор оснащен кнопкой **"✨ Магия API"**, которая через интеграцию с Dezer API автоматически находит:
 - Оригинальные обложки в высоком качестве.
 - Правильные имена артистов и названия альбомов.
 - Год выпуска и жанры.
@@ -63,7 +63,7 @@
 Our pride is the UI engine featuring deep multi-layered blurring (24px+), dynamic saturation (180%), and GPU hardware acceleration. The interface feels alive and "deep," adapting to the current track's artwork.
 
 ### ✨ Metadata Magic (Magic API)
-Forget about manual tag entry. The built-in editor features a **"✨ Magic API"** button that leverages YouTube Music API integration to automatically find:
+Forget about manual tag entry. The built-in editor features a **"✨ Magic API"** button that leverages Dezer API integration to automatically find:
 - High-quality original cover art.
 - Correct artist names and album titles.
 - Release year and genres.
