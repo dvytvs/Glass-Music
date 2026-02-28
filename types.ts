@@ -10,11 +10,10 @@ export interface Track {
   path?: string;
   year?: string;
   isLiked?: boolean;
-  source?: 'local' | 'web' | 'youtube';
+  source?: 'local' | 'web';
   lyrics?: string;
   playCount?: number;
   addedAt?: number;
-  youtubeId?: string;
 }
 
 export enum PlaybackState {

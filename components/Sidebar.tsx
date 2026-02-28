@@ -32,7 +32,7 @@ const Sidebar: React.FC<SidebarProps> = ({
 
   return (
     <div 
-      className={`h-full flex flex-col glass-sidebar z-20 relative transition-all duration-500 ease-[cubic-bezier(0.32,0.72,0,1)] overflow-hidden ${
+      className={`h-full flex flex-col ${enableGlass ? 'glass-sidebar' : 'bg-black border-r border-white/10'} z-20 relative transition-all duration-500 ease-[cubic-bezier(0.32,0.72,0,1)] overflow-hidden ${
         isOpen ? 'w-64 pt-6 pb-4 px-4 opacity-100 translate-x-0' : 'w-0 pt-6 pb-4 px-0 opacity-0 -translate-x-10'
       }`}
     >
@@ -41,96 +41,104 @@ const Sidebar: React.FC<SidebarProps> = ({
         {/* User Profile Block */}
         <button 
           onClick={onProfileClick}
-          className="flex items-center gap-3 px-4 py-3 mb-6 rounded-2xl hover:bg-white/5 active:scale-95 transition-all group"
+          className="flex items-center gap-3 px-3 py-2.5 mb-8 rounded-2xl hover:bg-white/5 active:scale-95 transition-all group border border-transparent hover:border-white/5"
         >
-          <div className="w-10 h-10 rounded-full bg-white/10 flex-shrink-0 overflow-hidden border border-white/10 shadow-lg">
+          <div className="w-10 h-10 rounded-full bg-gradient-to-br from-white/10 to-white/5 flex-shrink-0 overflow-hidden border border-white/10 shadow-xl relative">
             {user.avatarUrl ? (
               <img src={user.avatarUrl} className="w-full h-full object-cover" />
             ) : (
-              <div className="w-full h-full flex items-center justify-center text-white/30">
+              <div className="w-full h-full flex items-center justify-center text-white/20">
                 <User className="w-5 h-5" />
               </div>
             )}
+            <div className="absolute inset-0 bg-black/20 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+              <Settings className="w-3 h-3 text-white" />
+            </div>
           </div>
           <div className="flex flex-col items-start min-w-0">
-            <span className="text-sm font-bold text-white truncate group-hover:text-[var(--accent)] transition-colors" style={{ '--accent': accentColor } as any}>
-              {user.name || 'Настроить профиль'}
+            <span className="text-sm font-bold text-white/90 truncate group-hover:text-white transition-all animate-fade-in" key={user.name}>
+              {user.name || 'Слушатель'}
             </span>
-            <span className="text-[10px] text-white/30 uppercase tracking-widest font-bold">Профиль</span>
+            <span className="text-[9px] text-white/30 uppercase tracking-[0.2em] font-black">Premium</span>
           </div>
         </button>
 
-        <div className="px-4 mb-6">
+        <div className="px-1 mb-8">
           <div className="relative group">
-            <Search className="absolute left-3 top-2.5 w-4 h-4 text-white/50 group-focus-within:text-white/90 transition-colors" />
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-white/30 group-focus-within:text-white/70 transition-colors" />
             <input 
               type="text" 
-              placeholder="Поиск" 
+              placeholder="Поиск музыки..." 
               value={searchQuery}
               onChange={handleSearch}
-              className="w-full glass-input rounded-xl py-2 pl-10 pr-4 text-sm text-white placeholder-white/40"
+              className="w-full bg-white/[0.03] border border-white/5 rounded-xl py-2 pl-9 pr-4 text-xs text-white placeholder-white/20 focus:bg-white/[0.06] focus:border-white/10 transition-all outline-none"
             />
           </div>
         </div>
 
-        <nav className="flex-1 space-y-1 overflow-y-auto custom-scrollbar">
-          <div className="mb-6">
-            <h3 className="px-4 text-xs font-semibold text-white/40 uppercase tracking-wider mb-2">Glass Music</h3>
-            <NavItem 
-              icon={<Play className="w-4 h-4 fill-current" />} 
-              label="Слушать" 
-              active={currentView === 'listen_now'} 
-              onClick={() => onChangeView('listen_now')}
-              accentColor={accentColor}
-            />
+        <nav className="flex-1 space-y-8 overflow-y-auto custom-scrollbar pr-2">
+          <div>
+            <h3 className="px-4 text-[10px] font-black text-white/20 uppercase tracking-[0.3em] mb-4">Главная</h3>
+            <div className="space-y-1">
+              <NavItem 
+                icon={<Play className="w-4 h-4 fill-current" />} 
+                label="Слушать" 
+                active={currentView === 'listen_now'} 
+                onClick={() => onChangeView('listen_now')}
+                accentColor={accentColor}
+              />
+            </div>
           </div>
 
-          <div className="mb-6">
-            <h3 className="px-4 text-xs font-semibold text-white/40 uppercase tracking-wider mb-2">Медиатека</h3>
-            <NavItem 
-              icon={<Heart className="w-4 h-4" />} 
-              label="Избранное" 
-              active={currentView === 'favorites'}
-              onClick={() => onChangeView('favorites')}
-              accentColor={accentColor}
-            />
-            <NavItem 
-              icon={<Disc className="w-4 h-4" />} 
-              label="Альбомы" 
-              active={currentView === 'albums'}
-              onClick={() => onChangeView('albums')}
-              accentColor={accentColor}
-            />
-            <NavItem 
-              icon={<Mic2 className="w-4 h-4" />} 
-              label="Артисты" 
-              active={currentView === 'artists'}
-              onClick={() => onChangeView('artists')}
-              accentColor={accentColor}
-            />
-            <NavItem 
-              icon={<ListMusic className="w-4 h-4" />} 
-              label="Песни" 
-              active={currentView === 'songs'}
-              onClick={() => onChangeView('songs')}
-              accentColor={accentColor}
-            />
+          <div>
+            <h3 className="px-4 text-[10px] font-black text-white/20 uppercase tracking-[0.3em] mb-4">Медиатека</h3>
+            <div className="space-y-1">
+              <NavItem 
+                icon={<Heart className="w-4 h-4" />} 
+                label="Избранное" 
+                active={currentView === 'favorites'}
+                onClick={() => onChangeView('favorites')}
+                accentColor={accentColor}
+              />
+              <NavItem 
+                icon={<Disc className="w-4 h-4" />} 
+                label="Альбомы" 
+                active={currentView === 'albums'}
+                onClick={() => onChangeView('albums')}
+                accentColor={accentColor}
+              />
+              <NavItem 
+                icon={<Mic2 className="w-4 h-4" />} 
+                label="Артисты" 
+                active={currentView === 'artists'}
+                onClick={() => onChangeView('artists')}
+                accentColor={accentColor}
+              />
+              <NavItem 
+                icon={<ListMusic className="w-4 h-4" />} 
+                label="Песни" 
+                active={currentView === 'songs'}
+                onClick={() => onChangeView('songs')}
+                accentColor={accentColor}
+              />
+            </div>
           </div>
         </nav>
 
-        <div className="mt-auto px-2 space-y-3">
+        <div className="mt-auto pt-6 space-y-2">
           <button 
             onClick={onImportClick}
-            className="w-full py-3 px-4 rounded-xl text-white font-medium text-sm flex items-center justify-center gap-2 transition-all glass-button"
-            style={enableGlass ? { backgroundColor: `${accentColor}40`, borderColor: `${accentColor}60` } : {}}
+            className="w-full py-3 px-4 rounded-xl text-white font-bold text-xs flex items-center justify-center gap-2 transition-all glass-button border-white/5 hover:border-white/10"
+            style={{ background: `linear-gradient(135deg, ${accentColor}30, ${accentColor}10)` }}
           >
+            <Music className="w-3.5 h-3.5" />
             <span>Импорт файлов</span>
           </button>
           <button 
             onClick={onSettingsClick}
-            className="w-full py-2.5 px-4 rounded-xl text-white/60 hover:text-white font-medium text-sm flex items-center justify-center gap-2 transition-all glass-button"
+            className="w-full py-2.5 px-4 rounded-xl text-white/40 hover:text-white font-bold text-xs flex items-center justify-center gap-2 transition-all hover:bg-white/5"
           >
-            <Settings className="w-4 h-4" />
+            <Settings className="w-3.5 h-3.5" />
             <span>Настройки</span>
           </button>
         </div>
@@ -142,13 +150,13 @@ const Sidebar: React.FC<SidebarProps> = ({
 const NavItem: React.FC<{ icon: React.ReactNode; label: string; active?: boolean; onClick: () => void; accentColor: string }> = ({ icon, label, active, onClick, accentColor }) => (
   <button 
     onClick={onClick}
-    className={`w-full flex items-center gap-3 px-4 py-2.5 rounded-lg text-sm font-medium transition-all duration-200 ${
+    className={`w-full flex items-center gap-3 px-4 py-2 rounded-xl text-[13px] font-semibold transition-all duration-300 group ${
     active 
-      ? 'active-nav-glass text-white scale-[1.02]' 
-      : 'text-white/60 hover:text-white hover:bg-white/5'
+      ? 'bg-white/10 text-white shadow-lg shadow-black/20' 
+      : 'text-white/40 hover:text-white/80 hover:bg-white/[0.03]'
   }`}
   >
-    <span style={{ color: active ? accentColor : 'currentColor' }}>{icon}</span>
+    <span className={`transition-transform duration-300 ${active ? 'scale-110' : 'group-hover:scale-110'}`} style={{ color: active ? accentColor : 'inherit' }}>{icon}</span>
     {label}
   </button>
 );

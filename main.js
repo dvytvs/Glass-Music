@@ -1,22 +1,11 @@
-
 const { app, BrowserWindow, ipcMain } = require('electron');
 const path = require('path');
 const fs = require('fs');
 
-// Configs
-const LASTFM_API_KEY = '832c52267b9e19bcde175057e7c3a6fa';
-const LASTFM_BASE_URL = 'https://ws.audioscrobbler.com/2.0/';
-const DEEZER_BASE_URL = 'https://api.deezer.com/search';
-
-// Список известных хэшей заглушек Last.fm (звезды на сером фоне)
-const LFM_PLACEHOLDERS = [
-    '2a96cbd8b46e442fc41c2b86b821562f',
-    '412fc41c2b86b821562f',
-    '03831777-62f3-424d-97e3-a62d77d12f3e'
-];
+let mainWindow;
 
 function createWindow() {
-    const mainWindow = new BrowserWindow({
+    mainWindow = new BrowserWindow({
         width: 1280,
         height: 800,
         minWidth: 1000,
@@ -32,17 +21,16 @@ function createWindow() {
     });
 
     mainWindow.setMenuBarVisibility(false);
-    const startUrl = 'http://localhost:3000';
     
     if (process.env.npm_lifecycle_event === 'electron:dev') {
-        setTimeout(() => {
-            mainWindow.loadURL(startUrl).catch(() => {
-                mainWindow.loadURL('http://localhost:3001');
-            });
-        }, 500); 
+        mainWindow.loadURL('http://127.0.0.1:3000');
     } else {
         mainWindow.loadFile(path.join(__dirname, 'dist', 'index.html'));
     }
+
+    mainWindow.on('closed', () => {
+        mainWindow = null;
+    });
 }
 
 const userDataPath = app.getPath('userData');
@@ -66,82 +54,107 @@ ipcMain.handle('get-local-data', async (e, { key }) => {
     } catch (err) { return null; }
 });
 
-// ПОИСК МЕТАДАННЫХ ТРЕКА (Deezer API)
 ipcMain.handle('get-metadata', async (e, query) => {
     try {
-        console.log(`[Deezer Search] Ищем трек: ${query}`);
-        const res = await fetch(`${DEEZER_BASE_URL}?q=${encodeURIComponent(query)}&limit=5`);
+        const res = await fetch(`https://api.deezer.com/search?q=${encodeURIComponent(query)}&limit=5`);
         const data = await res.json();
-        
         if (data.data && data.data.length > 0) {
-            // Ищем лучшее совпадение
-            const track = data.data[0];
+            const trackShort = data.data[0];
+            
+            // Fetch full track details for contributors and album details for year
+            const [trackRes, albumRes] = await Promise.all([
+                fetch(`https://api.deezer.com/track/${trackShort.id}`),
+                fetch(`https://api.deezer.com/album/${trackShort.album.id}`)
+            ]);
+            
+            const trackFull = await trackRes.json();
+            const albumFull = await albumRes.json();
+            
+            // Handle multiple artists
+            let artistName = trackFull.artist.name;
+            if (trackFull.contributors && trackFull.contributors.length > 1) {
+                artistName = trackFull.contributors.map(c => c.name).join(', ');
+            }
+            
             return {
-                title: track.title,
-                artist: track.artist.name,
-                album: track.album.title,
-                cover: track.album.cover_xl || track.album.cover_big || track.album.cover_medium
+                title: trackFull.title,
+                artist: artistName,
+                album: trackFull.album.title,
+                cover: trackFull.album.cover_xl || trackFull.album.cover_big,
+                year: albumFull.release_date ? albumFull.release_date.substring(0, 4) : ""
             };
         }
         return null;
     } catch (err) { 
-        console.error('[Deezer Error]:', err.message);
+        console.error("Metadata fetch error:", err);
         return null; 
     }
 });
 
-// ПОИСК АРТИСТА (Deezer для Фото + Last.fm для Био)
 ipcMain.handle('get-artist-metadata', async (e, artistName) => {
     let result = { avatar: null, banner: null, bio: "" };
     const cleanName = artistName.trim();
     if (!cleanName || cleanName.toLowerCase() === 'неизвестный артист') return null;
 
+    // 1. Fetch from Deezer (Images)
     try {
-        // 1. Ищем фото в Deezer
         const dzRes = await fetch(`https://api.deezer.com/search/artist?q=${encodeURIComponent(cleanName)}&limit=10`);
         const dzData = await dzRes.json();
-        
         if (dzData.data && dzData.data.length > 0) {
-            // Пытаемся найти максимально точное совпадение по имени
-            const exactMatch = dzData.data.find(a => a.name.toLowerCase() === cleanName.toLowerCase()) || dzData.data[0];
-            result.avatar = exactMatch.picture_xl || exactMatch.picture_big;
-            result.banner = result.avatar;
+            // Try to find exact match first
+            const exactMatch = dzData.data.find(a => a.name.toLowerCase() === cleanName.toLowerCase());
+            const artist = exactMatch || dzData.data[0];
+            result.avatar = artist.picture_xl || artist.picture_big;
+            result.banner = result.avatar; // Deezer doesn't have explicit banners in search
         }
+    } catch (err) { console.error("Deezer error:", err); }
 
-        // 2. Ищем биографию в Last.fm
-        const lfmUrl = `${LASTFM_BASE_URL}?method=artist.getinfo&artist=${encodeURIComponent(cleanName)}&api_key=${LASTFM_API_KEY}&format=json`;
-        const lfmRes = await fetch(lfmUrl);
-        const lfmData = await lfmRes.json();
-
-        if (lfmData.artist) {
-            const artist = lfmData.artist;
-            result.bio = (artist.bio?.summary || "").replace(/<a\b[^>]*>(.*?)<\/a>/gi, "").trim();
+    // 2. Fetch from Last.fm (Bio)
+    try {
+        const apiKey = process.env.LASTFM_API_KEY || '832c52267b9e19bcde175057e7c3a6fa';
+        console.log(`[Main] Fetching Last.fm bio for: ${cleanName}`);
+        const lfRes = await fetch(`https://ws.audioscrobbler.com/2.0/?method=artist.getinfo&artist=${encodeURIComponent(cleanName)}&api_key=${apiKey}&format=json`);
+        const lfData = await lfRes.json();
+        
+        if (lfData.error) {
+            console.error(`[Main] Last.fm API error: ${lfData.message} (Code: ${lfData.error})`);
+        } else if (lfData.artist && lfData.artist.bio) {
+            const bioData = lfData.artist.bio;
+            let bio = bioData.content || bioData.summary || "";
             
-            // Резервное фото из Last.fm если Deezer пустой (с фильтром звезд)
-            if (!result.avatar) {
-                const images = artist.image || [];
-                const bestImg = images.find(i => i.size === 'mega' || i.size === 'extralarge');
-                const url = bestImg ? bestImg['#text'] : null;
-                const isPlaceholder = url && LFM_PLACEHOLDERS.some(p => url.includes(p));
-                
-                if (url && !isPlaceholder && url.startsWith('http')) {
-                    result.avatar = url;
-                    result.banner = url;
-                }
+            // 1. Strip HTML tags
+            bio = bio.replace(/<[^>]*>?/gm, '');
+            
+            // 2. Decode common HTML entities
+            bio = bio.replace(/&quot;/g, '"')
+                     .replace(/&amp;/g, '&')
+                     .replace(/&lt;/g, '<')
+                     .replace(/&gt;/g, '>')
+                     .replace(/&apos;/g, "'")
+                     .replace(/&nbsp;/g, ' ');
+
+            // 3. Clean up Last.fm specific footers
+            bio = bio.replace(/User-contributed text is available under the Creative Commons By-SA License; additional terms may apply\./g, '');
+            bio = bio.replace(/Read more on Last\.fm.*/gi, '');
+            
+            result.bio = bio.trim();
+            
+            // If bio is still just a "Read more" or similar link-like text, clear it
+            if (result.bio.toLowerCase().includes('last.fm/music') && result.bio.length < 100) {
+                result.bio = "";
+            }
+
+            console.log(`[Main] Bio for ${cleanName}: ${result.bio ? result.bio.substring(0, 50) + '...' : 'EMPTY'}`);
+            
+            // If Deezer failed, try Last.fm for image
+            if (!result.avatar && lfData.artist.image) {
+                const img = lfData.artist.image.find(i => i.size === 'mega' || i.size === 'extralarge');
+                if (img) result.avatar = img['#text'];
             }
         }
+    } catch (err) { console.error("Last.fm error:", err); }
 
-        if (result.avatar) {
-            console.log(`[OK] Найдено лицо для: ${cleanName}`);
-        } else {
-            console.log(`[NOT FOUND] Нет фото для: ${cleanName}`);
-        }
-
-        return (result.avatar || result.bio) ? result : null;
-    } catch (err) { 
-        console.error(`[IPC Error] ${cleanName}:`, err.message);
-        return null; 
-    }
+    return (result.avatar || result.bio) ? result : null;
 });
 
 app.whenReady().then(createWindow);

@@ -25,16 +25,13 @@ const Background: React.FC<BackgroundProps> = React.memo(({ config }) => {
 
   return (
     <div className="fixed inset-0 z-0 overflow-hidden pointer-events-none transform-gpu">
-      {config.backgroundType === 'liquid' ? (
-         // Use a wrapper to allow index.css to hide just the liquid parts if needed, 
-         // though conditional logic here is better for React cleanliness.
-         // index.css .no-glass .liquid-bg handles hidden.
-         <div className="liquid-bg">
-           <div className="blob w-96 h-96 rounded-full top-0 left-0 mix-blend-screen opacity-40" style={{ backgroundColor: config.accentColor }}></div>
-           <div className="blob bg-blue-600 w-96 h-96 rounded-full bottom-0 right-0 mix-blend-screen opacity-40 animation-delay-2000"></div>
-           <div className="blob bg-purple-600 w-80 h-80 rounded-full top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 mix-blend-screen opacity-30 animation-delay-4000"></div>
-         </div>
-      ) : config.backgroundType === 'image' && config.backgroundSource ? (
+      {config.backgroundType === 'liquid' && config.enableGlass ? (
+          <div className="liquid-bg relative w-full h-full overflow-hidden" style={mediaStyle}>
+            <div className="blob w-[800px] h-[800px] rounded-full top-[-200px] left-[-200px] mix-blend-screen opacity-20 blur-[100px] animate-blob" style={{ backgroundColor: config.accentColor }}></div>
+            <div className="blob bg-blue-600 w-[600px] h-[600px] rounded-full bottom-[-100px] right-[-100px] mix-blend-screen opacity-20 blur-[100px] animate-blob animation-delay-2000"></div>
+            <div className="blob bg-purple-600 w-[700px] h-[700px] rounded-full top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 mix-blend-screen opacity-15 blur-[100px] animate-blob animation-delay-4000"></div>
+          </div>
+      ) : (config.backgroundType === 'image' || (config.backgroundType === 'liquid' && !config.enableGlass)) && config.backgroundSource ? (
           <img 
               src={config.backgroundSource} 
               className="w-full h-full object-cover transition-opacity duration-500"

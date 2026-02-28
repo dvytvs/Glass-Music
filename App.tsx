@@ -9,7 +9,6 @@ import ProfileModal from './components/ProfileModal';
 import OnboardingModal from './components/OnboardingModal';
 import Background from './components/Background';
 import SnowEffect from './components/SnowEffect';
-import YouTubePlayer from './components/YouTubePlayer';
 import { Track, PlaybackState, PlayerState, ViewType, ThemeConfig, ArtistMetadata, UserProfile } from './types';
 import { generateMockCover, parseFileMetadata, sortTracks, fetchLyricsFromLRCLIB } from './utils';
 
@@ -51,8 +50,6 @@ const App: React.FC = () => {
   const [previousView, setPreviousView] = useState<ViewType>('songs');
   const [isLoaded, setIsLoaded] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
-  const [youtubeResults, setYoutubeResults] = useState<Track[]>([]);
-  const [isSearchingYoutube, setIsSearchingYoutube] = useState(false);
   const [theme, setTheme] = useState<ThemeConfig>(DEFAULT_THEME);
 
   const [playerState, setPlayerState] = useState<PlayerState>({
@@ -62,8 +59,6 @@ const App: React.FC = () => {
   });
 
   const audioRef = useRef<HTMLAudioElement>(new Audio());
-  const ytPlayerRef = useRef<any>(null);
-  const [isYtVisible, setIsYtVisible] = useState(false);
   
   const shuffledQueueRef = useRef<string[]>([]);
   const historyRef = useRef<string[]>([]);
@@ -130,50 +125,7 @@ const App: React.FC = () => {
     });
   }, []);
 
-  const handleYoutubeSearch = async (query: string) => {
-    if (!query.trim()) {
-      setYoutubeResults([]);
-      return;
-    }
-
-    const apiKey = "AIzaSyBORT9DPb8OmS4truHiiFocyUOPIJukl9s";
-    if (!apiKey) {
-      console.warn("YOUTUBE_API_KEY is not set. YouTube search will not work.");
-      return;
-    }
-
-    setIsSearchingYoutube(true);
-    try {
-      const response = await fetch(
-        `https://www.googleapis.com/youtube/v3/search?part=snippet&q=${encodeURIComponent(
-          query
-        )}&type=video&videoCategoryId=10&maxResults=10&key=${apiKey}`
-      );
-      const data = await response.json();
-      
-      if (data.items) {
-        const results: Track[] = data.items.map((item: any) => ({
-          id: `yt-${item.id.videoId}`,
-          youtubeId: item.id.videoId,
-          title: item.snippet.title,
-          artist: item.snippet.channelTitle,
-          album: "YouTube",
-          duration: 0,
-          coverUrl: item.snippet.thumbnails.high?.url || item.snippet.thumbnails.default.url,
-          fileUrl: "",
-          source: 'youtube',
-          addedAt: Date.now()
-        }));
-        setYoutubeResults(results);
-      }
-    } catch (error) {
-      console.error("YouTube search error:", error);
-    } finally {
-      setIsSearchingYoutube(false);
-    }
-  };
-
-  const playTrackInternal = async (track: Track, addToHistory = true) => {
+  const playTrackInternal = useCallback(async (track: Track, addToHistory = true) => {
     const currentTrack = playerStateRef.current.currentTrack;
     if (addToHistory && currentTrack) {
         historyRef.current.push(currentTrack.id);
@@ -182,39 +134,39 @@ const App: React.FC = () => {
     }
 
     // Stop current playback
-    if (currentTrack?.source === 'youtube') {
-      if (ytPlayerRef.current?.pauseVideo) ytPlayerRef.current.pauseVideo();
-    } else {
-      audioRef.current.pause();
-    }
+    audioRef.current.pause();
 
     // Increment play count
-    if (track.source !== 'youtube') {
-      handleUpdateTrack(track.id, { playCount: (track.playCount || 0) + 1 });
-    }
+    handleUpdateTrack(track.id, { playCount: (track.playCount || 0) + 1 });
 
-    setIsYtVisible(track.source === 'youtube');
-
-    if (track.source === 'youtube') {
+    let src = track.fileUrl || (track.path ? `file://${track.path}` : null);
+    if (!src) return;
+    
+    const targetVolume = playerStateRef.current.volume;
+    const audio = audioRef.current;
+    
+    // Сбрасываем текущее время перед сменой источника
+    audio.currentTime = 0;
+    audio.src = src;
+    audio.volume = targetVolume;
+    
+    try {
+      await audio.play();
       setPlayerState(prev => ({ ...prev, currentTrack: track, playbackState: PlaybackState.PLAYING }));
-    } else {
-      let src = track.fileUrl || (track.path ? `file://${track.path}` : null);
-      if (!src) return;
-      
-      const targetVolume = playerStateRef.current.volume;
-      const audio = audioRef.current;
-      audio.src = src;
-      audio.volume = targetVolume;
-      
-      try {
-        await audio.play();
-        setPlayerState(prev => ({ ...prev, currentTrack: track, playbackState: PlaybackState.PLAYING }));
-      } catch (err) { 
-          console.error("Playback error:", err);
-          setPlayerState(prev => ({ ...prev, currentTrack: track, playbackState: PlaybackState.PAUSED }));
-      }
+    } catch (err) { 
+        console.error("Playback error:", err);
+        setPlayerState(prev => ({ ...prev, currentTrack: track, playbackState: PlaybackState.PAUSED }));
     }
-  };
+
+    // Fetch lyrics if needed
+    if (!track.lyrics) {
+      fetchLyricsFromLRCLIB(track.artist, track.title).then(lyrics => {
+        if (lyrics) {
+          handleUpdateTrack(track.id, { lyrics });
+        }
+      });
+    }
+  }, [handleUpdateTrack]);
 
   const handleNext = useCallback(() => {
     const activeQueue = queueRef.current.length > 0 ? queueRef.current : tracksRef.current;
@@ -259,10 +211,9 @@ const App: React.FC = () => {
 
   const handlePrev = useCallback(() => {
      const current = playerStateRef.current.currentTrack;
-     const currentTime = current?.source === 'youtube' ? playerStateRef.current.currentTime : audioRef.current.currentTime;
+     const currentTime = audioRef.current.currentTime;
      if (currentTime > 3) { 
-         if (current?.source === 'youtube') ytPlayerRef.current?.seekTo(0, true);
-         else audioRef.current.currentTime = 0; 
+         audioRef.current.currentTime = 0; 
          return; 
      }
 
@@ -291,12 +242,12 @@ const App: React.FC = () => {
     if (playerStateRef.current.currentTrack?.id === track.id) {
         const audio = audioRef.current;
         if (playerStateRef.current.playbackState === PlaybackState.PLAYING) {
-          if (track.source === 'youtube') ytPlayerRef.current?.pauseVideo();
-          else audio.pause();
+          // Spotify/YouTube pause handled by state
+          audio.pause();
           setPlayerState(prev => ({ ...prev, playbackState: PlaybackState.PAUSED }));
         } else {
-          if (track.source === 'youtube') ytPlayerRef.current?.playVideo();
-          else audio.play();
+          // Spotify/YouTube play handled by state
+          audio.play();
           setPlayerState(prev => ({ ...prev, playbackState: PlaybackState.PLAYING }));
         }
         return;
@@ -324,17 +275,23 @@ const App: React.FC = () => {
             setPlayerState(prev => ({ ...prev, duration: audio.duration }));
         }
     };
+    const onError = (e: any) => {
+        console.error("Audio element error:", audio.error);
+        setPlayerState(prev => ({ ...prev, playbackState: PlaybackState.PAUSED }));
+    };
     
     audio.addEventListener('ended', onEnded);
     audio.addEventListener('timeupdate', onTimeUpdate);
     audio.addEventListener('durationchange', onDurationChange);
     audio.addEventListener('loadedmetadata', onDurationChange);
+    audio.addEventListener('error', onError);
 
     return () => {
         audio.removeEventListener('ended', onEnded);
         audio.removeEventListener('timeupdate', onTimeUpdate);
         audio.removeEventListener('durationchange', onDurationChange);
         audio.removeEventListener('loadedmetadata', onDurationChange);
+        audio.removeEventListener('error', onError);
     };
   }, [handleNext]);
 
@@ -373,16 +330,36 @@ const App: React.FC = () => {
   }, [playerState.currentTrack?.id, handleUpdateTrack]);
 
   const handleUpdateTheme = (newConfig: Partial<ThemeConfig>) => setTheme(prev => ({ ...prev, ...newConfig }));
-  const handleUpdateArtist = (artist: string, data: Partial<ArtistMetadata>) => setArtistMetadata(prev => ({ ...prev, [artist]: { ...prev[artist], ...data } }));
+
+  const handleUpdateArtist = (artist: string, data: Partial<ArtistMetadata>, overwrite = false) => {
+    setArtistMetadata(prev => {
+        const existing = prev[artist] || {};
+        if (overwrite) return { ...prev, [artist]: { ...existing, ...data } };
+        
+        // Merge only missing fields
+        return { 
+            ...prev, 
+            [artist]: {
+                ...existing,
+                avatar: existing.avatar || data.avatar,
+                banner: existing.banner || data.banner,
+                bio: existing.bio || data.bio
+            }
+        };
+    });
+  };
 
   const handleGoToArtist = async (artist: string) => {
       setPreviousView(playerState.currentView);
       setSelectedArtist(artist);
       setPlayerState(prev => ({ ...prev, currentView: 'artist_detail' }));
-      if (isElectron() && !artistMetadata[artist]?.avatar) {
+      
+      // Fetch metadata if avatar OR bio is missing
+      const existingMeta = artistMetadata[artist];
+      if (isElectron() && (!existingMeta?.avatar || !existingMeta?.bio)) {
           const { ipcRenderer } = (window as any).require('electron');
           const meta = await ipcRenderer.invoke('get-artist-metadata', artist);
-          if (meta) handleUpdateArtist(artist, meta);
+          if (meta) handleUpdateArtist(artist, meta, false); // Use merge mode
       }
   };
 
@@ -397,7 +374,9 @@ const App: React.FC = () => {
     setTheme(prev => ({ ...prev, ...themeUpdate }));
   };
 
-  const handleSeek = (time: number) => { audioRef.current.currentTime = time; };
+  const handleSeek = (time: number) => { 
+    audioRef.current.currentTime = time; 
+  };
   const handleVolume = (vol: number) => { 
     audioRef.current.volume = vol; 
     setPlayerState(prev => ({ ...prev, volume: vol })); 
@@ -413,9 +392,21 @@ const App: React.FC = () => {
     });
   };
 
-  const handleToggleLike = (id: string) => {
-      const track = tracks.find(t => t.id === id);
-      if (track) handleUpdateTrack(id, { isLiked: !track.isLiked });
+  const handleToggleLike = (id: string, trackData?: Track) => {
+      const trackInLibrary = tracks.find(t => t.id === id);
+      if (trackInLibrary) {
+          handleUpdateTrack(id, { isLiked: !trackInLibrary.isLiked });
+      } else {
+          // Если трека нет в библиотеке (например, из поиска Spotify), добавляем его
+          const trackToAdd = trackData || (playerStateRef.current.currentTrack?.id === id ? playerStateRef.current.currentTrack : null);
+          if (trackToAdd) {
+              const newTrack = { ...trackToAdd, isLiked: true };
+              setTracks(prev => sortTracks([...prev, newTrack]));
+              if (playerStateRef.current.currentTrack?.id === id) {
+                  setPlayerState(prev => ({ ...prev, currentTrack: newTrack }));
+              }
+          }
+      }
   };
 
   const handleDeleteTrack = (id: string) => {
@@ -469,7 +460,7 @@ const App: React.FC = () => {
         isOpen={sidebarOpen} accentColor={theme.accentColor} searchQuery={searchQuery}
         onSearchChange={setSearchQuery} enableGlass={theme.enableGlass} user={userProfile}
       />
-      <div className={`flex-1 flex flex-col relative z-10 glass-panel border-y-0 border-r-0 rounded-l-3xl overflow-hidden shadow-2xl transition-all duration-500 ease-[cubic-bezier(0.32,0.72,0,1)] ${!sidebarOpen ? 'ml-0 rounded-l-none' : 'ml-2'}`}>
+      <div className={`flex-1 flex flex-col relative z-10 ${theme.enableGlass ? 'glass-panel' : 'bg-[#0a0a0a]'} border-y-0 border-r-0 rounded-l-3xl overflow-hidden shadow-2xl transition-all duration-500 ease-[cubic-bezier(0.32,0.72,0,1)] ${!sidebarOpen ? 'ml-0 rounded-l-none' : 'ml-2'}`}>
         <MainView 
           tracks={tracks} currentTrack={playerState.currentTrack} playbackState={playerState.playbackState}
           onPlay={handlePlay} onShuffleAll={(q) => { setPlayerState(prev => ({ ...prev, isShuffled: true, queue: q })); if (q[0]) handlePlay(q[0], q); }}
@@ -478,7 +469,7 @@ const App: React.FC = () => {
           onGoToAlbum={handleGoToAlbum} onBack={() => setPlayerState(prev => ({ ...prev, currentView: previousView }))}
           accentColor={theme.accentColor} artistMetadata={artistMetadata} onUpdateArtist={handleUpdateArtist}
           searchQuery={searchQuery} onRequestFileUnlock={() => { audioRef.current.pause(); audioRef.current.src = ""; }}
-          youtubeResults={youtubeResults} isSearchingYoutube={isSearchingYoutube} onYoutubeSearch={handleYoutubeSearch}
+          onToggleLike={handleToggleLike} enableGlass={theme.enableGlass}
         />
         <PlayerControls 
           currentTrack={playerState.currentTrack} playbackState={playerState.playbackState}
@@ -488,7 +479,7 @@ const App: React.FC = () => {
           onToggleShuffle={toggleShuffle} onToggleSidebar={() => setSidebarOpen(!sidebarOpen)}
           onToggleFullScreen={() => setFullScreenMode('cover')} onOpenLyrics={() => setFullScreenMode('lyrics')}
           onToggleLike={handleToggleLike} accentColor={theme.accentColor} onGoToArtist={handleGoToArtist}
-          onGoToAlbum={handleGoToAlbum} playerStyle={theme.playerStyle}
+          onGoToAlbum={handleGoToAlbum} playerStyle={theme.playerStyle} enableGlass={theme.enableGlass}
         />
       </div>
       {fullScreenMode !== 'none' && playerState.currentTrack && (
@@ -504,26 +495,6 @@ const App: React.FC = () => {
       )}
       <SettingsModal isOpen={settingsOpen} onClose={() => setSettingsOpen(false)} config={theme} onUpdate={handleUpdateTheme} onClearLibrary={handleClearLibrary} />
       <ProfileModal isOpen={profileOpen} onClose={() => setProfileOpen(false)} profile={userProfile} onUpdate={(data) => setUserProfile(prev => ({ ...prev, ...data }))} accentColor={theme.accentColor} />
-      <YouTubePlayer 
-        videoId={playerState.currentTrack?.youtubeId || null}
-        isPlaying={playerState.playbackState === PlaybackState.PLAYING && playerState.currentTrack?.source === 'youtube'}
-        volume={playerState.volume}
-        onReady={(player) => { ytPlayerRef.current = player; }}
-        onStateChange={(state) => {
-          if (state === 0) handleNext(); // 0 is ended
-        }}
-        onTimeUpdate={(time) => {
-          if (playerStateRef.current.currentTrack?.source === 'youtube') {
-            setPlayerState(prev => ({ ...prev, currentTime: time }));
-          }
-        }}
-        onDurationChange={(duration) => {
-          if (playerStateRef.current.currentTrack?.source === 'youtube') {
-            setPlayerState(prev => ({ ...prev, duration }));
-          }
-        }}
-        visible={isYtVisible}
-      />
       <input type="file" ref={fileInputRef} onChange={handleFileSelect} multiple accept="audio/*" className="hidden" />
     </div>
   );

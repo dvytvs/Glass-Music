@@ -28,6 +28,7 @@ interface PlayerControlsProps {
   onGoToArtist: (artist: string) => void;
   onGoToAlbum: (album: string) => void;
   playerStyle?: 'floating' | 'classic'; // Added prop
+  enableGlass?: boolean;
 }
 
 const ARTIST_SPLIT_REGEX = /\s*(?:,|;|feat\.?|ft\.?|&|\/|featuring)\s+/i;
@@ -52,7 +53,8 @@ const PlayerControls: React.FC<PlayerControlsProps> = ({
   accentColor,
   onGoToArtist,
   onGoToAlbum,
-  playerStyle = 'classic' // Default if not provided
+  playerStyle = 'classic', // Default if not provided
+  enableGlass = true
 }) => {
   const isPlaying = playbackState === PlaybackState.PLAYING;
   const progressPercent = duration ? (currentTime / duration) * 100 : 0;
@@ -75,88 +77,88 @@ const PlayerControls: React.FC<PlayerControlsProps> = ({
   };
 
   const containerClasses = isFloating 
-    ? "fixed bottom-6 left-6 right-6 h-[88px] rounded-3xl glass-panel z-50 flex flex-col justify-center px-6 md:px-8 shadow-2xl transition-all duration-300 mx-auto max-w-screen-2xl border border-white/10"
-    : "fixed bottom-0 left-0 right-0 h-[88px] w-full glass-panel border-t-0 border-l-0 border-r-0 border-b-0 rounded-t-none md:rounded-b-none md:rounded-t-none z-50 flex flex-col justify-center px-6 md:px-8 bg-black/20";
+    ? `fixed bottom-8 left-1/2 -translate-x-1/2 w-[95%] max-w-5xl h-[100px] rounded-[32px] ${enableGlass ? 'glass-panel' : 'bg-[#1c1c1e]'} z-50 flex flex-col justify-center px-8 shadow-[0_30px_60px_rgba(0,0,0,0.5)] transition-all duration-500 border border-white/10 hover:border-white/20`
+    : `fixed bottom-0 left-0 right-0 h-[100px] w-full ${enableGlass ? 'glass-panel bg-black/40 backdrop-blur-3xl' : 'bg-black'} border-t border-white/5 z-50 flex flex-col justify-center px-8`;
 
   return (
     <div className={containerClasses}>
       
-      <div className="flex items-center justify-between h-full w-full gap-4">
+      <div className="flex items-center justify-between h-full w-full gap-8">
         
         {/* Track Info */}
-        <div className="flex items-center gap-4 w-1/3 min-w-[200px] z-20">
+        <div className="flex items-center gap-5 w-1/3 min-w-[240px] z-20">
           {currentTrack ? (
             <>
               <div 
-                className="w-12 h-12 rounded-lg overflow-hidden shadow-lg relative group cursor-pointer flex-shrink-0 border border-white/10"
+                className="w-14 h-14 rounded-2xl overflow-hidden shadow-2xl relative group cursor-pointer flex-shrink-0 border border-white/10 transition-transform duration-500 hover:scale-105"
                 onClick={onToggleFullScreen}
               >
                 <img src={currentTrack.coverUrl} alt="Album Art" className="w-full h-full object-cover" />
-                <div className="absolute inset-0 bg-black/40 hidden group-hover:flex items-center justify-center transition-all">
+                <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-all backdrop-blur-[2px]">
                   <Maximize2 className="w-5 h-5 text-white" />
                 </div>
               </div>
               <div className="flex flex-col overflow-hidden">
                 <span 
-                  className="text-sm font-semibold text-white truncate hover:underline cursor-pointer drop-shadow-sm"
+                  className="text-[15px] font-black text-white truncate hover:text-white/80 cursor-pointer transition-colors tracking-tight"
                   onClick={() => onGoToAlbum(currentTrack.album)}
                 >
                   {currentTrack.title}
                 </span>
-                <span className="text-xs text-white/50 truncate">
+                <span className="text-[12px] text-white/40 truncate font-bold tracking-tight">
                    {renderArtists(currentTrack.artist)}
                 </span>
               </div>
               <button 
                 onClick={() => onToggleLike(currentTrack.id)}
-                className={`transition-colors ml-2 hover:scale-110 active:scale-95 p-1.5 rounded-full hover:bg-white/10 ${currentTrack.isLiked ? '' : 'text-white/30 hover:text-white'}`}
+                className={`transition-all ml-2 hover:scale-125 active:scale-90 p-2 rounded-xl hover:bg-white/5 ${currentTrack.isLiked ? '' : 'text-white/20 hover:text-white'}`}
                 style={{ color: currentTrack.isLiked ? accentColor : undefined }}
               >
                 <Heart className={`w-4 h-4 ${currentTrack.isLiked ? 'fill-current' : ''}`} />
               </button>
             </>
           ) : (
-            <div className="flex items-center gap-4 opacity-50">
-              <div className="w-12 h-12 rounded-lg bg-white/10 animate-pulse border border-white/5"></div>
+            <div className="flex items-center gap-5 opacity-30">
+              <div className="w-14 h-14 rounded-2xl bg-white/10 animate-pulse"></div>
               <div className="space-y-2">
-                <div className="h-3 w-24 bg-white/10 rounded animate-pulse"></div>
-                <div className="h-3 w-16 bg-white/10 rounded animate-pulse"></div>
+                <div className="h-3 w-32 bg-white/10 rounded-full animate-pulse"></div>
+                <div className="h-2 w-20 bg-white/10 rounded-full animate-pulse"></div>
               </div>
             </div>
           )}
         </div>
 
         {/* Center Controls */}
-        <div className="flex flex-col items-center justify-center w-1/3 gap-1 z-10 absolute left-1/2 -translate-x-1/2 md:relative md:left-auto md:translate-x-0">
-          <div className="flex items-center gap-6">
+        <div className="flex flex-col items-center justify-center flex-1 max-w-xl gap-2 z-10">
+          <div className="flex items-center gap-8">
             <button 
               onClick={onToggleShuffle}
-              className={`transition-colors p-2 rounded-full hover:bg-white/5 ${isShuffled ? '' : 'text-white/40 hover:text-white'}`}
+              className={`transition-all p-2 rounded-xl hover:bg-white/5 ${isShuffled ? '' : 'text-white/20 hover:text-white'}`}
               style={{ color: isShuffled ? accentColor : undefined }}
             >
               <Shuffle className="w-4 h-4" />
             </button>
-            <button onClick={onPrev} className="text-white hover:text-white/70 transition-colors p-1 hover:bg-white/5 rounded-full">
+            <button onClick={onPrev} className="text-white/40 hover:text-white transition-all p-2 hover:bg-white/5 rounded-xl active:scale-90">
               <SkipBack className="w-6 h-6 fill-current" />
             </button>
             <button 
               onClick={onPlayPause}
-              className="w-10 h-10 rounded-full bg-white flex items-center justify-center text-black hover:scale-105 transition-transform shadow-[0_0_20px_rgba(255,255,255,0.3)]"
+              className="w-12 h-12 rounded-2xl bg-white flex items-center justify-center text-black hover:scale-110 active:scale-90 transition-all shadow-[0_0_30px_rgba(255,255,255,0.2)]"
             >
-              {isPlaying ? <Pause className="w-5 h-5 fill-current" /> : <Play className="w-5 h-5 fill-current ml-0.5" />}
+              {isPlaying ? <Pause className="w-6 h-6 fill-current" /> : <Play className="w-6 h-6 fill-current ml-1" />}
             </button>
-            <button onClick={onNext} className="text-white hover:text-white/70 transition-colors p-1 hover:bg-white/5 rounded-full">
+            <button onClick={onNext} className="text-white/40 hover:text-white transition-all p-2 hover:bg-white/5 rounded-xl active:scale-90">
               <SkipForward className="w-6 h-6 fill-current" />
             </button>
-            <button className="text-white/40 hover:text-white transition-colors p-2 rounded-full hover:bg-white/5">
+            <button className="text-white/20 hover:text-white transition-all p-2 rounded-xl hover:bg-white/5">
               <Repeat className="w-4 h-4" />
             </button>
           </div>
           
-          <div className="w-full max-w-md flex items-center gap-2 text-xs text-white/40 font-medium font-mono mt-1">
-            <span className="w-8 text-right">{formatTime(currentTime)}</span>
+          <div className="w-full flex items-center gap-4 text-[10px] text-white/20 font-black tracking-widest mt-1">
+            <span className="w-10 text-right">{formatTime(currentTime)}</span>
             <div 
-              className="flex-1 h-1 bg-white/10 rounded-full cursor-pointer relative group"
+              className="flex-1 h-1.5 bg-white/5 rounded-full cursor-pointer relative group overflow-hidden"
               onClick={(e) => {
                 const rect = e.currentTarget.getBoundingClientRect();
                 const percent = (e.clientX - rect.left) / rect.width;
@@ -164,44 +166,47 @@ const PlayerControls: React.FC<PlayerControlsProps> = ({
               }}
             >
               <div 
-                className="absolute h-full bg-white/40 group-hover:bg-white/80 rounded-full backdrop-blur-sm" 
+                className="absolute h-full bg-white/20 group-hover:bg-white/40 rounded-full transition-colors" 
                 style={{ width: `${progressPercent}%` }}
               ></div>
               <div 
-                className="absolute h-3 w-3 bg-white rounded-full shadow-[0_0_10px_rgba(255,255,255,0.5)] opacity-0 group-hover:opacity-100 top-1/2 -translate-y-1/2 -ml-1.5 pointer-events-none transition-opacity"
-                style={{ left: `${progressPercent}%` }}
+                className="absolute h-full bg-white rounded-full shadow-[0_0_15px_rgba(255,255,255,0.5)]" 
+                style={{ width: `${progressPercent}%`, opacity: isPlaying ? 0.8 : 0.4 }}
               ></div>
             </div>
-            <span className="w-8">{formatTime(duration)}</span>
+            <span className="w-10">{formatTime(duration)}</span>
           </div>
         </div>
 
         {/* Volume & Extras */}
-        <div className="flex items-center justify-end gap-4 w-1/3 z-20">
+        <div className="flex items-center justify-end gap-3 w-1/3 z-20">
            <button 
               onClick={onOpenLyrics} 
-              className="text-white/40 hover:text-white transition-colors p-2 rounded-full hover:bg-white/5"
+              className="text-white/20 hover:text-white transition-all p-2.5 rounded-xl hover:bg-white/5"
               title="Текст"
            >
-              <Quote className="w-4 h-4 fill-current" />
+              <Quote className="w-4 h-4" />
            </button>
 
-           <button onClick={onToggleSidebar} className="text-white/40 hover:text-white transition-colors p-2 rounded-full hover:bg-white/5">
+           <button onClick={onToggleSidebar} className="text-white/20 hover:text-white transition-all p-2.5 rounded-xl hover:bg-white/5">
               <ListMusic className="w-4 h-4" />
             </button>
-            <div className="flex items-center gap-2 w-28 group">
-              <Volume2 className="w-4 h-4 text-white/60 group-hover:text-white transition-colors" />
-              <input 
-                type="range" 
-                min="0" 
-                max="1" 
-                step="0.01" 
-                value={volume}
-                onChange={(e) => onVolumeChange(parseFloat(e.target.value))}
-                className="w-full h-1 bg-white/10 rounded-full appearance-none cursor-pointer [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-3 [&::-webkit-slider-thumb]:h-3 [&::-webkit-slider-thumb]:bg-white [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:opacity-0 hover:[&::-webkit-slider-thumb]:opacity-100"
-              />
+            <div className="flex items-center gap-3 w-32 group ml-2">
+              <Volume2 className="w-4 h-4 text-white/20 group-hover:text-white transition-colors" />
+              <div className="relative flex-1 h-1.5 bg-white/5 rounded-full overflow-hidden cursor-pointer">
+                <input 
+                    type="range" 
+                    min="0" 
+                    max="1" 
+                    step="0.01" 
+                    value={volume}
+                    onChange={(e) => onVolumeChange(parseFloat(e.target.value))}
+                    className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10"
+                />
+                <div className="absolute h-full bg-white/20 group-hover:bg-white/40 transition-colors" style={{ width: `${volume * 100}%` }}></div>
+              </div>
             </div>
-             <button className="text-white/40 transition-colors hidden sm:block hover:text-white p-2 rounded-full hover:bg-white/5" title="AirPlay Unavailable in Browser">
+             <button className="text-white/10 transition-all hidden sm:block hover:text-white p-2.5 rounded-xl hover:bg-white/5" title="AirPlay Unavailable in Browser">
               <Airplay className="w-4 h-4" />
             </button>
         </div>

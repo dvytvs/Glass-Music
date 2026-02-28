@@ -11,9 +11,10 @@
   "scripts": {
     "start": "npm run electron:dev",
     "dev": "vite",
+    "lint": "tsc --noEmit",
     "build": "tsc && vite build",
     "preview": "vite preview",
-    "electron:dev": "concurrently -k \"cross-env BROWSER=none npm run dev\" \"wait-on http://localhost:3000 && electron .\"",
+    "electron:dev": "concurrently -k \"cross-env BROWSER=none npm run dev\" \"wait-on http://127.0.0.1:3000 && electron .\"",
     "dist": "npm run build && electron-builder"
   },
   "dependencies": {
@@ -21,8 +22,7 @@
     "lucide-react": "^0.460.0",
     "node-id3": "^0.2.6",
     "react": "^18.2.0",
-    "react-dom": "^18.2.0",
-    "ytmusic-api": "^5.3.1"
+    "react-dom": "^18.2.0"
   },
   "devDependencies": {
     "@types/jsmediatags": "^3.9.6",

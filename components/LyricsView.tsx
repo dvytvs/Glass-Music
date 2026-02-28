@@ -44,9 +44,11 @@ const LyricsView: React.FC<LyricsViewProps> = ({ lyricsRaw, currentTime }) => {
 
   if (!lyricsRaw || lines.length === 0) {
     return (
-      <div className="w-full h-full flex flex-col items-center justify-center text-white/50 animate-fade-in-view">
-         <p className="text-2xl font-bold mb-2">Текст отсутствует</p>
-         <p className="text-sm text-center px-4">Добавьте текст в режиме редактирования трека. <br/>Поддерживается как обычный текст, так и LRC.</p>
+      <div className="w-full h-full flex flex-col items-center justify-center text-white/20 animate-fade-in">
+         <p className="text-4xl font-black tracking-tighter mb-4">Текст не найден</p>
+         <p className="text-sm font-bold uppercase tracking-widest opacity-50 text-center px-8 leading-loose">
+            Добавь текст в режиме редактирования трека. <br/>Поддерживается обычный текст и LRC.
+         </p>
       </div>
     );
   }
@@ -54,12 +56,12 @@ const LyricsView: React.FC<LyricsViewProps> = ({ lyricsRaw, currentTime }) => {
   // --- Plain Text View (Static Scroll) ---
   if (isPlainText) {
       return (
-        <div className="w-full h-full overflow-hidden relative mask-image-gradient">
-            <div className="w-full h-full overflow-y-auto custom-scrollbar px-6 py-12 space-y-4">
+        <div className="w-full h-full overflow-hidden relative">
+            <div className="w-full h-full overflow-y-auto custom-scrollbar px-10 py-24 space-y-8">
                 {lines.map((line, index) => (
                     <p 
                         key={index} 
-                        className="text-xl md:text-2xl font-medium text-white/90 leading-relaxed text-center hover:text-white transition-colors"
+                        className="text-3xl md:text-5xl font-black text-white/90 leading-tight text-center hover:text-white transition-all hover:scale-105 cursor-default tracking-tighter"
                     >
                         {line.text}
                     </p>
@@ -71,32 +73,30 @@ const LyricsView: React.FC<LyricsViewProps> = ({ lyricsRaw, currentTime }) => {
 
   // --- Synced View (LRC) ---
   return (
-    <div className="w-full h-full overflow-hidden relative mask-image-gradient">
+    <div className="w-full h-full overflow-hidden relative">
       <div 
         ref={containerRef}
-        className="w-full h-full overflow-y-auto custom-scrollbar px-4 py-[50vh] text-center space-y-8"
+        className="w-full h-full overflow-y-auto custom-scrollbar px-8 py-[45vh] text-center space-y-12"
       >
         {lines.map((line, index) => {
           const isActive = index === activeIndex;
-          // Calculate closeness for blur effect
           const distance = Math.abs(index - activeIndex);
-          const blur = isActive ? 0 : Math.min(distance * 1.5, 6);
-          const scale = isActive ? 1.1 : 1;
-          const opacity = isActive ? 1 : Math.max(0.3, 1 - distance * 0.2);
+          const blur = isActive ? 0 : Math.min(distance * 2, 10);
+          const scale = isActive ? 1.15 : 1;
+          const opacity = isActive ? 1 : Math.max(0.1, 1 - distance * 0.25);
 
           return (
             <div
               key={index}
               ref={isActive ? activeLineRef : null}
-              className="transition-all duration-500 ease-out origin-center"
+              className="transition-all duration-700 ease-out origin-center"
               style={{
                 transform: `scale(${scale})`,
                 opacity: opacity,
                 filter: `blur(${blur}px)`,
-                fontWeight: isActive ? 700 : 500,
               }}
             >
-              <p className="text-2xl md:text-4xl leading-relaxed cursor-pointer hover:opacity-80">
+              <p className={`text-4xl md:text-6xl leading-tight cursor-pointer tracking-tighter font-black ${isActive ? 'text-white drop-shadow-[0_0_30px_rgba(255,255,255,0.3)]' : 'text-white/40'}`}>
                 {line.text}
               </p>
             </div>

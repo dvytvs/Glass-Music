@@ -1,11 +1,22 @@
 
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=Outfit:wght@300;400;500;600;700;800&display=swap');
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
+:root {
+  --glass-bg: rgba(18, 18, 18, 0.4);
+  --glass-border: rgba(255, 255, 255, 0.08);
+  --accent-primary: #ffffff;
+  --accent-secondary: rgba(255, 255, 255, 0.6);
+  --card-bg: rgba(255, 255, 255, 0.03);
+  --card-hover: rgba(255, 255, 255, 0.08);
+}
+
 /* Custom Scrollbar - Apple Style */
 ::-webkit-scrollbar {
-  width: 6px;
+  width: 5px;
 }
 ::-webkit-scrollbar-track {
   background: transparent;
@@ -20,67 +31,86 @@
 
 body {
   @apply bg-black text-white antialiased;
-  font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "SF Pro Display", "Helvetica Neue", Arial, sans-serif;
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
   overflow: hidden;
   user-select: none;
 }
 
+h1, h2, h3, .font-display {
+  font-family: 'Outfit', sans-serif;
+}
+
 .glass-panel {
-  background: rgba(25, 25, 25, 0.4);
-  backdrop-filter: blur(50px) saturate(210%);
-  -webkit-backdrop-filter: blur(50px) saturate(210%);
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  box-shadow: 0 10px 40px 0 rgba(0, 0, 0, 0.5);
+  background: var(--glass-bg);
+  backdrop-filter: blur(40px) saturate(180%);
+  -webkit-backdrop-filter: blur(40px) saturate(180%);
+  border: 1px solid var(--glass-border);
+  transition: backdrop-filter 0.5s ease, background 0.5s ease, border-color 0.5s ease;
 }
 
 .glass-sidebar {
-  background: rgba(0, 0, 0, 0.45);
-  backdrop-filter: blur(60px) saturate(180%);
-  -webkit-backdrop-filter: blur(60px) saturate(180%);
+  background: rgba(0, 0, 0, 0.4);
+  backdrop-filter: blur(50px) saturate(150%);
+  -webkit-backdrop-filter: blur(50px) saturate(150%);
   border-right: 1px solid rgba(255, 255, 255, 0.05);
+  transition: backdrop-filter 0.5s ease, background 0.5s ease, border-color 0.5s ease;
 }
 
 .active-nav-glass {
-  background: rgba(255, 255, 255, 0.1);
-  backdrop-filter: blur(20px);
+  background: rgba(255, 255, 255, 0.08);
+  backdrop-filter: blur(10px);
   border: 1px solid rgba(255, 255, 255, 0.1);
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+  @apply shadow-lg;
+}
+
+.glass-card {
+  background: var(--card-bg);
+  border: 1px solid rgba(255, 255, 255, 0.05);
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  @apply rounded-2xl;
+}
+
+.glass-card:hover {
+  background: var(--card-hover);
+  border-color: rgba(255, 255, 255, 0.1);
+  transform: translateY(-4px);
+  @apply shadow-2xl shadow-black/50;
 }
 
 .glass-button {
   transition: all 300ms cubic-bezier(0.23, 1, 0.32, 1);
-  background: rgba(255, 255, 255, 0.06);
+  background: rgba(255, 255, 255, 0.05);
   backdrop-filter: blur(10px);
   border: 1px solid rgba(255, 255, 255, 0.05);
-  @apply rounded-xl;
+  @apply rounded-xl flex items-center justify-center;
 }
 
 .glass-button:hover {
-  background: rgba(255, 255, 255, 0.12);
-  transform: translateY(-2px);
-  box-shadow: 0 5px 15px rgba(0, 0, 0, 0.3);
+  background: rgba(255, 255, 255, 0.1);
+  transform: translateY(-1px);
+  border-color: rgba(255, 255, 255, 0.1);
 }
 
 .glass-button:active {
-  transform: translateY(0) scale(0.98);
+  transform: translateY(0) scale(0.97);
 }
 
 .glass-input {
-  background: rgba(255, 255, 255, 0.05);
-  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.08);
   transition: all 300ms ease;
-  @apply focus:ring-1 focus:ring-white/20 outline-none;
+  @apply rounded-xl px-4 py-2 focus:ring-1 focus:ring-white/20 outline-none;
+}
+
+.glass-input:focus {
+  background: rgba(255, 255, 255, 0.06);
+  border-color: rgba(255, 255, 255, 0.15);
 }
 
 /* Animations */
 @keyframes slideUp {
-  from { transform: translateY(30px); opacity: 0; }
+  from { transform: translateY(40px); opacity: 0; }
   to { transform: translateY(0); opacity: 1; }
-}
-
-@keyframes slideDown {
-  from { transform: translateY(0); opacity: 1; }
-  to { transform: translateY(100%); opacity: 0; }
 }
 
 @keyframes fadeIn {
@@ -88,72 +118,83 @@ body {
   to { opacity: 1; }
 }
 
-@keyframes zoomIn {
-  from { transform: scale(0.95); opacity: 0; }
+@keyframes fadeOut {
+  from { opacity: 1; }
+  to { opacity: 0; }
+}
+
+@keyframes scaleIn {
+  from { transform: scale(0.9); opacity: 0; }
   to { transform: scale(1); opacity: 1; }
 }
 
-@keyframes blobBounce {
-  0%, 100% { transform: translate(0, 0) scale(1); }
-  33% { transform: translate(30px, -50px) scale(1.1); }
-  66% { transform: translate(-20px, 20px) scale(0.9); }
+@keyframes float {
+  0% { transform: translateY(0px); }
+  50% { transform: translateY(-10px); }
+  100% { transform: translateY(0px); }
 }
 
-@keyframes fall {
-  0% { transform: translateY(-10vh) translateX(0); }
-  100% { transform: translateY(110vh) translateX(20px); }
+@keyframes blob {
+  0% { transform: translate(0px, 0px) scale(1); }
+  33% { transform: translate(30px, -50px) scale(1.1); }
+  66% { transform: translate(-20px, 20px) scale(0.9); }
+  100% { transform: translate(0px, 0px) scale(1); }
 }
 
 .animate-slide-up {
-  animation: slideUp 0.7s cubic-bezier(0.23, 1, 0.32, 1) forwards;
+  animation: slideUp 0.8s cubic-bezier(0.23, 1, 0.32, 1) forwards;
 }
 
-.animate-slide-down {
-  animation: slideDown 0.6s cubic-bezier(0.32, 0.72, 0, 1) forwards;
+.animate-fade-in {
+  animation: fadeIn 0.6s ease-out forwards;
 }
 
-.animate-fade-in-view {
-  animation: fadeIn 0.5s ease-out forwards;
+.animate-fade-out {
+  animation: fadeOut 0.4s ease-in forwards;
 }
 
-.animate-zoom-in {
-  animation: zoomIn 0.4s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
+.animate-scale-in {
+  animation: scaleIn 0.8s cubic-bezier(0.23, 1, 0.32, 1) forwards;
+}
+
+.animate-float {
+  animation: float 6s ease-in-out infinite;
+}
+
+.animate-blob {
+  animation: blob 15s infinite alternate ease-in-out;
+}
+
+.animate-spin-slow {
+  animation: spin 8s linear infinite;
+}
+
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
 }
 
 .liquid-bg {
   position: absolute;
   top: 0; left: 0; width: 100%; height: 100%;
   z-index: -1;
-  background: radial-gradient(circle at 50% 50%, #1c1c1e 0%, #000 100%);
+  background: #000;
   overflow: hidden;
 }
 
 .blob {
   position: absolute;
-  filter: blur(80px);
-  opacity: 0.35;
   will-change: transform;
-  animation: blobBounce 20s infinite alternate cubic-bezier(0.45, 0.05, 0.55, 0.95);
 }
-
-.animation-delay-2000 { animation-delay: 2s; }
-.animation-delay-4000 { animation-delay: 4s; }
 
 .mask-image-gradient {
-  -webkit-mask-image: linear-gradient(to bottom, transparent, black 15%, black 85%, transparent);
-  mask-image: linear-gradient(to bottom, transparent, black 15%, black 85%, transparent);
+  -webkit-mask-image: linear-gradient(to bottom, transparent, black 10%, black 90%, transparent);
+  mask-image: linear-gradient(to bottom, transparent, black 10%, black 90%, transparent);
 }
 
-/* Snowflake animation logic */
-.snowflake {
-  animation-timing-function: linear;
-  animation-iteration-count: infinite;
-}
-
-/* Smooth content transitions */
 .stagger-list > * {
   opacity: 0;
-  animation: slideUp 0.5s cubic-bezier(0.23, 1, 0.32, 1) forwards;
+  animation: slideUp 0.5s cubic-bezier(0.16, 1, 0.3, 1) forwards;
 }
 
 .stagger-list > *:nth-child(1) { animation-delay: 0.05s; }
@@ -162,3 +203,15 @@ body {
 .stagger-list > *:nth-child(4) { animation-delay: 0.2s; }
 .stagger-list > *:nth-child(5) { animation-delay: 0.25s; }
 .stagger-list > *:nth-child(6) { animation-delay: 0.3s; }
+
+.markdown-bio {
+  @apply text-white/70 leading-relaxed text-sm;
+}
+
+.markdown-bio p {
+  @apply mb-4;
+}
+
+.markdown-bio a {
+  @apply text-white underline decoration-white/30 underline-offset-4 transition-all hover:decoration-white;
+}
