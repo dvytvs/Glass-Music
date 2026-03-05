@@ -2,6 +2,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { X, Upload, Check, User, Image as ImageIcon } from './Icons';
 import { UserProfile } from '../types';
+import { TranslationKey } from '../translations';
 import { fileToDataURL } from '../utils';
 
 interface ProfileModalProps {
@@ -10,9 +11,10 @@ interface ProfileModalProps {
   profile: UserProfile;
   onUpdate: (data: Partial<UserProfile>) => void;
   accentColor: string;
+  t: (key: TranslationKey) => string;
 }
 
-const ProfileModal: React.FC<ProfileModalProps> = ({ isOpen, onClose, profile, onUpdate, accentColor }) => {
+const ProfileModal: React.FC<ProfileModalProps> = ({ isOpen, onClose, profile, onUpdate, accentColor, t }) => {
   const [tempProfile, setTempProfile] = useState<UserProfile>(profile);
   const avatarRef = useRef<HTMLInputElement>(null);
   const bannerRef = useRef<HTMLInputElement>(null);
@@ -43,17 +45,17 @@ const ProfileModal: React.FC<ProfileModalProps> = ({ isOpen, onClose, profile, o
   };
 
   return (
-    <div className="fixed inset-0 z-[150] flex items-center justify-center bg-black/80 backdrop-blur-2xl p-4 animate-fade-in">
+    <div className="fixed inset-0 z-[150] flex items-center justify-center bg-black/40 backdrop-blur-md p-4 animate-fade-in">
       <div 
-        className="w-full max-w-lg bg-[#0a0a0a]/80 border border-white/10 rounded-[40px] shadow-[0_40px_80px_rgba(0,0,0,0.8)] overflow-hidden animate-scale-in backdrop-blur-3xl flex flex-col"
+        className="w-full max-w-lg bg-[var(--bg-main)] border border-[var(--glass-border)] rounded-[40px] shadow-[0_40px_80px_rgba(0,0,0,0.4)] overflow-hidden animate-scale-in backdrop-blur-3xl flex flex-col"
         onClick={e => e.stopPropagation()}
       >
         {/* Banner Section */}
-        <div className="h-40 w-full relative group bg-neutral-900">
+        <div className="h-40 w-full relative group bg-[var(--card-bg)]">
           {tempProfile.bannerUrl ? (
             <img src={tempProfile.bannerUrl} className="w-full h-full object-cover" />
           ) : (
-            <div className="w-full h-full bg-gradient-to-br from-neutral-900 via-neutral-800 to-neutral-900" />
+            <div className="w-full h-full bg-gradient-to-br from-[var(--card-bg)] via-[var(--card-hover)] to-[var(--card-bg)]" />
           )}
           <div 
             className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-all flex items-center justify-center cursor-pointer backdrop-blur-[2px]"
@@ -69,11 +71,11 @@ const ProfileModal: React.FC<ProfileModalProps> = ({ isOpen, onClose, profile, o
         <div className="px-10 pb-10 -mt-16 relative z-10">
           {/* Avatar Section */}
           <div className="flex justify-center mb-8">
-            <div className="w-32 h-32 rounded-[40px] border-8 border-[#0a0a0a] bg-neutral-900 overflow-hidden relative group shadow-2xl">
+            <div className="w-32 h-32 rounded-[40px] border-8 border-[var(--bg-main)] bg-[var(--card-bg)] overflow-hidden relative group shadow-2xl">
               {tempProfile.avatarUrl ? (
                 <img src={tempProfile.avatarUrl} className="w-full h-full object-cover" />
               ) : (
-                <div className="w-full h-full flex items-center justify-center text-white/10">
+                <div className="w-full h-full flex items-center justify-center text-[var(--text-muted)]/10">
                   <User className="w-12 h-12" />
                 </div>
               )}
@@ -89,34 +91,34 @@ const ProfileModal: React.FC<ProfileModalProps> = ({ isOpen, onClose, profile, o
 
           <div className="space-y-8">
             <div className="text-center">
-                <h2 className="text-3xl font-black text-white tracking-tighter">Твой профиль</h2>
-                <p className="text-white/20 font-bold text-xs uppercase tracking-widest mt-2">Персонализация аккаунта</p>
+                <h2 className="text-3xl font-black text-[var(--text-main)] tracking-tighter">{t('profile')}</h2>
+                <p className="text-[var(--text-muted)] font-bold text-xs uppercase tracking-widest mt-2">{t('personalization')}</p>
             </div>
             
-            <div className="bg-white/[0.03] p-8 rounded-[32px] border border-white/5">
-              <label className="block text-[10px] font-black text-white/20 uppercase tracking-[0.3em] mb-4">Никнейм</label>
+            <div className="bg-[var(--card-bg)] p-8 rounded-[32px] border border-[var(--glass-border)]">
+              <label className="block text-[10px] font-black text-[var(--text-muted)] uppercase tracking-[0.3em] mb-4">{t('nickname')}</label>
               <input 
                 type="text" 
                 value={tempProfile.name}
                 onChange={e => setTempProfile(prev => ({ ...prev, name: e.target.value }))}
-                className="w-full bg-transparent border-b-2 border-white/10 py-4 text-2xl text-white font-black focus:border-white transition-colors outline-none placeholder-white/10"
-                placeholder="Как тебя называть?"
+                className="w-full bg-transparent border-b-2 border-[var(--glass-border)] py-4 text-2xl text-[var(--text-main)] font-black focus:border-[var(--text-main)] transition-colors outline-none placeholder-[var(--text-muted)]/10"
+                placeholder={t('nickname') + "..."}
               />
             </div>
 
             <div className="flex gap-4">
               <button 
                 onClick={onClose}
-                className="flex-1 py-5 rounded-3xl text-white/40 font-black text-sm uppercase tracking-widest hover:text-white hover:bg-white/5 transition-all"
+                className="flex-1 py-5 rounded-3xl text-[var(--text-muted)] font-black text-sm uppercase tracking-widest hover:text-[var(--text-main)] hover:bg-[var(--card-hover)] transition-all"
               >
-                Отмена
+                {t('cancel')}
               </button>
               <button 
                 onClick={handleSave}
                 className="flex-1 py-5 rounded-3xl text-white font-black text-sm uppercase tracking-widest transition-all shadow-2xl hover:scale-105 active:scale-95"
                 style={{ backgroundColor: accentColor }}
               >
-                Сохранить
+                {t('save')}
               </button>
             </div>
           </div>

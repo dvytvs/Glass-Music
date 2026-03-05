@@ -29,6 +29,7 @@ export interface UserProfile {
   avatarUrl: string | null;
   bannerUrl: string | null;
   onboardingDone?: boolean;
+  language?: string;
 }
 
 export interface PlayerState {
@@ -53,6 +54,7 @@ export interface ThemeConfig {
   enableGlass: boolean;
   seasonalTheme: boolean;
   playerStyle: 'floating' | 'classic';
+  themeMode: 'dark' | 'light' | 'system';
 }
 
 export interface ArtistMetadata {

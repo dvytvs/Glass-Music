@@ -12,28 +12,40 @@
   --accent-secondary: rgba(255, 255, 255, 0.6);
   --card-bg: rgba(255, 255, 255, 0.03);
   --card-hover: rgba(255, 255, 255, 0.08);
+  --text-main: #ffffff;
+  --text-muted: rgba(255, 255, 255, 0.4);
+  --bg-main: #000000;
+  --sidebar-bg: rgba(0, 0, 0, 0.4);
+  --panel-bg: rgba(18, 18, 18, 0.4);
 }
 
-/* Custom Scrollbar - Apple Style */
-::-webkit-scrollbar {
-  width: 5px;
-}
-::-webkit-scrollbar-track {
-  background: transparent;
-}
-::-webkit-scrollbar-thumb {
-  background: rgba(255, 255, 255, 0.1);
-  border-radius: 10px;
-}
-::-webkit-scrollbar-thumb:hover {
-  background: rgba(255, 255, 255, 0.2);
+.light-theme {
+  --glass-bg: rgba(255, 255, 255, 0.4);
+  --glass-border: rgba(0, 0, 0, 0.08);
+  --accent-primary: #000000;
+  --accent-secondary: rgba(0, 0, 0, 0.6);
+  --card-bg: rgba(0, 0, 0, 0.05);
+  --card-hover: rgba(0, 0, 0, 0.1);
+  --text-main: #000000;
+  --text-muted: rgba(0, 0, 0, 0.6);
+  --bg-main: #f5f5f7;
+  --sidebar-bg: rgba(255, 255, 255, 0.4);
+  --panel-bg: rgba(255, 255, 255, 0.4);
 }
 
 body {
-  @apply bg-black text-white antialiased;
+  background-color: var(--bg-main);
+  color: var(--text-main);
+  @apply antialiased;
   font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
   overflow: hidden;
   user-select: none;
+  transition: background-color 0.5s ease, color 0.5s ease;
+}
+
+.light-theme body {
+  background-color: var(--bg-main);
+  color: var(--text-main);
 }
 
 h1, h2, h3, .font-display {
@@ -41,7 +53,7 @@ h1, h2, h3, .font-display {
 }
 
 .glass-panel {
-  background: var(--glass-bg);
+  background: var(--panel-bg);
   backdrop-filter: blur(40px) saturate(180%);
   -webkit-backdrop-filter: blur(40px) saturate(180%);
   border: 1px solid var(--glass-border);
@@ -49,10 +61,10 @@ h1, h2, h3, .font-display {
 }
 
 .glass-sidebar {
-  background: rgba(0, 0, 0, 0.4);
+  background: var(--sidebar-bg);
   backdrop-filter: blur(50px) saturate(150%);
   -webkit-backdrop-filter: blur(50px) saturate(150%);
-  border-right: 1px solid rgba(255, 255, 255, 0.05);
+  border-right: 1px solid var(--glass-border);
   transition: backdrop-filter 0.5s ease, background 0.5s ease, border-color 0.5s ease;
 }
 
@@ -74,7 +86,8 @@ h1, h2, h3, .font-display {
   background: var(--card-hover);
   border-color: rgba(255, 255, 255, 0.1);
   transform: translateY(-4px);
-  @apply shadow-2xl shadow-black/50;
+  @apply shadow-2xl;
+  box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
 }
 
 .glass-button {
@@ -99,10 +112,12 @@ h1, h2, h3, .font-display {
   background: rgba(255, 255, 255, 0.03);
   border: 1px solid rgba(255, 255, 255, 0.08);
   transition: all 300ms ease;
-  @apply rounded-xl px-4 py-2 focus:ring-1 focus:ring-white/20 outline-none;
+  @apply rounded-xl px-4 py-2 outline-none;
 }
 
 .glass-input:focus {
+  @apply ring-1;
+  --tw-ring-color: rgba(255, 255, 255, 0.2);
   background: rgba(255, 255, 255, 0.06);
   border-color: rgba(255, 255, 255, 0.15);
 }
@@ -178,7 +193,7 @@ h1, h2, h3, .font-display {
   position: absolute;
   top: 0; left: 0; width: 100%; height: 100%;
   z-index: -1;
-  background: #000;
+  background: var(--bg-main);
   overflow: hidden;
 }
 
@@ -205,7 +220,9 @@ h1, h2, h3, .font-display {
 .stagger-list > *:nth-child(6) { animation-delay: 0.3s; }
 
 .markdown-bio {
-  @apply text-white/70 leading-relaxed text-sm;
+  color: var(--text-main);
+  opacity: 0.7;
+  @apply leading-relaxed text-sm;
 }
 
 .markdown-bio p {
@@ -213,5 +230,11 @@ h1, h2, h3, .font-display {
 }
 
 .markdown-bio a {
-  @apply text-white underline decoration-white/30 underline-offset-4 transition-all hover:decoration-white;
+  color: var(--text-main);
+  text-decoration-color: var(--text-main);
+  @apply underline underline-offset-4 transition-all;
+}
+
+.markdown-bio a:hover {
+  text-decoration-color: var(--text-main);
 }

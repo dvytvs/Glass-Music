@@ -11,6 +11,8 @@ import Background from './components/Background';
 import SnowEffect from './components/SnowEffect';
 import { Track, PlaybackState, PlayerState, ViewType, ThemeConfig, ArtistMetadata, UserProfile } from './types';
 import { generateMockCover, parseFileMetadata, sortTracks, fetchLyricsFromLRCLIB } from './utils';
+import { translations, TranslationKey } from './translations';
+import { GoogleGenAI } from "@google/genai";
 
 const STORAGE_KEY = 'glass_music_library_v1';
 const THEME_KEY = 'glass_music_theme_v1';
@@ -25,14 +27,16 @@ const DEFAULT_THEME: ThemeConfig = {
   brightness: 0.4,
   enableGlass: true, 
   seasonalTheme: false, 
-  playerStyle: 'floating'
+  playerStyle: 'floating',
+  themeMode: 'system'
 };
 
 const DEFAULT_PROFILE: UserProfile = {
   name: '',
   avatarUrl: null,
   bannerUrl: null,
-  onboardingDone: false
+  onboardingDone: false,
+  language: 'system'
 };
 
 const ARTIST_SPLIT_REGEX = /\s*(?:,|;|feat\.?|ft\.?|&|\/|featuring)\s+/i;
@@ -51,6 +55,8 @@ const App: React.FC = () => {
   const [isLoaded, setIsLoaded] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [theme, setTheme] = useState<ThemeConfig>(DEFAULT_THEME);
+  const [systemTheme, setSystemTheme] = useState<'dark' | 'light'>('dark');
+  const [systemLocale, setSystemLocale] = useState('ru');
 
   const [playerState, setPlayerState] = useState<PlayerState>({
     currentTrack: null, queue: [], playbackState: PlaybackState.PAUSED,
@@ -77,6 +83,69 @@ const App: React.FC = () => {
   }, [playerState]);
 
   const isElectron = () => (window as any).require && (window as any).require('electron');
+
+  const getEffectiveTheme = useCallback(() => {
+    if (theme.themeMode === 'system') return systemTheme;
+    return theme.themeMode;
+  }, [theme.themeMode, systemTheme]);
+
+  const getEffectiveLanguage = useCallback(() => {
+    if (userProfile.language === 'system') return systemLocale;
+    return userProfile.language || 'ru';
+  }, [userProfile.language, systemLocale]);
+
+  const t = useCallback((key: TranslationKey): string => {
+    const lang = getEffectiveLanguage();
+    const dict = translations[lang] || translations['en'];
+    return dict[key] || translations['en'][key] || key;
+  }, [getEffectiveLanguage]);
+
+  useEffect(() => {
+    const effectiveTheme = getEffectiveTheme();
+    if (effectiveTheme === 'light') {
+      document.documentElement.classList.add('light-theme');
+    } else {
+      document.documentElement.classList.remove('light-theme');
+    }
+  }, [getEffectiveTheme()]);
+
+  useEffect(() => {
+    if (isElectron()) {
+      const { ipcRenderer } = (window as any).require('electron');
+      
+      ipcRenderer.invoke('get-system-info').then((info: any) => {
+        if (info) {
+          setSystemLocale(info.locale.split('-')[0]);
+          setSystemTheme(info.shouldUseDarkColors ? 'dark' : 'light');
+        }
+      });
+
+      const handleThemeUpdate = (_: any, info: any) => {
+        setSystemTheme(info.shouldUseDarkColors ? 'dark' : 'light');
+      };
+
+      ipcRenderer.on('system-theme-updated', handleThemeUpdate);
+      return () => {
+        ipcRenderer.removeListener('system-theme-updated', handleThemeUpdate);
+      };
+    }
+  }, []);
+
+  const translateText = async (text: string): Promise<string> => {
+    if (!text) return "";
+    try {
+      const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
+      const targetLang = getEffectiveLanguage() === 'ru' ? 'Russian' : 'English';
+      const response = await ai.models.generateContent({
+        model: "gemini-3-flash-preview",
+        contents: `Translate the following text to ${targetLang}. Keep the meaning and tone. Only return the translated text:\n\n${text}`,
+      });
+      return response.text || text;
+    } catch (e) {
+      console.error("Translation error:", e);
+      return text;
+    }
+  };
 
   const loadData = async () => {
       try {
@@ -445,12 +514,12 @@ const App: React.FC = () => {
   };
 
   return (
-    <div className="relative w-full h-screen flex overflow-hidden bg-black text-white selection:text-white">
+    <div className="relative w-full h-screen flex overflow-hidden bg-[var(--bg-main)] text-[var(--text-main)] selection:text-[var(--text-main)]">
       {theme.seasonalTheme && <SnowEffect />}
-      <Background config={theme} />
+      <Background config={theme} isLight={getEffectiveTheme() === 'light'} />
       
       {!userProfile.onboardingDone && isLoaded && (
-        <OnboardingModal onComplete={handleOnboardingComplete} accentColor={theme.accentColor} />
+        <OnboardingModal onComplete={handleOnboardingComplete} accentColor={theme.accentColor} t={t} />
       )}
 
       <Sidebar 
@@ -458,9 +527,9 @@ const App: React.FC = () => {
         onProfileClick={() => setProfileOpen(true)} currentView={playerState.currentView}
         onChangeView={(view) => { setPlayerState(prev => ({ ...prev, currentView: view })); setSidebarOpen(true); }}
         isOpen={sidebarOpen} accentColor={theme.accentColor} searchQuery={searchQuery}
-        onSearchChange={setSearchQuery} enableGlass={theme.enableGlass} user={userProfile}
+        onSearchChange={setSearchQuery} enableGlass={theme.enableGlass} user={userProfile} t={t}
       />
-      <div className={`flex-1 flex flex-col relative z-10 ${theme.enableGlass ? 'glass-panel' : 'bg-[#0a0a0a]'} border-y-0 border-r-0 rounded-l-3xl overflow-hidden shadow-2xl transition-all duration-500 ease-[cubic-bezier(0.32,0.72,0,1)] ${!sidebarOpen ? 'ml-0 rounded-l-none' : 'ml-2'}`}>
+      <div className={`flex-1 flex flex-col relative z-10 ${theme.enableGlass ? 'glass-panel' : 'bg-[var(--bg-main)]'} border-y-0 border-r-0 rounded-l-3xl overflow-hidden shadow-2xl transition-all duration-500 ease-[cubic-bezier(0.32,0.72,0,1)] ${!sidebarOpen ? 'ml-0 rounded-l-none' : 'ml-2'}`}>
         <MainView 
           tracks={tracks} currentTrack={playerState.currentTrack} playbackState={playerState.playbackState}
           onPlay={handlePlay} onShuffleAll={(q) => { setPlayerState(prev => ({ ...prev, isShuffled: true, queue: q })); if (q[0]) handlePlay(q[0], q); }}
@@ -469,7 +538,7 @@ const App: React.FC = () => {
           onGoToAlbum={handleGoToAlbum} onBack={() => setPlayerState(prev => ({ ...prev, currentView: previousView }))}
           accentColor={theme.accentColor} artistMetadata={artistMetadata} onUpdateArtist={handleUpdateArtist}
           searchQuery={searchQuery} onRequestFileUnlock={() => { audioRef.current.pause(); audioRef.current.src = ""; }}
-          onToggleLike={handleToggleLike} enableGlass={theme.enableGlass}
+          onToggleLike={handleToggleLike} enableGlass={theme.enableGlass} t={t} onTranslate={translateText}
         />
         <PlayerControls 
           currentTrack={playerState.currentTrack} playbackState={playerState.playbackState}
@@ -479,7 +548,7 @@ const App: React.FC = () => {
           onToggleShuffle={toggleShuffle} onToggleSidebar={() => setSidebarOpen(!sidebarOpen)}
           onToggleFullScreen={() => setFullScreenMode('cover')} onOpenLyrics={() => setFullScreenMode('lyrics')}
           onToggleLike={handleToggleLike} accentColor={theme.accentColor} onGoToArtist={handleGoToArtist}
-          onGoToAlbum={handleGoToAlbum} playerStyle={theme.playerStyle} enableGlass={theme.enableGlass}
+          onGoToAlbum={handleGoToAlbum} playerStyle={theme.playerStyle} enableGlass={theme.enableGlass} t={t}
         />
       </div>
       {fullScreenMode !== 'none' && playerState.currentTrack && (
@@ -493,8 +562,15 @@ const App: React.FC = () => {
             accentColor={theme.accentColor} initialMode={fullScreenMode === 'lyrics' ? 'lyrics' : 'cover'}
         />
       )}
-      <SettingsModal isOpen={settingsOpen} onClose={() => setSettingsOpen(false)} config={theme} onUpdate={handleUpdateTheme} onClearLibrary={handleClearLibrary} />
-      <ProfileModal isOpen={profileOpen} onClose={() => setProfileOpen(false)} profile={userProfile} onUpdate={(data) => setUserProfile(prev => ({ ...prev, ...data }))} accentColor={theme.accentColor} />
+      <SettingsModal 
+        isOpen={settingsOpen} onClose={() => setSettingsOpen(false)} config={theme} 
+        onUpdate={handleUpdateTheme} onClearLibrary={handleClearLibrary} 
+        userProfile={userProfile} onUpdateProfile={(data) => setUserProfile(prev => ({ ...prev, ...data }))} t={t}
+      />
+      <ProfileModal 
+        isOpen={profileOpen} onClose={() => setProfileOpen(false)} profile={userProfile} 
+        onUpdate={(data) => setUserProfile(prev => ({ ...prev, ...data }))} accentColor={theme.accentColor} t={t}
+      />
       <input type="file" ref={fileInputRef} onChange={handleFileSelect} multiple accept="audio/*" className="hidden" />
     </div>
   );

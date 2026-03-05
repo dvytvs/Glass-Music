@@ -1,6 +1,7 @@
 
 import React, { useState, useRef, useEffect, useMemo } from 'react';
 import { Track, PlaybackState, ViewType, ArtistMetadata } from '../types';
+import { TranslationKey } from '../translations';
 import { 
   Play, Music, Disc, Mic2, Edit, Trash2, ArrowLeft, Heart, 
   Upload, X, Check, Quote, Image as ImageIcon, Search, MoreHorizontal, User, Calendar, RefreshCw
@@ -28,6 +29,8 @@ interface MainViewProps {
   onRequestFileUnlock: () => void;
   onToggleLike: (id: string, track?: Track) => void;
   enableGlass?: boolean;
+  t: (key: TranslationKey) => string;
+  onTranslate: (text: string) => Promise<string>;
 }
 
 const ARTIST_SPLIT_REGEX = /\s*(?:,|;|feat\.?|ft\.?|&|\/|featuring)\s+/i;
@@ -36,9 +39,23 @@ const MainView: React.FC<MainViewProps> = ({
   tracks, currentTrack, playbackState, onPlay, onShuffleAll, currentView, 
   selectedArtist, selectedAlbum, onUpdateTrack, onDeleteTrack, onGoToArtist, onGoToAlbum, onBack, accentColor,
   artistMetadata = {}, onUpdateArtist, searchQuery = "", onRequestFileUnlock,
-  onToggleLike, enableGlass = true
+  onToggleLike, enableGlass = true, t, onTranslate
 }) => {
   const [editingTrack, setEditingTrack] = useState<Track | null>(null);
+  const [translatedBio, setTranslatedBio] = useState<string | null>(null);
+  const [isTranslatingBio, setIsTranslatingBio] = useState(false);
+
+  const handleTranslateBio = async (text: string) => {
+    if (isTranslatingBio) return;
+    setIsTranslatingBio(true);
+    const translated = await onTranslate(text);
+    setTranslatedBio(translated);
+    setIsTranslatingBio(false);
+  };
+
+  useEffect(() => {
+    setTranslatedBio(null);
+  }, [selectedArtist]);
   const [isSearchingMetadata, setIsSearchingMetadata] = useState(false);
   const [isRefreshingArtist, setIsRefreshingArtist] = useState(false);
   const coverInputRef = useRef<HTMLInputElement>(null);
@@ -137,45 +154,45 @@ const MainView: React.FC<MainViewProps> = ({
         return (
           <div 
             key={track.id} 
-            className={`group flex items-center gap-4 p-2.5 rounded-2xl transition-all hover:bg-white/[0.04] cursor-pointer border border-transparent hover:border-white/5 ${isActive ? 'bg-white/[0.08] border-white/10 shadow-xl' : ''}`} 
+            className={`group flex items-center gap-4 p-2.5 rounded-2xl transition-all hover:bg-[var(--card-hover)] cursor-pointer border border-transparent hover:border-[var(--glass-border)] ${isActive ? 'bg-[var(--card-bg)] border-[var(--glass-border)] shadow-xl' : ''}`} 
             onClick={() => onPlay(track, tracksToRender)}
           >
-             <div className="w-6 text-[10px] font-black text-white/10 group-hover:text-white/30 transition-colors text-center shrink-0">
+             <div className="w-6 text-[10px] font-black text-[var(--text-muted)] group-hover:text-[var(--text-main)] transition-colors text-center shrink-0">
                 {isActive ? (
                   <div className="flex gap-0.5 items-end h-3 justify-center">
-                    <div className="w-0.5 bg-white rounded-full animate-pulse h-[60%]"></div>
-                    <div className="w-0.5 bg-white rounded-full animate-pulse h-full"></div>
-                    <div className="w-0.5 bg-white rounded-full animate-pulse h-[80%]"></div>
+                    <div className="w-0.5 bg-[var(--text-main)] rounded-full animate-pulse h-[60%]"></div>
+                    <div className="w-0.5 bg-[var(--text-main)] rounded-full animate-pulse h-full"></div>
+                    <div className="w-0.5 bg-[var(--text-main)] rounded-full animate-pulse h-[80%]"></div>
                   </div>
                 ) : (
                   index + 1
                 )}
              </div>
-             <div className="w-11 h-11 rounded-xl overflow-hidden relative shrink-0 shadow-lg border border-white/5 bg-white/5">
+             <div className="w-11 h-11 rounded-xl overflow-hidden relative shrink-0 shadow-lg border border-[var(--glass-border)] bg-[var(--card-bg)]">
                 <img src={track.coverUrl} className="w-full h-full object-cover" onError={(e) => (e.currentTarget.src = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='100' height='100'%3E%3Crect width='100' height='100' fill='%23222'/%3E%3C/svg%3E")} />
                 {isActive && <div className="absolute inset-0 bg-black/40 backdrop-blur-[2px] flex items-center justify-center"><Play className="w-4 h-4 text-white fill-current" /></div>}
              </div>
              <div className="flex-1 min-w-0">
                 <p 
-                    className={`text-[13px] font-bold truncate transition-colors ${isActive ? '' : 'text-white/90 group-hover:text-white'}`} 
+                    className={`text-[13px] font-bold truncate transition-colors ${isActive ? '' : 'text-[var(--text-main)]/90 group-hover:text-[var(--text-main)]'}`} 
                     style={{ color: isActive ? accentColor : undefined }}
                 >
                     {track.title}
                 </p>
-                <div className="flex items-center gap-1.5 text-[11px] text-white/30 truncate font-semibold group-hover:text-white/50 transition-colors">
+                <div className="flex items-center gap-1.5 text-[11px] text-[var(--text-muted)] truncate font-semibold group-hover:text-[var(--text-main)]/50 transition-colors">
                     <span className="flex items-center">
                         {renderArtistLinks(track.artist)}
                     </span>
                     <span className="mx-0.5 opacity-30">•</span>
-                    <span className="hover:text-white/80 transition-colors" onClick={(e) => { e.stopPropagation(); onGoToAlbum(track.album); }}>{track.album}</span>
+                    <span className="hover:text-[var(--text-main)]/80 transition-colors" onClick={(e) => { e.stopPropagation(); onGoToAlbum(track.album); }}>{track.album}</span>
                 </div>
              </div>
              <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-all translate-x-2 group-hover:translate-x-0">
-                <button className={`p-2 hover:bg-white/10 rounded-xl transition-all ${track.isLiked ? '' : 'text-white/20 hover:text-white'}`} style={{ color: track.isLiked ? accentColor : undefined }} onClick={e => { e.stopPropagation(); onToggleLike(track.id, track); }}><Heart className={`w-3.5 h-3.5 ${track.isLiked ? 'fill-current' : ''}`} /></button>
-                <button className="p-2 hover:bg-white/10 rounded-xl text-white/20 hover:text-white transition-all" onClick={e => { e.stopPropagation(); setEditingTrack(track); }} title="Редактировать"><Edit className="w-3.5 h-3.5" /></button>
-                <button className="p-2 hover:bg-white/10 rounded-xl text-red-500/40 hover:text-red-500 transition-all" onClick={e => { e.stopPropagation(); onDeleteTrack(track.id); }} title="Удалить"><Trash2 className="w-3.5 h-3.5" /></button>
+                <button className={`p-2 hover:bg-[var(--card-hover)] rounded-xl transition-all ${track.isLiked ? '' : 'text-[var(--text-muted)] hover:text-[var(--text-main)]'}`} style={{ color: track.isLiked ? accentColor : undefined }} onClick={e => { e.stopPropagation(); onToggleLike(track.id, track); }}><Heart className={`w-3.5 h-3.5 ${track.isLiked ? 'fill-current' : ''}`} /></button>
+                <button className="p-2 hover:bg-[var(--card-hover)] rounded-xl text-[var(--text-muted)] hover:text-[var(--text-main)] transition-all" onClick={e => { e.stopPropagation(); setEditingTrack(track); }} title={t('edit')}><Edit className="w-3.5 h-3.5" /></button>
+                <button className="p-2 hover:bg-[var(--card-hover)] rounded-xl text-red-500/40 hover:text-red-500 transition-all" onClick={e => { e.stopPropagation(); onDeleteTrack(track.id); }} title={t('delete')}><Trash2 className="w-3.5 h-3.5" /></button>
              </div>
-             <div className="w-12 text-[11px] font-bold text-white/20 text-right pr-2 group-hover:text-white/40 transition-colors">
+             <div className="w-12 text-[11px] font-bold text-[var(--text-muted)] text-right pr-2 group-hover:text-[var(--text-main)]/40 transition-colors">
                 {formatTime(track.duration || 0)}
              </div>
           </div>
@@ -215,8 +232,8 @@ const MainView: React.FC<MainViewProps> = ({
             {topArtists.length > 0 && (
               <section>
                 <div className="flex items-center justify-between mb-8">
-                  <h2 className="text-3xl font-black text-white tracking-tight flex items-center gap-3">
-                    Твои кумиры
+                  <h2 className="text-3xl font-black text-[var(--text-main)] tracking-tight flex items-center gap-3">
+                    {t('artists')}
                   </h2>
                 </div>
                 <div className="grid grid-cols-2 sm:grid-cols-4 md:grid-cols-6 lg:grid-cols-8 gap-8">
@@ -224,13 +241,13 @@ const MainView: React.FC<MainViewProps> = ({
                     const meta = artistMetadata[artist];
                     return (
                       <div key={i} className="group cursor-pointer flex flex-col items-center text-center" onClick={() => onGoToArtist(artist)}>
-                        <div className="w-full aspect-square rounded-full overflow-hidden shadow-2xl mb-4 relative border border-white/5 transition-all duration-500 group-hover:scale-105 group-hover:shadow-[0_0_30px_rgba(255,255,255,0.1)] bg-white/5">
-                          {meta?.avatar ? <img src={meta.avatar} className="w-full h-full object-cover" /> : <div className="w-full h-full flex items-center justify-center text-white/10"><User className="w-1/2 h-1/2" /></div>}
+                        <div className="w-full aspect-square rounded-full overflow-hidden shadow-2xl mb-4 relative border border-[var(--glass-border)] transition-all duration-500 group-hover:scale-105 group-hover:shadow-[0_0_30px_rgba(255,255,255,0.1)] bg-[var(--card-bg)]">
+                          {meta?.avatar ? <img src={meta.avatar} className="w-full h-full object-cover" /> : <div className="w-full h-full flex items-center justify-center text-[var(--text-muted)]"><User className="w-1/2 h-1/2" /></div>}
                           <div className="absolute inset-0 bg-black/20 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
                             <Play className="w-8 h-8 text-white fill-current translate-y-2 group-hover:translate-y-0 transition-transform duration-500" />
                           </div>
                         </div>
-                        <h3 className="text-[13px] font-bold truncate text-white/80 group-hover:text-white transition-colors w-full">{artist}</h3>
+                        <h3 className="text-[13px] font-bold truncate text-[var(--text-muted)] group-hover:text-[var(--text-main)] transition-colors w-full">{artist}</h3>
                       </div>
                     );
                   })}
@@ -242,22 +259,22 @@ const MainView: React.FC<MainViewProps> = ({
             {favoriteTracks.length > 0 && (
               <section>
                 <div className="flex items-center justify-between mb-8">
-                  <h2 className="text-3xl font-black text-white tracking-tight flex items-center gap-3">
-                    Любимое
+                  <h2 className="text-3xl font-black text-[var(--text-main)] tracking-tight flex items-center gap-3">
+                    {t('favorites')}
                   </h2>
                 </div>
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-x-10 gap-y-3">
                   {favoriteTracks.map((track) => {
                     const isActive = currentTrack?.id === track.id;
                     return (
-                      <div key={track.id} className="group flex items-center gap-4 p-2 rounded-2xl hover:bg-white/[0.04] cursor-pointer transition-all border border-transparent hover:border-white/5" onClick={() => onPlay(track, favoriteTracks)}>
-                        <div className="w-12 h-12 rounded-xl overflow-hidden relative shrink-0 shadow-xl border border-white/5 bg-white/5">
+                      <div key={track.id} className="group flex items-center gap-4 p-2 rounded-2xl hover:bg-[var(--card-hover)] cursor-pointer transition-all border border-transparent hover:border-[var(--glass-border)]" onClick={() => onPlay(track, favoriteTracks)}>
+                        <div className="w-12 h-12 rounded-xl overflow-hidden relative shrink-0 shadow-xl border border-[var(--glass-border)] bg-[var(--card-bg)]">
                           <img src={track.coverUrl} className="w-full h-full object-cover" />
                           {isActive && <div className="absolute inset-0 bg-black/40 backdrop-blur-[2px] flex items-center justify-center"><div className="w-1 h-3 bg-white animate-pulse rounded-full"></div></div>}
                         </div>
                         <div className="flex-1 min-w-0">
-                          <p className="text-[13px] font-bold truncate text-white/90 group-hover:text-white transition-colors">{track.title}</p>
-                          <p className="text-[11px] text-white/30 truncate font-semibold group-hover:text-white/50 transition-colors">{track.artist}</p>
+                          <p className="text-[13px] font-bold truncate text-[var(--text-main)]/90 group-hover:text-[var(--text-main)] transition-colors">{track.title}</p>
+                          <p className="text-[11px] text-[var(--text-muted)] truncate font-semibold group-hover:text-[var(--text-main)]/50 transition-colors">{track.artist}</p>
                         </div>
                       </div>
                     );
@@ -270,14 +287,14 @@ const MainView: React.FC<MainViewProps> = ({
             {recentlyAdded.length > 0 && (
               <section>
                 <div className="flex items-center justify-between mb-8">
-                  <h2 className="text-3xl font-black text-white tracking-tight flex items-center gap-3">
-                    Новинки в коллекции
+                  <h2 className="text-3xl font-black text-[var(--text-main)] tracking-tight flex items-center gap-3">
+                    {t('new_in_collection')}
                   </h2>
                 </div>
                 <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-8">
                   {recentlyAdded.map((track) => (
                     <div key={track.id} className="group cursor-pointer" onClick={() => onPlay(track, recentlyAdded)}>
-                      <div className="aspect-square rounded-[24px] overflow-hidden shadow-2xl mb-4 relative border border-white/5 transition-all duration-500 group-hover:scale-[1.03] group-hover:shadow-[0_20px_40px_rgba(0,0,0,0.4)]">
+                      <div className="aspect-square rounded-[24px] overflow-hidden shadow-2xl mb-4 relative border border-[var(--glass-border)] transition-all duration-500 group-hover:scale-[1.03] group-hover:shadow-[0_20px_40px_rgba(0,0,0,0.4)]">
                         <img src={track.coverUrl} className="w-full h-full object-cover" />
                         <div className="absolute inset-0 bg-black/30 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-all duration-500">
                           <div className="w-12 h-12 rounded-full bg-white/10 backdrop-blur-xl flex items-center justify-center shadow-2xl border border-white/10 translate-y-4 group-hover:translate-y-0 transition-transform duration-500">
@@ -285,8 +302,8 @@ const MainView: React.FC<MainViewProps> = ({
                           </div>
                         </div>
                       </div>
-                      <h3 className="text-[13px] font-bold truncate text-white/90 group-hover:text-white transition-colors">{track.title}</h3>
-                      <p className="text-[11px] text-white/30 truncate font-semibold group-hover:text-white/50 transition-colors">{track.artist}</p>
+                      <h3 className="text-[13px] font-bold truncate text-[var(--text-main)]/90 group-hover:text-[var(--text-main)] transition-colors">{track.title}</h3>
+                      <p className="text-[11px] text-[var(--text-muted)] truncate font-semibold group-hover:text-[var(--text-main)]/50 transition-colors">{track.artist}</p>
                     </div>
                   ))}
                 </div>
@@ -295,11 +312,11 @@ const MainView: React.FC<MainViewProps> = ({
 
             {tracks.length === 0 && (
               <div className="flex flex-col items-center justify-center py-20 text-center">
-                <div className="w-24 h-24 rounded-full bg-white/5 flex items-center justify-center mb-6">
-                  <Music className="w-12 h-12 text-white/10" />
+                <div className="w-24 h-24 rounded-full bg-[var(--card-bg)] flex items-center justify-center mb-6">
+                  <Music className="w-12 h-12 text-[var(--text-muted)]/10" />
                 </div>
-                <h3 className="text-xl font-bold text-white mb-2">Ваша медиатека пуста</h3>
-                <p className="text-white/40 max-w-xs">Импортируйте музыку, чтобы начать прослушивание</p>
+                <h3 className="text-xl font-bold text-[var(--text-main)] mb-2">{t('library_empty')}</h3>
+                <p className="text-[var(--text-muted)] max-w-xs">{t('import_tracks_hint')}</p>
               </div>
             )}
           </div>
@@ -310,7 +327,7 @@ const MainView: React.FC<MainViewProps> = ({
           <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-8 stagger-list px-4">
             {albums.map((album, i) => (
               <div key={i} className="group cursor-pointer" onClick={() => onGoToAlbum(album.title)}>
-                <div className="aspect-square rounded-[28px] overflow-hidden shadow-2xl mb-4 relative border border-white/5 transition-all duration-500 group-hover:scale-[1.03] group-hover:shadow-[0_20px_40px_rgba(0,0,0,0.4)]">
+                <div className="aspect-square rounded-[28px] overflow-hidden shadow-2xl mb-4 relative border border-[var(--glass-border)] transition-all duration-500 group-hover:scale-[1.03] group-hover:shadow-[0_20px_40px_rgba(0,0,0,0.4)] bg-[var(--card-bg)]">
                   <img src={album.cover} className="w-full h-full object-cover" onError={(e) => (e.currentTarget.src = "")} />
                   <div className="absolute inset-0 bg-black/30 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-all duration-500">
                     <div className="w-14 h-14 rounded-full bg-white/10 backdrop-blur-2xl flex items-center justify-center shadow-2xl border border-white/10 translate-y-4 group-hover:translate-y-0 transition-transform duration-500">
@@ -318,8 +335,8 @@ const MainView: React.FC<MainViewProps> = ({
                     </div>
                   </div>
                 </div>
-                <h3 className="text-[14px] font-bold truncate text-white/90 group-hover:text-white transition-colors">{album.title}</h3>
-                <p className="text-[11px] text-white/30 truncate font-semibold group-hover:text-white/50 transition-colors">{album.artist}</p>
+                <h3 className="text-[14px] font-bold truncate text-[var(--text-main)]/90 group-hover:text-[var(--text-main)] transition-colors">{album.title}</h3>
+                <p className="text-[11px] text-[var(--text-muted)] truncate font-semibold group-hover:text-[var(--text-main)]/50 transition-colors">{album.artist}</p>
               </div>
             ))}
           </div>
@@ -332,13 +349,13 @@ const MainView: React.FC<MainViewProps> = ({
               const meta = artistMetadata[artist];
               return (
                 <div key={i} className="group cursor-pointer flex flex-col items-center text-center" onClick={() => onGoToArtist(artist)}>
-                  <div className="w-full aspect-square rounded-full overflow-hidden shadow-2xl mb-5 relative border border-white/5 transition-all duration-500 group-hover:scale-[1.05] group-hover:shadow-[0_0_40px_rgba(255,255,255,0.1)] bg-white/5">
-                    {meta?.avatar ? <img src={meta.avatar} className="w-full h-full object-cover" /> : <div className="w-full h-full flex items-center justify-center text-white/10"><User className="w-1/2 h-1/2" /></div>}
+                  <div className="w-full aspect-square rounded-full overflow-hidden shadow-2xl mb-5 relative border border-[var(--glass-border)] transition-all duration-500 group-hover:scale-[1.05] group-hover:shadow-[0_0_40px_rgba(255,255,255,0.1)] bg-[var(--card-bg)]">
+                    {meta?.avatar ? <img src={meta.avatar} className="w-full h-full object-cover" /> : <div className="w-full h-full flex items-center justify-center text-[var(--text-muted)]"><User className="w-1/2 h-1/2" /></div>}
                     <div className="absolute inset-0 bg-black/20 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
                       <Play className="w-10 h-10 text-white fill-current translate-y-4 group-hover:translate-y-0 transition-transform duration-500" />
                     </div>
                   </div>
-                  <h3 className="text-[14px] font-bold truncate text-white/90 group-hover:text-white transition-colors w-full">{artist}</h3>
+                  <h3 className="text-[14px] font-bold truncate text-[var(--text-main)]/90 group-hover:text-[var(--text-main)] transition-colors w-full">{artist}</h3>
                 </div>
               );
             })}
@@ -359,7 +376,7 @@ const MainView: React.FC<MainViewProps> = ({
                     <button 
                         onClick={() => artistBannerInputRef.current?.click()}
                         className="absolute top-8 right-8 p-3 rounded-2xl bg-black/40 backdrop-blur-xl text-white/60 hover:text-white opacity-0 group-hover:opacity-100 transition-all border border-white/10 shadow-2xl"
-                        title="Изменить баннер артиста"
+                        title={t('change_banner')}
                     >
                         <ImageIcon className="w-5 h-5" />
                     </button>
@@ -378,24 +395,24 @@ const MainView: React.FC<MainViewProps> = ({
                     
                     <div className="flex-1 text-center md:text-left min-w-0 pb-4">
                         <div className="flex items-center justify-center md:justify-start gap-5 mb-4">
-                            <h1 className="text-7xl font-black text-white tracking-tighter drop-shadow-[0_10px_10px_rgba(0,0,0,0.5)] truncate">{selectedArtist}</h1>
+                            <h1 className="text-7xl font-black text-[var(--text-main)] tracking-tighter drop-shadow-[0_10px_10px_rgba(0,0,0,0.5)] truncate">{selectedArtist}</h1>
                             <button 
                                 onClick={handleRefreshArtistMetadata}
                                 disabled={isRefreshingArtist}
-                                className={`p-3 rounded-2xl bg-white/10 hover:bg-white/20 transition-all border border-white/10 shadow-xl ${isRefreshingArtist ? 'animate-spin opacity-50' : ''}`}
-                                title="Обновить данные артиста"
+                                className={`p-3 rounded-2xl bg-[var(--card-bg)] hover:bg-[var(--card-hover)] transition-all border border-[var(--glass-border)] shadow-xl ${isRefreshingArtist ? 'animate-spin opacity-50' : ''}`}
+                                title={t('refresh_metadata')}
                             >
-                                <RefreshCw className="w-5 h-5 text-white" />
+                                <RefreshCw className="w-5 h-5 text-[var(--text-main)]" />
                             </button>
                         </div>
                         <div className="flex items-center justify-center md:justify-start gap-3">
-                          <span className="px-3 py-1 rounded-full bg-white/10 border border-white/10 text-[10px] font-black uppercase tracking-[0.2em] text-white/60">Артист</span>
-                          <p className="text-white/40 font-bold text-sm tracking-tight">{filteredTracks.length} треков в коллекции</p>
+                          <span className="px-3 py-1 rounded-full bg-[var(--card-bg)] border border-[var(--glass-border)] text-[10px] font-black uppercase tracking-[0.2em] text-[var(--text-muted)]">{t('artists')}</span>
+                          <p className="text-[var(--text-muted)] font-bold text-sm tracking-tight">{filteredTracks.length} {t('songs')} {t('personalization')}</p>
                         </div>
                     </div>
                     <div className="flex gap-4 shrink-0 pb-4">
-                        <button onClick={() => filteredTracks.length > 0 && onPlay(filteredTracks[0], filteredTracks)} className="bg-white text-black px-10 py-4 rounded-[20px] font-black text-sm hover:scale-105 active:scale-95 transition-all flex items-center gap-3 shadow-2xl shadow-white/10"><Play className="w-5 h-5 fill-current" /> Слушать всё</button>
-                        <button onClick={() => onShuffleAll(filteredTracks)} className="bg-white/10 backdrop-blur-xl border border-white/10 px-10 py-4 rounded-[20px] font-black text-sm hover:bg-white/20 transition-all">Перемешать</button>
+                        <button onClick={() => filteredTracks.length > 0 && onPlay(filteredTracks[0], filteredTracks)} className="bg-[var(--text-main)] text-[var(--bg-main)] px-10 py-4 rounded-[20px] font-black text-sm hover:scale-105 active:scale-95 transition-all flex items-center gap-3 shadow-2xl shadow-white/10"><Play className="w-5 h-5 fill-current" /> {t('listen_now')}</button>
+                        <button onClick={() => onShuffleAll(filteredTracks)} className="bg-[var(--card-bg)] backdrop-blur-xl border border-[var(--glass-border)] px-10 py-4 rounded-[20px] font-black text-sm hover:bg-[var(--card-hover)] transition-all text-[var(--text-main)]">{t('shuffle')}</button>
                     </div>
                 </div>
             </div>
@@ -406,18 +423,26 @@ const MainView: React.FC<MainViewProps> = ({
                         <div className="absolute top-0 right-0 p-10 opacity-5 group-hover:opacity-10 transition-opacity">
                           <Quote className="w-32 h-32 text-white" />
                         </div>
-                        <h3 className="text-[11px] uppercase tracking-[0.4em] text-white/30 mb-6 font-black flex items-center gap-3">
-                             Биография
-                        </h3>
-                        <p className="text-white/60 text-lg leading-relaxed font-medium whitespace-pre-wrap relative z-10 max-w-4xl">
-                            {metaDetail.bio}
+                        <div className="flex items-center justify-between mb-6">
+                            <h3 className="text-[11px] uppercase tracking-[0.4em] text-[var(--text-muted)] font-black flex items-center gap-3">
+                                 {t('bio')}
+                            </h3>
+                            <button 
+                                onClick={() => translatedBio ? setTranslatedBio(null) : handleTranslateBio(metaDetail.bio!)}
+                                className="text-[10px] uppercase tracking-widest font-black text-[var(--text-muted)] hover:text-[var(--text-main)] transition-colors"
+                            >
+                                {isTranslatingBio ? t('searching') : (translatedBio ? t('original') : t('translate'))}
+                            </button>
+                        </div>
+                        <p className="text-[var(--text-main)]/60 text-lg leading-relaxed font-medium whitespace-pre-wrap relative z-10 max-w-4xl">
+                            {translatedBio || metaDetail.bio}
                         </p>
                     </div>
                 </div>
             )}
 
             <div className="flex items-center justify-between mb-8 px-4">
-              <h2 className="text-3xl font-black text-white tracking-tight flex items-center gap-3">Популярные треки</h2>
+              <h2 className="text-3xl font-black text-[var(--text-main)] tracking-tight flex items-center gap-3">{t('popular_tracks')}</h2>
             </div>
             {renderTrackList(filteredTracks)}
           </div>
@@ -431,25 +456,25 @@ const MainView: React.FC<MainViewProps> = ({
                       <img src={filteredTracks[0]?.coverUrl} className="w-full h-full object-cover" />
                     </div>
                     <div className="flex-1 text-center md:text-left min-w-0 pb-4">
-                        <p className="text-[11px] uppercase tracking-[0.5em] text-white/30 mb-4 font-black">Альбом</p>
-                        <h1 className="text-6xl font-black text-white mb-6 tracking-tighter drop-shadow-2xl truncate">{selectedAlbum}</h1>
+                        <p className="text-[11px] uppercase tracking-[0.5em] text-[var(--text-muted)] mb-4 font-black">{t('albums')}</p>
+                        <h1 className="text-6xl font-black text-[var(--text-main)] mb-6 tracking-tighter drop-shadow-2xl truncate">{selectedAlbum}</h1>
                         <div className="flex items-center justify-center md:justify-start gap-4 mb-10">
-                          <div className="w-8 h-8 rounded-full bg-white/10 overflow-hidden border border-white/10">
+                          <div className="w-8 h-8 rounded-full bg-[var(--card-bg)] overflow-hidden border border-[var(--glass-border)]">
                             {artistMetadata[filteredTracks[0]?.artist || ""]?.avatar ? (
                               <img src={artistMetadata[filteredTracks[0]?.artist || ""]?.avatar} className="w-full h-full object-cover" />
                             ) : (
-                              <div className="w-full h-full flex items-center justify-center text-white/20"><User className="w-4 h-4" /></div>
+                              <div className="w-full h-full flex items-center justify-center text-[var(--text-muted)]"><User className="w-4 h-4" /></div>
                             )}
                           </div>
-                          <p className="text-lg font-bold text-white/80 transition-colors hover:text-white">
+                          <p className="text-lg font-bold text-[var(--text-main)]/80 transition-colors hover:text-[var(--text-main)]">
                               {renderArtistLinks(filteredTracks[0]?.artist || "")}
                           </p>
-                          <span className="text-white/20 font-black">•</span>
-                          <p className="text-sm font-bold text-white/40">{filteredTracks.length} треков</p>
+                          <span className="text-[var(--text-muted)] font-black">•</span>
+                          <p className="text-sm font-bold text-[var(--text-muted)]">{filteredTracks.length} {t('songs')}</p>
                         </div>
                         <div className="flex gap-4 justify-center md:justify-start">
-                            <button onClick={() => filteredTracks.length > 0 && onPlay(filteredTracks[0], filteredTracks)} className="bg-white text-black px-12 py-4 rounded-[20px] font-black text-sm hover:scale-105 active:scale-95 transition-all shadow-2xl shadow-white/10 flex items-center gap-3"><Play className="w-5 h-5 fill-current" /> Воспроизвести</button>
-                            <button onClick={() => onShuffleAll(filteredTracks)} className="bg-white/10 backdrop-blur-xl border border-white/10 px-12 py-4 rounded-[20px] font-black text-sm hover:bg-white/20 transition-all">Перемешать</button>
+                            <button onClick={() => filteredTracks.length > 0 && onPlay(filteredTracks[0], filteredTracks)} className="bg-[var(--text-main)] text-[var(--bg-main)] px-12 py-4 rounded-[20px] font-black text-sm hover:scale-105 active:scale-95 transition-all shadow-2xl shadow-white/10 flex items-center gap-3"><Play className="w-5 h-5 fill-current" /> {t('listen_now')}</button>
+                            <button onClick={() => onShuffleAll(filteredTracks)} className="bg-[var(--card-bg)] backdrop-blur-xl border border-[var(--glass-border)] px-12 py-4 rounded-[20px] font-black text-sm hover:bg-[var(--card-hover)] transition-all text-[var(--text-main)]">{t('shuffle')}</button>
                         </div>
                     </div>
                 </div>
@@ -493,62 +518,62 @@ const MainView: React.FC<MainViewProps> = ({
     <div className="flex-1 h-full overflow-y-auto pb-32 pt-8 px-8 custom-scrollbar relative animate-fade-in" key={currentView}>
       {editingTrack && (
         <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/60 backdrop-blur-xl p-4 animate-fade-in-view">
-             <div className="bg-[#1c1c1e]/95 border border-white/10 w-full max-w-4xl rounded-[32px] shadow-2xl overflow-hidden animate-zoom-in flex flex-col max-h-[95vh]">
-                <div className="p-6 border-b border-white/10 flex justify-between items-center bg-white/5">
-                    <h3 className="text-xl font-bold text-white flex items-center gap-2">Редактирование
-                        <button type="button" onClick={handleFetchMetadata} disabled={isSearchingMetadata} className={`ml-4 px-3 py-1.5 rounded-lg bg-white/5 hover:bg-white/10 flex items-center gap-2 text-xs font-bold transition-all ${isSearchingMetadata ? 'opacity-50' : ''}`}>
-                            {isSearchingMetadata ? 'Поиск...' : '✨ Магия API'}
+             <div className="bg-[var(--bg-main)] border border-[var(--glass-border)] w-full max-w-4xl rounded-[32px] shadow-2xl overflow-hidden animate-zoom-in flex flex-col max-h-[95vh]">
+                <div className="p-6 border-b border-[var(--glass-border)] flex justify-between items-center bg-[var(--card-bg)]">
+                    <h3 className="text-xl font-bold text-[var(--text-main)] flex items-center gap-2">{t('edit')}
+                        <button type="button" onClick={handleFetchMetadata} disabled={isSearchingMetadata} className={`ml-4 px-3 py-1.5 rounded-lg bg-[var(--card-bg)] hover:bg-[var(--card-hover)] flex items-center gap-2 text-xs font-bold transition-all ${isSearchingMetadata ? 'opacity-50' : ''}`}>
+                            {isSearchingMetadata ? t('searching') : '✨ ' + t('magic_api')}
                         </button>
                     </h3>
-                    <button onClick={() => setEditingTrack(null)} className="text-white/40 hover:text-white p-2 transition-colors"><X className="w-5 h-5"/></button>
+                    <button onClick={() => setEditingTrack(null)} className="text-[var(--text-muted)] hover:text-[var(--text-main)] p-2 transition-colors"><X className="w-5 h-5"/></button>
                 </div>
                 <form onSubmit={(e) => { e.preventDefault(); if (editingTrack) onUpdateTrack(editingTrack.id, editingTrack); setEditingTrack(null); }} className="p-8 overflow-y-auto custom-scrollbar flex-1 space-y-8">
                     <div className="flex flex-col md:flex-row gap-10">
                         <div className="flex flex-col items-center gap-4 shrink-0">
-                            <div className="w-56 h-56 rounded-3xl bg-white/5 border border-white/10 relative overflow-hidden group cursor-pointer shadow-2xl" onClick={() => coverInputRef.current?.click()}>
+                            <div className="w-56 h-56 rounded-3xl bg-[var(--card-bg)] border border-[var(--glass-border)] relative overflow-hidden group cursor-pointer shadow-2xl" onClick={() => coverInputRef.current?.click()}>
                                 <img src={editingTrack.coverUrl} className="w-full h-full object-cover transition-transform group-hover:scale-110" />
                                 <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity"><Upload className="w-10 h-10 text-white" /></div>
                             </div>
                             <input type="file" ref={coverInputRef} className="hidden" accept="image/*" onChange={async e => {
                                 const f = e.target.files?.[0]; if (f) setEditingTrack({...editingTrack, coverUrl: await fileToDataURL(f)});
                             }} />
-                            <p className="text-[10px] text-white/30 uppercase tracking-widest font-bold">Нажмите на фото, чтобы изменить</p>
+                            <p className="text-[10px] text-[var(--text-muted)] uppercase tracking-widest font-bold">{t('click_to_change')}</p>
                         </div>
                         <div className="flex-1 space-y-5">
                             <div className="space-y-1">
-                                <label className="text-[10px] text-white/40 font-bold uppercase ml-2">Название песни</label>
-                                <input type="text" value={editingTrack.title} onChange={e => setEditingTrack({...editingTrack, title: e.target.value})} className="w-full glass-input rounded-xl px-4 py-3 text-lg font-bold" placeholder="Название" />
+                                <label className="text-[10px] text-[var(--text-muted)] font-bold uppercase ml-2">{t('songs')}</label>
+                                <input type="text" value={editingTrack.title} onChange={e => setEditingTrack({...editingTrack, title: e.target.value})} className="w-full glass-input rounded-xl px-4 py-3 text-lg font-bold text-[var(--text-main)]" placeholder={t('songs')} />
                             </div>
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
                                 <div className="space-y-1">
-                                    <label className="text-[10px] text-white/40 font-bold uppercase ml-2">Артист</label>
-                                    <input type="text" value={editingTrack.artist} onChange={e => setEditingTrack({...editingTrack, artist: e.target.value})} className="w-full glass-input rounded-xl px-4 py-3" placeholder="Артист" />
+                                    <label className="text-[10px] text-[var(--text-muted)] font-bold uppercase ml-2">{t('artists')}</label>
+                                    <input type="text" value={editingTrack.artist} onChange={e => setEditingTrack({...editingTrack, artist: e.target.value})} className="w-full glass-input rounded-xl px-4 py-3 text-[var(--text-main)]" placeholder={t('artists')} />
                                 </div>
                                 <div className="space-y-1">
-                                    <label className="text-[10px] text-white/40 font-bold uppercase ml-2">Альбом</label>
-                                    <input type="text" value={editingTrack.album} onChange={e => setEditingTrack({...editingTrack, album: e.target.value})} className="w-full glass-input rounded-xl px-4 py-3" placeholder="Альбом" />
+                                    <label className="text-[10px] text-[var(--text-muted)] font-bold uppercase ml-2">{t('albums')}</label>
+                                    <input type="text" value={editingTrack.album} onChange={e => setEditingTrack({...editingTrack, album: e.target.value})} className="w-full glass-input rounded-xl px-4 py-3 text-[var(--text-main)]" placeholder={t('albums')} />
                                 </div>
                             </div>
                             <div className="grid grid-cols-2 gap-5">
                                 <div className="space-y-1">
-                                    <label className="text-[10px] text-white/40 font-bold uppercase ml-2 flex items-center gap-1"><Calendar className="w-3 h-3" /> Год</label>
-                                    <input type="text" value={editingTrack.year || ""} onChange={e => setEditingTrack({...editingTrack, year: e.target.value})} className="w-full glass-input rounded-xl px-4 py-3" placeholder="2024" />
+                                    <label className="text-[10px] text-[var(--text-muted)] font-bold uppercase ml-2 flex items-center gap-1"><Calendar className="w-3 h-3" /> {t('year')}</label>
+                                    <input type="text" value={editingTrack.year || ""} onChange={e => setEditingTrack({...editingTrack, year: e.target.value})} className="w-full glass-input rounded-xl px-4 py-3 text-[var(--text-main)]" placeholder="2024" />
                                 </div>
                             </div>
                             <div className="space-y-1">
-                                <label className="text-[10px] text-white/40 font-bold uppercase ml-2 flex items-center gap-1"><Quote className="w-3 h-3" /> Текст песни (LRC или обычный)</label>
+                                <label className="text-[10px] text-[var(--text-muted)] font-bold uppercase ml-2 flex items-center gap-1"><Quote className="w-3 h-3" /> {t('lyrics')}</label>
                                 <textarea 
                                     value={editingTrack.lyrics || ""} 
                                     onChange={e => setEditingTrack({...editingTrack, lyrics: e.target.value})} 
-                                    className="w-full glass-input rounded-xl px-4 py-3 h-48 resize-none font-medium text-sm leading-relaxed" 
-                                    placeholder="Вставьте текст песни здесь..."
+                                    className="w-full glass-input rounded-xl px-4 py-3 h-48 resize-none font-medium text-sm leading-relaxed text-[var(--text-main)]" 
+                                    placeholder={t('lyrics')}
                                 />
                             </div>
                         </div>
                     </div>
-                    <div className="flex justify-end gap-4 pt-4 sticky bottom-0 bg-[#1c1c1e] py-6 border-t border-white/5">
-                         <button type="button" onClick={() => setEditingTrack(null)} className="px-8 py-3 text-white/60 font-bold hover:text-white transition-colors">Отмена</button>
-                         <button type="submit" className="px-12 py-3 rounded-2xl text-white font-bold shadow-xl hover:scale-105 active:scale-95 transition-all" style={{ backgroundColor: accentColor }}>Сохранить изменения</button>
+                    <div className="flex justify-end gap-4 pt-4 sticky bottom-0 bg-[var(--bg-main)] py-6 border-t border-[var(--glass-border)]">
+                         <button type="button" onClick={() => setEditingTrack(null)} className="px-8 py-3 text-[var(--text-muted)] font-bold hover:text-[var(--text-main)] transition-colors">{t('cancel')}</button>
+                         <button type="submit" className="px-12 py-3 rounded-2xl text-white font-bold shadow-xl hover:scale-105 active:scale-95 transition-all" style={{ backgroundColor: accentColor }}>{t('save')}</button>
                     </div>
                 </form>
              </div>
@@ -557,13 +582,13 @@ const MainView: React.FC<MainViewProps> = ({
 
       {currentView !== 'artist_detail' && currentView !== 'album_detail' && (
           <div className="flex items-end justify-between mb-12 px-4">
-              <div><h1 className="text-5xl md:text-6xl font-black text-white tracking-tighter drop-shadow-2xl">{getTitle()}</h1></div>
+              <div><h1 className="text-5xl md:text-6xl font-black text-[var(--text-main)] tracking-tighter">{getTitle()}</h1></div>
           </div>
       )}
 
       {(currentView === 'artist_detail' || currentView === 'album_detail') && (
-          <button onClick={onBack} className={`mb-8 p-4 ${enableGlass ? 'bg-white/5 backdrop-blur-2xl' : 'bg-black'} hover:bg-white/10 rounded-2xl transition-all sticky top-4 z-[100] border border-white/10 mx-4 shadow-2xl group`}>
-              <ArrowLeft className="w-6 h-6 text-white group-hover:-translate-x-1 transition-transform" />
+          <button onClick={onBack} className={`mb-8 p-4 ${enableGlass ? 'bg-white/5 backdrop-blur-2xl' : 'bg-[var(--bg-main)]'} hover:bg-white/10 rounded-2xl transition-all sticky top-4 z-[100] border border-[var(--glass-border)] mx-4 shadow-2xl group`}>
+              <ArrowLeft className="w-6 h-6 text-[var(--text-main)] group-hover:-translate-x-1 transition-transform" />
           </button>
       )}
 

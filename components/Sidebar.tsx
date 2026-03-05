@@ -2,6 +2,7 @@
 import React from 'react';
 import { Music, LayoutGrid, Mic2, Disc, ListMusic, Search, Play, Settings, Heart, User } from './Icons';
 import { ViewType, UserProfile } from '../types';
+import { TranslationKey } from '../translations';
 
 interface SidebarProps {
   onImportClick: () => void;
@@ -15,11 +16,12 @@ interface SidebarProps {
   onSearchChange: (query: string) => void;
   enableGlass: boolean;
   user: UserProfile;
+  t: (key: TranslationKey) => string;
 }
 
 const Sidebar: React.FC<SidebarProps> = ({ 
   onImportClick, onSettingsClick, onProfileClick, currentView, onChangeView, isOpen, accentColor,
-  searchQuery, onSearchChange, enableGlass, user
+  searchQuery, onSearchChange, enableGlass, user, t
 }) => {
   
   const handleSearch = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -32,8 +34,8 @@ const Sidebar: React.FC<SidebarProps> = ({
 
   return (
     <div 
-      className={`h-full flex flex-col ${enableGlass ? 'glass-sidebar' : 'bg-black border-r border-white/10'} z-20 relative transition-all duration-500 ease-[cubic-bezier(0.32,0.72,0,1)] overflow-hidden ${
-        isOpen ? 'w-64 pt-6 pb-4 px-4 opacity-100 translate-x-0' : 'w-0 pt-6 pb-4 px-0 opacity-0 -translate-x-10'
+      className={`h-full flex flex-col ${enableGlass ? 'glass-sidebar' : 'bg-[var(--bg-main)] border-r border-[var(--glass-border)]'} z-20 relative transition-[width,opacity,transform] duration-500 ease-[cubic-bezier(0.32,0.72,0,1)] overflow-hidden ${
+        isOpen ? 'w-64 pt-6 pb-4 px-4 opacity-100 translate-x-0' : 'w-0 pt-6 pb-4 px-0 opacity-0 -translate-x-full'
       }`}
     >
       <div className="w-56 flex flex-col h-full min-w-[14rem]">
@@ -41,13 +43,13 @@ const Sidebar: React.FC<SidebarProps> = ({
         {/* User Profile Block */}
         <button 
           onClick={onProfileClick}
-          className="flex items-center gap-3 px-3 py-2.5 mb-8 rounded-2xl hover:bg-white/5 active:scale-95 transition-all group border border-transparent hover:border-white/5"
+          className="flex items-center gap-3 px-3 py-2.5 mb-8 rounded-2xl hover:bg-[var(--card-hover)] active:scale-95 transition-all group border border-transparent hover:border-[var(--glass-border)]"
         >
-          <div className="w-10 h-10 rounded-full bg-gradient-to-br from-white/10 to-white/5 flex-shrink-0 overflow-hidden border border-white/10 shadow-xl relative">
+          <div className="w-10 h-10 rounded-full bg-[var(--card-bg)] flex-shrink-0 overflow-hidden border border-[var(--glass-border)] shadow-xl relative">
             {user.avatarUrl ? (
               <img src={user.avatarUrl} className="w-full h-full object-cover" />
             ) : (
-              <div className="w-full h-full flex items-center justify-center text-white/20">
+              <div className="w-full h-full flex items-center justify-center text-[var(--text-muted)]">
                 <User className="w-5 h-5" />
               </div>
             )}
@@ -56,33 +58,33 @@ const Sidebar: React.FC<SidebarProps> = ({
             </div>
           </div>
           <div className="flex flex-col items-start min-w-0">
-            <span className="text-sm font-bold text-white/90 truncate group-hover:text-white transition-all animate-fade-in" key={user.name}>
-              {user.name || 'Слушатель'}
+            <span className="text-sm font-bold text-[var(--text-main)] truncate group-hover:text-[var(--text-main)] transition-all animate-fade-in" key={user.name}>
+              {user.name || t('nickname')}
             </span>
-            <span className="text-[9px] text-white/30 uppercase tracking-[0.2em] font-black">Premium</span>
+            <span className="text-[9px] text-[var(--text-muted)] uppercase tracking-[0.2em] font-black">{t('premium')}</span>
           </div>
         </button>
 
         <div className="px-1 mb-8">
           <div className="relative group">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-white/30 group-focus-within:text-white/70 transition-colors" />
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-[var(--text-muted)] group-focus-within:text-[var(--text-main)] transition-colors" />
             <input 
               type="text" 
-              placeholder="Поиск музыки..." 
+              placeholder={t('search_placeholder')} 
               value={searchQuery}
               onChange={handleSearch}
-              className="w-full bg-white/[0.03] border border-white/5 rounded-xl py-2 pl-9 pr-4 text-xs text-white placeholder-white/20 focus:bg-white/[0.06] focus:border-white/10 transition-all outline-none"
+              className="w-full bg-[var(--card-bg)] border border-[var(--glass-border)] rounded-xl py-2 pl-9 pr-4 text-xs text-[var(--text-main)] placeholder-[var(--text-muted)] focus:bg-[var(--card-hover)] focus:border-[var(--glass-border)] transition-all outline-none"
             />
           </div>
         </div>
 
         <nav className="flex-1 space-y-8 overflow-y-auto custom-scrollbar pr-2">
           <div>
-            <h3 className="px-4 text-[10px] font-black text-white/20 uppercase tracking-[0.3em] mb-4">Главная</h3>
+            <h3 className="px-4 text-[10px] font-black text-[var(--text-muted)] uppercase tracking-[0.3em] mb-4">{t('listen_now')}</h3>
             <div className="space-y-1">
               <NavItem 
                 icon={<Play className="w-4 h-4 fill-current" />} 
-                label="Слушать" 
+                label={t('listen_now')} 
                 active={currentView === 'listen_now'} 
                 onClick={() => onChangeView('listen_now')}
                 accentColor={accentColor}
@@ -91,32 +93,31 @@ const Sidebar: React.FC<SidebarProps> = ({
           </div>
 
           <div>
-            <h3 className="px-4 text-[10px] font-black text-white/20 uppercase tracking-[0.3em] mb-4">Медиатека</h3>
             <div className="space-y-1">
               <NavItem 
                 icon={<Heart className="w-4 h-4" />} 
-                label="Избранное" 
+                label={t('favorites')} 
                 active={currentView === 'favorites'}
                 onClick={() => onChangeView('favorites')}
                 accentColor={accentColor}
               />
               <NavItem 
                 icon={<Disc className="w-4 h-4" />} 
-                label="Альбомы" 
+                label={t('albums')} 
                 active={currentView === 'albums'}
                 onClick={() => onChangeView('albums')}
                 accentColor={accentColor}
               />
               <NavItem 
                 icon={<Mic2 className="w-4 h-4" />} 
-                label="Артисты" 
+                label={t('artists')} 
                 active={currentView === 'artists'}
                 onClick={() => onChangeView('artists')}
                 accentColor={accentColor}
               />
               <NavItem 
                 icon={<ListMusic className="w-4 h-4" />} 
-                label="Песни" 
+                label={t('songs')} 
                 active={currentView === 'songs'}
                 onClick={() => onChangeView('songs')}
                 accentColor={accentColor}
@@ -132,14 +133,14 @@ const Sidebar: React.FC<SidebarProps> = ({
             style={{ background: `linear-gradient(135deg, ${accentColor}30, ${accentColor}10)` }}
           >
             <Music className="w-3.5 h-3.5" />
-            <span>Импорт файлов</span>
+            <span>{t('import_tracks')}</span>
           </button>
           <button 
             onClick={onSettingsClick}
-            className="w-full py-2.5 px-4 rounded-xl text-white/40 hover:text-white font-bold text-xs flex items-center justify-center gap-2 transition-all hover:bg-white/5"
+            className="w-full py-2.5 px-4 rounded-xl text-[var(--text-muted)] hover:text-[var(--text-main)] font-bold text-xs flex items-center justify-center gap-2 transition-all hover:bg-[var(--card-hover)]"
           >
             <Settings className="w-3.5 h-3.5" />
-            <span>Настройки</span>
+            <span>{t('settings')}</span>
           </button>
         </div>
       </div>
@@ -152,8 +153,8 @@ const NavItem: React.FC<{ icon: React.ReactNode; label: string; active?: boolean
     onClick={onClick}
     className={`w-full flex items-center gap-3 px-4 py-2 rounded-xl text-[13px] font-semibold transition-all duration-300 group ${
     active 
-      ? 'bg-white/10 text-white shadow-lg shadow-black/20' 
-      : 'text-white/40 hover:text-white/80 hover:bg-white/[0.03]'
+      ? 'bg-[var(--card-hover)] text-[var(--text-main)] shadow-lg shadow-black/5' 
+      : 'text-[var(--text-muted)] hover:text-[var(--text-main)] hover:bg-[var(--card-bg)]'
   }`}
   >
     <span className={`transition-transform duration-300 ${active ? 'scale-110' : 'group-hover:scale-110'}`} style={{ color: active ? accentColor : 'inherit' }}>{icon}</span>

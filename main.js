@@ -1,4 +1,4 @@
-const { app, BrowserWindow, ipcMain } = require('electron');
+const { app, BrowserWindow, ipcMain, nativeTheme } = require('electron');
 const path = require('path');
 const fs = require('fs');
 
@@ -31,9 +31,25 @@ function createWindow() {
     mainWindow.on('closed', () => {
         mainWindow = null;
     });
+
+    // Notify renderer about theme changes
+    nativeTheme.on('updated', () => {
+        if (mainWindow) {
+            mainWindow.webContents.send('system-theme-updated', {
+                shouldUseDarkColors: nativeTheme.shouldUseDarkColors
+            });
+        }
+    });
 }
 
 const userDataPath = app.getPath('userData');
+
+ipcMain.handle('get-system-info', async () => {
+    return {
+        locale: app.getLocale(),
+        shouldUseDarkColors: nativeTheme.shouldUseDarkColors
+    };
+});
 
 ipcMain.handle('save-local-data', async (e, { key, data }) => {
     try {
