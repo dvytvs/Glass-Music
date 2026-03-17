@@ -16,16 +16,19 @@ interface FullScreenPlayerProps {
   duration: number;
   volume: number;
   isShuffled: boolean;
+  isRepeating: boolean;
   onPlayPause: () => void;
   onNext: () => void;
   onPrev: () => void;
   onSeek: (time: number) => void;
   onVolumeChange: (vol: number) => void;
   onToggleShuffle: () => void;
+  onToggleRepeat: () => void;
   onToggleLike: (trackId: string) => void;
   onClose: () => void;
   accentColor: string;
   initialMode: 'cover' | 'lyrics';
+  enableGlass: boolean;
 }
 
 const FullScreenPlayer: React.FC<FullScreenPlayerProps> = ({
@@ -35,16 +38,19 @@ const FullScreenPlayer: React.FC<FullScreenPlayerProps> = ({
   duration,
   volume,
   isShuffled,
+  isRepeating,
   onPlayPause,
   onNext,
   onPrev,
   onSeek,
   onVolumeChange,
   onToggleShuffle,
+  onToggleRepeat,
   onToggleLike,
   onClose,
   accentColor,
-  initialMode
+  initialMode,
+  enableGlass
 }) => {
   const isPlaying = playbackState === PlaybackState.PLAYING;
   const progressPercent = duration ? (currentTime / duration) * 100 : 0;
@@ -72,7 +78,7 @@ const FullScreenPlayer: React.FC<FullScreenPlayerProps> = ({
       onAnimationEnd={onAnimationEnd}
     >
       {/* Background Layer */}
-      <div className="absolute inset-0 bg-black/40 backdrop-blur-[100px] z-0"></div>
+      <div className={`absolute inset-0 bg-black/40 ${enableGlass ? 'backdrop-blur-[100px]' : ''} z-0`}></div>
       
       {/* Dynamic Colored Glow */}
       <div 
@@ -133,11 +139,11 @@ const FullScreenPlayer: React.FC<FullScreenPlayerProps> = ({
             }`}
         >
             {showLyrics ? (
-                <div className="h-full w-full rounded-[40px] bg-white/[0.02] border border-white/5 p-6 md:p-12 relative overflow-hidden backdrop-blur-3xl">
+                <div className={`h-full w-full rounded-[40px] bg-white/[0.02] border border-white/5 p-6 md:p-12 relative overflow-hidden ${enableGlass ? 'backdrop-blur-3xl' : 'bg-black/60'}`}>
                     <LyricsView lyricsRaw={track.lyrics} currentTime={currentTime} />
                 </div>
             ) : (
-                <div className="flex flex-col gap-12 p-12 rounded-[60px] bg-white/[0.03] border border-white/10 shadow-2xl w-full backdrop-blur-3xl">
+                <div className={`flex flex-col gap-12 p-12 rounded-[60px] bg-white/[0.03] border border-white/10 shadow-2xl w-full ${enableGlass ? 'backdrop-blur-3xl' : 'bg-black/60'}`}>
                     <div className="space-y-3 text-center md:text-left">
                         <h2 className="text-5xl font-black truncate text-white tracking-tighter leading-tight">{track.title}</h2>
                         <p className="text-2xl text-white/30 truncate font-bold uppercase tracking-widest">{track.artist}</p>
@@ -186,7 +192,10 @@ const FullScreenPlayer: React.FC<FullScreenPlayerProps> = ({
                         </button>
                         </div>
 
-                        <button className="text-white/20 hover:text-white/40 transition-all p-4 rounded-2xl hover:bg-white/10">
+                        <button 
+                        onClick={onToggleRepeat}
+                        className={`transition-all p-4 rounded-2xl hover:bg-white/10 ${isRepeating ? 'text-white' : 'text-white/20 hover:text-white/40'}`}
+                        >
                         <Repeat className="w-6 h-6" />
                         </button>
                     </div>
@@ -229,7 +238,7 @@ const FullScreenPlayer: React.FC<FullScreenPlayerProps> = ({
       {/* Floating Controls Bar */}
       {showLyrics && (
           <div className="fixed bottom-0 left-0 right-0 p-12 flex justify-center z-20 pointer-events-none">
-              <div className="pointer-events-auto bg-white/[0.03] backdrop-blur-3xl border border-white/10 rounded-[40px] px-12 py-6 flex items-center gap-12 shadow-[0_40px_80px_rgba(0,0,0,0.6)] animate-slide-up">
+              <div className={`pointer-events-auto bg-white/[0.03] ${enableGlass ? 'backdrop-blur-3xl' : 'bg-black/80'} border border-white/10 rounded-[40px] px-12 py-6 flex items-center gap-12 shadow-[0_40px_80px_rgba(0,0,0,0.6)] animate-slide-up`}>
                  <button onClick={onPrev} className="text-white/40 hover:text-white transition-all active:scale-75"><SkipBack className="w-7 h-7 fill-current" /></button>
                  <button onClick={onPlayPause} className="bg-white text-black rounded-[24px] p-5 hover:scale-110 active:scale-90 transition-all shadow-2xl">
                      {isPlaying ? <Pause className="w-7 h-7 fill-current" /> : <Play className="w-7 h-7 fill-current ml-1" />}

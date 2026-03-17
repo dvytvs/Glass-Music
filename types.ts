@@ -22,7 +22,15 @@ export enum PlaybackState {
   BUFFERING,
 }
 
-export type ViewType = 'listen_now' | 'albums' | 'artists' | 'songs' | 'artist_detail' | 'album_detail' | 'favorites' | 'search';
+export type ViewType = 'listen_now' | 'albums' | 'artists' | 'songs' | 'artist_detail' | 'album_detail' | 'favorites' | 'search' | 'playlists' | 'playlist_detail';
+
+export interface Playlist {
+  id: string;
+  name: string;
+  trackIds: string[];
+  coverUrl?: string;
+  createdAt: number;
+}
 
 export interface UserProfile {
   name: string;
@@ -55,6 +63,8 @@ export interface ThemeConfig {
   seasonalTheme: boolean;
   playerStyle: 'floating' | 'classic';
   themeMode: 'dark' | 'light' | 'system';
+  animateBackground: boolean;
+  eqBands?: number[];
 }
 
 export interface ArtistMetadata {

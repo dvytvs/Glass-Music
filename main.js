@@ -1,6 +1,7 @@
 const { app, BrowserWindow, ipcMain, nativeTheme } = require('electron');
 const path = require('path');
 const fs = require('fs');
+const NodeID3 = require('node-id3');
 
 let mainWindow;
 
@@ -42,6 +43,7 @@ function createWindow() {
     });
 }
 
+app.setPath('userData', path.join(app.getPath('appData'), 'glass-music'));
 const userDataPath = app.getPath('userData');
 
 ipcMain.handle('get-system-info', async () => {
@@ -97,7 +99,7 @@ ipcMain.handle('get-metadata', async (e, query) => {
                 artist: artistName,
                 album: trackFull.album.title,
                 cover: trackFull.album.cover_xl || trackFull.album.cover_big,
-                year: albumFull.release_date ? albumFull.release_date.substring(0, 4) : ""
+                year: trackFull.release_date ? trackFull.release_date.substring(0, 4) : (albumFull.release_date ? albumFull.release_date.substring(0, 4) : "")
             };
         }
         return null;
@@ -171,6 +173,48 @@ ipcMain.handle('get-artist-metadata', async (e, artistName) => {
     } catch (err) { console.error("Last.fm error:", err); }
 
     return (result.avatar || result.bio) ? result : null;
+});
+
+ipcMain.handle('write-id3-tags', async (e, { filePath, tags }) => {
+    try {
+        if (!fs.existsSync(filePath)) return { success: false, error: 'File not found' };
+        
+        let coverBuffer = null;
+        if (tags.coverUrl && tags.coverUrl.startsWith('data:image')) {
+            const base64Data = tags.coverUrl.split(';base64,').pop();
+            coverBuffer = Buffer.from(base64Data, 'base64');
+        } else if (tags.coverUrl && tags.coverUrl.startsWith('http')) {
+            const res = await fetch(tags.coverUrl);
+            const arrayBuffer = await res.arrayBuffer();
+            coverBuffer = Buffer.from(arrayBuffer);
+        }
+
+        const id3Tags = {
+            title: tags.title,
+            artist: tags.artist,
+            album: tags.album,
+            year: tags.year,
+            unsynchronisedLyrics: {
+                language: 'eng',
+                text: tags.lyrics || ''
+            }
+        };
+
+        if (coverBuffer) {
+            id3Tags.image = {
+                mime: 'image/jpeg',
+                type: { id: 3, name: 'front cover' },
+                description: 'Cover',
+                imageBuffer: coverBuffer
+            };
+        }
+
+        const success = NodeID3.update(id3Tags, filePath);
+        return { success: success !== false };
+    } catch (err) {
+        console.error("ID3 write error:", err);
+        return { success: false, error: err.message };
+    }
 });
 
 app.whenReady().then(createWindow);

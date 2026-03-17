@@ -21,6 +21,8 @@ interface PlayerControlsProps {
   onVolumeChange: (vol: number) => void;
   isShuffled: boolean;
   onToggleShuffle: () => void;
+  isRepeating: boolean;
+  onToggleRepeat: () => void;
   onToggleSidebar: () => void;
   onToggleFullScreen: () => void;
   onOpenLyrics: () => void; // New prop
@@ -48,6 +50,8 @@ const PlayerControls: React.FC<PlayerControlsProps> = ({
   onVolumeChange,
   isShuffled,
   onToggleShuffle,
+  isRepeating,
+  onToggleRepeat,
   onToggleSidebar,
   onToggleFullScreen,
   onOpenLyrics,
@@ -80,8 +84,8 @@ const PlayerControls: React.FC<PlayerControlsProps> = ({
   };
 
   const containerClasses = isFloating 
-    ? `fixed bottom-8 left-1/2 -translate-x-1/2 w-[95%] max-w-5xl h-[100px] rounded-[32px] ${enableGlass ? 'glass-panel' : 'bg-[var(--panel-bg)]'} z-50 flex flex-col justify-center px-8 shadow-[0_30px_60px_rgba(0,0,0,0.5)] transition-all duration-500 border border-[var(--glass-border)] hover:border-white/20`
-    : `absolute bottom-0 left-0 right-0 h-[100px] w-full ${enableGlass ? 'glass-panel bg-black/40 backdrop-blur-3xl' : 'bg-[var(--bg-main)] shadow-[0_-10px_40px_rgba(0,0,0,0.1)]'} border-t border-[var(--glass-border)] z-50 flex flex-col justify-center px-8`;
+    ? `absolute bottom-8 left-1/2 -translate-x-1/2 w-[95%] max-w-5xl h-[100px] rounded-[32px] ${enableGlass ? 'glass-panel' : 'bg-[var(--panel-bg)]'} z-50 flex flex-col justify-center px-8 shadow-[0_30px_60px_rgba(0,0,0,0.5)] transition-all duration-500 border border-[var(--glass-border)] hover:border-white/20`
+    : `absolute bottom-0 left-0 right-0 h-[100px] w-full ${enableGlass ? 'glass-panel bg-black/40 backdrop-blur-3xl' : 'bg-[var(--bg-main-transparent)] shadow-[0_-10px_40px_rgba(0,0,0,0.1)]'} border-t border-[var(--glass-border)] z-50 flex flex-col justify-center px-8`;
 
   return (
     <div className={containerClasses}>
@@ -153,7 +157,11 @@ const PlayerControls: React.FC<PlayerControlsProps> = ({
             <button onClick={onNext} className="text-[var(--text-muted)] hover:text-[var(--text-main)] transition-all p-2 hover:bg-[var(--card-hover)] rounded-xl active:scale-90">
               <SkipForward className="w-6 h-6 fill-current" />
             </button>
-            <button className="text-[var(--text-muted)] hover:text-[var(--text-main)] transition-all p-2 rounded-xl hover:bg-[var(--card-hover)]">
+            <button 
+              onClick={onToggleRepeat}
+              className={`transition-all p-2 rounded-xl hover:bg-[var(--card-hover)] ${isRepeating ? '' : 'text-[var(--text-muted)] hover:text-[var(--text-main)]'}`}
+              style={{ color: isRepeating ? accentColor : undefined }}
+            >
               <Repeat className="w-4 h-4" />
             </button>
           </div>

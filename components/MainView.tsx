@@ -4,7 +4,7 @@ import { Track, PlaybackState, ViewType, ArtistMetadata } from '../types';
 import { TranslationKey } from '../translations';
 import { 
   Play, Music, Disc, Mic2, Edit, Trash2, ArrowLeft, Heart, 
-  Upload, X, Check, Quote, Image as ImageIcon, Search, MoreHorizontal, User, Calendar, RefreshCw
+  Upload, X, Check, Quote, Image as ImageIcon, Search, MoreHorizontal, User, Calendar, RefreshCw, ListMusic
 } from './Icons';
 import { formatTime, fileToDataURL } from '../utils';
 
@@ -31,6 +31,13 @@ interface MainViewProps {
   enableGlass?: boolean;
   t: (key: TranslationKey) => string;
   onTranslate: (text: string) => Promise<string>;
+  playlists?: import('../types').Playlist[];
+  selectedPlaylist?: string | null;
+  onUpdatePlaylist?: (id: string, data: Partial<import('../types').Playlist>) => void;
+  onDeletePlaylist?: (id: string) => void;
+  onCreatePlaylist?: () => void;
+  onChangeView?: (view: ViewType) => void;
+  onOpenSelectTracks?: () => void;
 }
 
 const ARTIST_SPLIT_REGEX = /\s*(?:,|;|feat\.?|ft\.?|&|\/|featuring)\s+/i;
@@ -39,11 +46,13 @@ const MainView: React.FC<MainViewProps> = ({
   tracks, currentTrack, playbackState, onPlay, onShuffleAll, currentView, 
   selectedArtist, selectedAlbum, onUpdateTrack, onDeleteTrack, onGoToArtist, onGoToAlbum, onBack, accentColor,
   artistMetadata = {}, onUpdateArtist, searchQuery = "", onRequestFileUnlock,
-  onToggleLike, enableGlass = true, t, onTranslate
+  onToggleLike, enableGlass = true, t, onTranslate, playlists = [], selectedPlaylist, onUpdatePlaylist, onDeletePlaylist, onCreatePlaylist, onChangeView, onOpenSelectTracks
 }) => {
   const [editingTrack, setEditingTrack] = useState<Track | null>(null);
   const [translatedBio, setTranslatedBio] = useState<string | null>(null);
   const [isTranslatingBio, setIsTranslatingBio] = useState(false);
+
+  const [playlistMenuOpen, setPlaylistMenuOpen] = useState<string | null>(null);
 
   const handleTranslateBio = async (text: string) => {
     if (isTranslatingBio) return;
@@ -55,7 +64,23 @@ const MainView: React.FC<MainViewProps> = ({
 
   useEffect(() => {
     setTranslatedBio(null);
-  }, [selectedArtist]);
+    
+    // Auto-fetch artist metadata if missing
+    if (selectedArtist && currentView === 'artist_detail' && isElectron() && onUpdateArtist) {
+      const meta = artistMetadata[selectedArtist];
+      if (!meta || (!meta.avatar && !meta.banner && !meta.bio)) {
+        const fetchMeta = async () => {
+          setIsRefreshingArtist(true);
+          try {
+            const { ipcRenderer } = (window as any).require('electron');
+            const newMeta = await ipcRenderer.invoke('get-artist-metadata', selectedArtist);
+            if (newMeta) onUpdateArtist(selectedArtist, newMeta);
+          } catch (e) { console.error(e); } finally { setIsRefreshingArtist(false); }
+        };
+        fetchMeta();
+      }
+    }
+  }, [selectedArtist, currentView]);
   const [isSearchingMetadata, setIsSearchingMetadata] = useState(false);
   const [isRefreshingArtist, setIsRefreshingArtist] = useState(false);
   const coverInputRef = useRef<HTMLInputElement>(null);
@@ -139,13 +164,17 @@ const MainView: React.FC<MainViewProps> = ({
       if (currentView === 'favorites') return t.isLiked;
       if (currentView === 'artist_detail') return t.artist.split(ARTIST_SPLIT_REGEX).map(n => n.trim().toLowerCase()).includes(selectedArtist?.toLowerCase() || "");
       if (currentView === 'album_detail') return t.album === selectedAlbum;
+      if (currentView === 'playlist_detail' && selectedPlaylist) {
+        const playlist = playlists.find(p => p.id === selectedPlaylist);
+        return playlist ? playlist.trackIds.includes(t.id) : false;
+      }
       if (currentView === 'search' && searchQuery) {
           const q = searchQuery.toLowerCase();
           return t.title.toLowerCase().includes(q) || t.artist.toLowerCase().includes(q) || t.album.toLowerCase().includes(q);
       }
       return true;
     });
-  }, [tracks, currentView, selectedArtist, selectedAlbum, searchQuery]);
+  }, [tracks, currentView, selectedArtist, selectedAlbum, searchQuery, selectedPlaylist, playlists]);
 
   const renderTrackList = (tracksToRender: Track[]) => (
     <div className="space-y-1 px-4">
@@ -187,8 +216,46 @@ const MainView: React.FC<MainViewProps> = ({
                     <span className="hover:text-[var(--text-main)]/80 transition-colors" onClick={(e) => { e.stopPropagation(); onGoToAlbum(track.album); }}>{track.album}</span>
                 </div>
              </div>
-             <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-all translate-x-2 group-hover:translate-x-0">
+             <div className="flex items-center gap-0.5 opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-all md:translate-x-2 md:group-hover:translate-x-0 relative">
                 <button className={`p-2 hover:bg-[var(--card-hover)] rounded-xl transition-all ${track.isLiked ? '' : 'text-[var(--text-muted)] hover:text-[var(--text-main)]'}`} style={{ color: track.isLiked ? accentColor : undefined }} onClick={e => { e.stopPropagation(); onToggleLike(track.id, track); }}><Heart className={`w-3.5 h-3.5 ${track.isLiked ? 'fill-current' : ''}`} /></button>
+                <div className="relative">
+                  <button className="p-2 hover:bg-[var(--card-hover)] rounded-xl text-[var(--text-muted)] hover:text-[var(--text-main)] transition-all" onClick={e => { e.stopPropagation(); setPlaylistMenuOpen(playlistMenuOpen === track.id ? null : track.id); }} title={t('add_to_playlist')}><ListMusic className="w-3.5 h-3.5" /></button>
+                  {playlistMenuOpen === track.id && (
+                    <div className="absolute right-0 bottom-full mb-2 w-48 bg-[var(--card-bg)] border border-[var(--glass-border)] rounded-xl shadow-2xl overflow-hidden z-50 animate-fade-in">
+                      <div className="p-2 text-[10px] font-bold text-[var(--text-muted)] uppercase tracking-wider border-b border-[var(--glass-border)]">{t('add_to_playlist')}</div>
+                      <div className="max-h-48 overflow-y-auto">
+                        {playlists.length === 0 ? (
+                          <div className="p-3 text-xs text-[var(--text-muted)] text-center">
+                            {t('no_playlists')}
+                            <button onClick={(e) => { e.stopPropagation(); if (onCreatePlaylist) onCreatePlaylist(); setPlaylistMenuOpen(null); }} className="block w-full mt-2 py-1.5 rounded-lg border border-[var(--glass-border)] hover:bg-[var(--card-hover)] transition-colors">
+                              {t('create_playlist')}
+                            </button>
+                          </div>
+                        ) : (
+                          playlists.map(p => (
+                            <button 
+                              key={p.id}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                if (onUpdatePlaylist) {
+                                  const newTrackIds = p.trackIds.includes(track.id) 
+                                    ? p.trackIds.filter(id => id !== track.id)
+                                    : [...p.trackIds, track.id];
+                                  onUpdatePlaylist(p.id, { trackIds: newTrackIds });
+                                }
+                                setPlaylistMenuOpen(null);
+                              }}
+                              className="w-full text-left px-3 py-2 text-xs text-[var(--text-main)] hover:bg-[var(--card-hover)] transition-colors flex items-center justify-between"
+                            >
+                              <span className="truncate">{p.name}</span>
+                              {p.trackIds.includes(track.id) && <Check className="w-3 h-3 text-green-500" />}
+                            </button>
+                          ))
+                        )}
+                      </div>
+                    </div>
+                  )}
+                </div>
                 <button className="p-2 hover:bg-[var(--card-hover)] rounded-xl text-[var(--text-muted)] hover:text-[var(--text-main)] transition-all" onClick={e => { e.stopPropagation(); setEditingTrack(track); }} title={t('edit')}><Edit className="w-3.5 h-3.5" /></button>
                 <button className="p-2 hover:bg-[var(--card-hover)] rounded-xl text-red-500/40 hover:text-red-500 transition-all" onClick={e => { e.stopPropagation(); onDeleteTrack(track.id); }} title={t('delete')}><Trash2 className="w-3.5 h-3.5" /></button>
              </div>
@@ -222,6 +289,10 @@ const MainView: React.FC<MainViewProps> = ({
   const recentlyAdded = useMemo(() => {
     return [...tracks].sort((a, b) => (b.addedAt || 0) - (a.addedAt || 0)).slice(0, 12);
   }, [tracks]);
+
+  const selectedPlaylistData = useMemo(() => {
+    return playlists.find(p => p.id === selectedPlaylist);
+  }, [playlists, selectedPlaylist]);
 
   const renderView = () => {
     switch (currentView) {
@@ -419,24 +490,41 @@ const MainView: React.FC<MainViewProps> = ({
 
             {metaDetail?.bio && (
                 <div className="px-4 mb-16 animate-slide-up">
-                    <div className="bg-white/[0.03] border border-white/5 p-10 rounded-[40px] relative overflow-hidden group">
-                        <div className="absolute top-0 right-0 p-10 opacity-5 group-hover:opacity-10 transition-opacity">
-                          <Quote className="w-32 h-32 text-white" />
+                    <div className="relative overflow-hidden group rounded-[32px] bg-gradient-to-br from-[var(--card-bg)] to-transparent border border-[var(--glass-border)] p-8 md:p-12 shadow-2xl backdrop-blur-xl">
+                        <div className="absolute top-0 right-0 -mt-10 -mr-10 opacity-[0.03] group-hover:opacity-[0.05] transition-opacity duration-700 pointer-events-none">
+                          <Quote className="w-64 h-64 text-[var(--text-main)]" />
                         </div>
-                        <div className="flex items-center justify-between mb-6">
-                            <h3 className="text-[11px] uppercase tracking-[0.4em] text-[var(--text-muted)] font-black flex items-center gap-3">
-                                 {t('bio')}
-                            </h3>
+                        
+                        <div className="flex items-center justify-between mb-8 relative z-10">
+                            <div className="flex items-center gap-4">
+                                <div className="w-10 h-10 rounded-full bg-[var(--text-main)]/10 flex items-center justify-center">
+                                    <User className="w-5 h-5 text-[var(--text-main)]" />
+                                </div>
+                                <div>
+                                    <h3 className="text-[12px] uppercase tracking-[0.3em] text-[var(--text-main)] font-black">
+                                        {t('bio')}
+                                    </h3>
+                                    <p className="text-[10px] text-[var(--text-muted)] font-bold mt-1 uppercase tracking-wider">About the artist</p>
+                                </div>
+                            </div>
+                            
                             <button 
                                 onClick={() => translatedBio ? setTranslatedBio(null) : handleTranslateBio(metaDetail.bio!)}
-                                className="text-[10px] uppercase tracking-widest font-black text-[var(--text-muted)] hover:text-[var(--text-main)] transition-colors"
+                                className="px-5 py-2.5 rounded-full bg-[var(--text-main)]/5 hover:bg-[var(--text-main)]/10 text-[11px] uppercase tracking-widest font-black text-[var(--text-main)] transition-all border border-[var(--text-main)]/10 hover:border-[var(--text-main)]/20 shadow-lg flex items-center gap-2"
                             >
-                                {isTranslatingBio ? t('searching') : (translatedBio ? t('original') : t('translate'))}
+                                {isTranslatingBio ? (
+                                    <><RefreshCw className="w-3 h-3 animate-spin" /> {t('searching')}</>
+                                ) : (
+                                    translatedBio ? t('original') : t('translate')
+                                )}
                             </button>
                         </div>
-                        <p className="text-[var(--text-main)]/60 text-lg leading-relaxed font-medium whitespace-pre-wrap relative z-10 max-w-4xl">
-                            {translatedBio || metaDetail.bio}
-                        </p>
+                        
+                        <div className="relative z-10">
+                            <p className="text-[var(--text-main)]/80 text-[15px] md:text-[17px] leading-[1.8] font-medium whitespace-pre-wrap max-w-5xl">
+                                {translatedBio || metaDetail.bio.replace(/<a\b[^>]*>(.*?)<\/a>/gi, '')}
+                            </p>
+                        </div>
                     </div>
                 </div>
             )}
@@ -482,6 +570,76 @@ const MainView: React.FC<MainViewProps> = ({
             </div>
         );
 
+      case 'playlist_detail':
+        return (
+            <div className="animate-fade-in">
+                <div className="flex flex-col md:flex-row gap-12 mb-16 items-center md:items-end px-4">
+                    <div className="w-72 h-72 rounded-[40px] overflow-hidden shadow-[0_30px_60px_rgba(0,0,0,0.6)] border border-white/10 shrink-0 bg-white/5 transition-transform duration-700 hover:scale-[1.02] flex items-center justify-center relative group">
+                      {selectedPlaylistData?.coverUrl ? (
+                        <img src={selectedPlaylistData.coverUrl} className="w-full h-full object-cover" />
+                      ) : (
+                        <ListMusic className="w-24 h-24 text-[var(--text-muted)]/30" />
+                      )}
+                      <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-all duration-300 backdrop-blur-[2px] cursor-pointer" onClick={() => {
+                        const input = document.createElement('input');
+                        input.type = 'file';
+                        input.accept = 'image/*';
+                        input.onchange = async (e) => {
+                          const file = (e.target as HTMLInputElement).files?.[0];
+                          if (file && selectedPlaylist && onUpdatePlaylist) {
+                            const url = await fileToDataURL(file);
+                            onUpdatePlaylist(selectedPlaylist, { coverUrl: url });
+                          }
+                        };
+                        input.click();
+                      }}>
+                        <Edit className="w-10 h-10 text-white" />
+                      </div>
+                    </div>
+                    <div className="flex-1 text-center md:text-left min-w-0 pb-4">
+                        <p className="text-[11px] uppercase tracking-[0.5em] text-[var(--text-muted)] mb-4 font-black">{t('playlist')}</p>
+                        <h1 className="text-6xl font-black text-[var(--text-main)] mb-6 tracking-tighter drop-shadow-2xl truncate group relative flex items-center gap-4">
+                          {selectedPlaylistData?.name}
+                          <button onClick={() => {
+                            const newName = window.prompt(t('enter_new_playlist_name'), selectedPlaylistData?.name);
+                            if (newName && newName.trim() && selectedPlaylist && onUpdatePlaylist) {
+                              onUpdatePlaylist(selectedPlaylist, { name: newName.trim() });
+                            }
+                          }} className="opacity-0 group-hover:opacity-100 transition-opacity p-2 hover:bg-white/10 rounded-full">
+                            <Edit className="w-6 h-6 text-[var(--text-muted)] hover:text-[var(--text-main)]" />
+                          </button>
+                        </h1>
+                        <div className="flex items-center justify-center md:justify-start gap-4 mb-10">
+                          <p className="text-sm font-bold text-[var(--text-muted)]">{filteredTracks.length} {t('songs')}</p>
+                        </div>
+                        <div className="flex gap-4 justify-center md:justify-start">
+                            <button onClick={() => filteredTracks.length > 0 && onPlay(filteredTracks[0], filteredTracks)} className="bg-[var(--text-main)] text-[var(--bg-main)] px-12 py-4 rounded-[20px] font-black text-sm hover:scale-105 active:scale-95 transition-all shadow-2xl shadow-white/10 flex items-center gap-3"><Play className="w-5 h-5 fill-current" /> {t('listen_now')}</button>
+                            <button onClick={() => onShuffleAll(filteredTracks)} className="bg-[var(--card-bg)] backdrop-blur-xl border border-[var(--glass-border)] px-12 py-4 rounded-[20px] font-black text-sm hover:bg-[var(--card-hover)] transition-all text-[var(--text-main)]">{t('shuffle')}</button>
+                            <button onClick={() => onOpenSelectTracks?.()} className="bg-[var(--card-bg)] backdrop-blur-xl border border-[var(--glass-border)] px-6 py-4 rounded-[20px] font-black text-sm hover:bg-[var(--card-hover)] transition-all text-[var(--text-main)]">{t('add_tracks')}</button>
+                            <button onClick={() => {
+                              if (window.confirm(t('delete_playlist_confirm'))) {
+                                if (selectedPlaylist && onDeletePlaylist) onDeletePlaylist(selectedPlaylist);
+                              }
+                            }} className="bg-[var(--card-bg)] backdrop-blur-xl border border-red-500/30 text-red-500 px-6 py-4 rounded-[20px] font-black text-sm hover:bg-red-500/10 transition-all">{t('delete')}</button>
+                        </div>
+                    </div>
+                </div>
+                {filteredTracks.length === 0 ? (
+                  <div className="text-center text-[var(--text-muted)] py-12">
+                    <p className="mb-4">{t('no_tracks')}</p>
+                    <button 
+                      onClick={() => onOpenSelectTracks?.()}
+                      className="px-6 py-3 rounded-2xl font-bold text-[var(--text-main)] bg-[var(--card-bg)] hover:bg-[var(--card-hover)] border border-[var(--glass-border)] transition-all"
+                    >
+                      {t('add_tracks')}
+                    </button>
+                  </div>
+                ) : (
+                  renderTrackList(filteredTracks)
+                )}
+            </div>
+        );
+
       case 'search':
         return (
           <div className="space-y-10">
@@ -489,7 +647,7 @@ const MainView: React.FC<MainViewProps> = ({
               <section>
                 <h2 className="text-xl font-bold mb-4 px-4 flex items-center gap-2">
                   <Music className="w-5 h-5" style={{ color: accentColor }} />
-                  Ваша медиатека
+                  {t('your_library')}
                 </h2>
                 {renderTrackList(filteredTracks)}
               </section>
@@ -504,12 +662,13 @@ const MainView: React.FC<MainViewProps> = ({
 
   const getTitle = () => {
     switch (currentView) {
-      case 'listen_now': return 'Слушать сейчас';
-      case 'albums': return 'Альбомы';
-      case 'artists': return 'Артисты';
-      case 'songs': return 'Песни';
-      case 'favorites': return 'Избранное';
-      case 'search': return searchQuery ? `Результаты: ${searchQuery}` : 'Поиск';
+      case 'listen_now': return t('listen_now');
+      case 'albums': return t('albums');
+      case 'artists': return t('artists');
+      case 'songs': return t('songs');
+      case 'favorites': return t('favorites');
+      case 'search': return searchQuery ? `${t('search')}: ${searchQuery}` : t('search');
+      case 'playlist_detail': return selectedPlaylistData?.name || t('playlist');
       default: return '';
     }
   };
@@ -547,11 +706,11 @@ const MainView: React.FC<MainViewProps> = ({
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
                                 <div className="space-y-1">
                                     <label className="text-[10px] text-[var(--text-muted)] font-bold uppercase ml-2">{t('artists')}</label>
-                                    <input type="text" value={editingTrack.artist} onChange={e => setEditingTrack({...editingTrack, artist: e.target.value})} className="w-full glass-input rounded-xl px-4 py-3 text-[var(--text-main)]" placeholder={t('artists')} />
+                                    <input type="text" value={editingTrack.artist === "Неизвестный артист" || editingTrack.artist === "Unknown Artist" ? "" : editingTrack.artist} onChange={e => setEditingTrack({...editingTrack, artist: e.target.value})} className="w-full glass-input rounded-xl px-4 py-3 text-[var(--text-main)]" placeholder={t('artists')} />
                                 </div>
                                 <div className="space-y-1">
                                     <label className="text-[10px] text-[var(--text-muted)] font-bold uppercase ml-2">{t('albums')}</label>
-                                    <input type="text" value={editingTrack.album} onChange={e => setEditingTrack({...editingTrack, album: e.target.value})} className="w-full glass-input rounded-xl px-4 py-3 text-[var(--text-main)]" placeholder={t('albums')} />
+                                    <input type="text" value={editingTrack.album === "Локальный импорт" || editingTrack.album === "Local Import" ? "" : editingTrack.album} onChange={e => setEditingTrack({...editingTrack, album: e.target.value})} className="w-full glass-input rounded-xl px-4 py-3 text-[var(--text-main)]" placeholder={t('albums')} />
                                 </div>
                             </div>
                             <div className="grid grid-cols-2 gap-5">
@@ -587,7 +746,7 @@ const MainView: React.FC<MainViewProps> = ({
       )}
 
       {(currentView === 'artist_detail' || currentView === 'album_detail') && (
-          <button onClick={onBack} className={`mb-8 p-4 ${enableGlass ? 'bg-white/5 backdrop-blur-2xl' : 'bg-[var(--bg-main)]'} hover:bg-white/10 rounded-2xl transition-all sticky top-4 z-[100] border border-[var(--glass-border)] mx-4 shadow-2xl group`}>
+          <button onClick={onBack} className={`mb-8 p-4 ${enableGlass ? 'bg-white/5 backdrop-blur-2xl' : 'bg-[var(--bg-main-transparent)]'} hover:bg-white/10 rounded-2xl transition-all sticky top-4 z-[100] border border-[var(--glass-border)] mx-4 shadow-2xl group`}>
               <ArrowLeft className="w-6 h-6 text-[var(--text-main)] group-hover:-translate-x-1 transition-transform" />
           </button>
       )}

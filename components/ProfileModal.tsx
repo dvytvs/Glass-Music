@@ -12,9 +12,10 @@ interface ProfileModalProps {
   onUpdate: (data: Partial<UserProfile>) => void;
   accentColor: string;
   t: (key: TranslationKey) => string;
+  enableGlass?: boolean;
 }
 
-const ProfileModal: React.FC<ProfileModalProps> = ({ isOpen, onClose, profile, onUpdate, accentColor, t }) => {
+const ProfileModal: React.FC<ProfileModalProps> = ({ isOpen, onClose, profile, onUpdate, accentColor, t, enableGlass = true }) => {
   const [tempProfile, setTempProfile] = useState<UserProfile>(profile);
   const avatarRef = useRef<HTMLInputElement>(null);
   const bannerRef = useRef<HTMLInputElement>(null);
@@ -47,7 +48,7 @@ const ProfileModal: React.FC<ProfileModalProps> = ({ isOpen, onClose, profile, o
   return (
     <div className="fixed inset-0 z-[150] flex items-center justify-center bg-black/40 backdrop-blur-md p-4 animate-fade-in">
       <div 
-        className="w-full max-w-lg bg-[var(--bg-main)] border border-[var(--glass-border)] rounded-[40px] shadow-[0_40px_80px_rgba(0,0,0,0.4)] overflow-hidden animate-scale-in backdrop-blur-3xl flex flex-col"
+        className={`w-full max-w-lg bg-[var(--panel-bg)] border border-[var(--glass-border)] rounded-[40px] shadow-[0_40px_80px_rgba(0,0,0,0.4)] overflow-hidden animate-scale-in ${enableGlass ? 'backdrop-blur-3xl' : ''} flex flex-col`}
         onClick={e => e.stopPropagation()}
       >
         {/* Banner Section */}

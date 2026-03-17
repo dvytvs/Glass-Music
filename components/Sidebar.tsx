@@ -1,7 +1,7 @@
 
-import React from 'react';
-import { Music, LayoutGrid, Mic2, Disc, ListMusic, Search, Play, Settings, Heart, User } from './Icons';
-import { ViewType, UserProfile } from '../types';
+import React, { useState } from 'react';
+import { Music, LayoutGrid, Mic2, Disc, ListMusic, Search, Play, Settings, Heart, User, Plus, ChevronDown, ChevronRight } from './Icons';
+import { ViewType, UserProfile, Playlist } from '../types';
 import { TranslationKey } from '../translations';
 
 interface SidebarProps {
@@ -17,12 +17,17 @@ interface SidebarProps {
   enableGlass: boolean;
   user: UserProfile;
   t: (key: TranslationKey) => string;
+  playlists: Playlist[];
+  onSelectPlaylist: (id: string) => void;
+  onCreatePlaylist: () => void;
+  selectedPlaylist: string | null;
 }
 
 const Sidebar: React.FC<SidebarProps> = ({ 
   onImportClick, onSettingsClick, onProfileClick, currentView, onChangeView, isOpen, accentColor,
-  searchQuery, onSearchChange, enableGlass, user, t
+  searchQuery, onSearchChange, enableGlass, user, t, playlists, onSelectPlaylist, onCreatePlaylist, selectedPlaylist
 }) => {
+  const [playlistsExpanded, setPlaylistsExpanded] = useState(true);
   
   const handleSearch = (e: React.ChangeEvent<HTMLInputElement>) => {
     const val = e.target.value;
@@ -34,11 +39,11 @@ const Sidebar: React.FC<SidebarProps> = ({
 
   return (
     <div 
-      className={`h-full flex flex-col ${enableGlass ? 'glass-sidebar' : 'bg-[var(--bg-main)] border-r border-[var(--glass-border)]'} z-20 relative transition-[width,opacity,transform] duration-500 ease-[cubic-bezier(0.32,0.72,0,1)] overflow-hidden ${
-        isOpen ? 'w-64 pt-6 pb-4 px-4 opacity-100 translate-x-0' : 'w-0 pt-6 pb-4 px-0 opacity-0 -translate-x-full'
+      className={`h-full flex flex-col ${enableGlass ? 'glass-sidebar' : 'bg-[var(--sidebar-bg)] border-r border-[var(--glass-border)]'} z-20 relative transition-all duration-500 ease-[cubic-bezier(0.32,0.72,0,1)] overflow-hidden ${
+        isOpen ? 'w-64 pt-6 pb-4 px-4 opacity-100' : 'w-0 pt-6 pb-4 px-0 opacity-0'
       }`}
     >
-      <div className="w-56 flex flex-col h-full min-w-[14rem]">
+      <div className="w-56 flex flex-col h-full">
         
         {/* User Profile Block */}
         <button 
@@ -124,6 +129,46 @@ const Sidebar: React.FC<SidebarProps> = ({
               />
             </div>
           </div>
+
+          <div>
+            <div className="flex items-center justify-between px-4 mb-4 group cursor-pointer" onClick={() => setPlaylistsExpanded(!playlistsExpanded)}>
+              <h3 className="text-[10px] font-black text-[var(--text-muted)] uppercase tracking-[0.3em] group-hover:text-[var(--text-main)] transition-colors">{t('playlists')}</h3>
+              <div className="flex items-center gap-2">
+                <button 
+                  onClick={(e) => { e.stopPropagation(); onCreatePlaylist(); }}
+                  className="text-[var(--text-muted)] hover:text-[var(--text-main)] transition-colors p-1"
+                >
+                  <Plus className="w-3.5 h-3.5" />
+                </button>
+                <button className="text-[var(--text-muted)] hover:text-[var(--text-main)] transition-colors p-1">
+                  {playlistsExpanded ? <ChevronDown className="w-3.5 h-3.5" /> : <ChevronRight className="w-3.5 h-3.5" />}
+                </button>
+              </div>
+            </div>
+            
+            <div className={`space-y-1 overflow-hidden transition-all duration-300 ${playlistsExpanded ? 'max-h-96 opacity-100' : 'max-h-0 opacity-0'}`}>
+              {playlists.length === 0 ? (
+                <div className="px-4 py-3 text-xs text-[var(--text-muted)] text-center">
+                  {t('no_playlists')}
+                  <button onClick={onCreatePlaylist} className="block w-full mt-2 py-1.5 rounded-lg border border-[var(--glass-border)] hover:bg-[var(--card-hover)] transition-colors">
+                    {t('create_playlist')}
+                  </button>
+                </div>
+              ) : (
+                playlists.map(p => (
+                  <NavItem 
+                    key={p.id}
+                    icon={<ListMusic className="w-4 h-4" />} 
+                    label={p.name} 
+                    active={currentView === 'playlist_detail' && p.id === selectedPlaylist}
+                    onClick={() => onSelectPlaylist(p.id)}
+                    accentColor={accentColor}
+                    coverUrl={p.coverUrl}
+                  />
+                ))
+              )}
+            </div>
+          </div>
         </nav>
 
         <div className="mt-auto pt-6 space-y-2">
@@ -148,7 +193,7 @@ const Sidebar: React.FC<SidebarProps> = ({
   );
 };
 
-const NavItem: React.FC<{ icon: React.ReactNode; label: string; active?: boolean; onClick: () => void; accentColor: string }> = ({ icon, label, active, onClick, accentColor }) => (
+const NavItem: React.FC<{ icon: React.ReactNode; label: string; active?: boolean; onClick: () => void; accentColor: string; coverUrl?: string }> = ({ icon, label, active, onClick, accentColor, coverUrl }) => (
   <button 
     onClick={onClick}
     className={`w-full flex items-center gap-3 px-4 py-2 rounded-xl text-[13px] font-semibold transition-all duration-300 group ${
@@ -157,8 +202,10 @@ const NavItem: React.FC<{ icon: React.ReactNode; label: string; active?: boolean
       : 'text-[var(--text-muted)] hover:text-[var(--text-main)] hover:bg-[var(--card-bg)]'
   }`}
   >
-    <span className={`transition-transform duration-300 ${active ? 'scale-110' : 'group-hover:scale-110'}`} style={{ color: active ? accentColor : 'inherit' }}>{icon}</span>
-    {label}
+    <span className={`transition-transform duration-300 ${active ? 'scale-110' : 'group-hover:scale-110'} flex items-center justify-center`} style={{ color: active ? accentColor : 'inherit' }}>
+      {coverUrl ? <img src={coverUrl} alt={label} className="w-4 h-4 rounded-sm object-cover" /> : icon}
+    </span>
+    <span className="truncate">{label}</span>
   </button>
 );
 

@@ -1,16 +1,58 @@
 
-import React, { useMemo } from 'react';
+import React, { useMemo, useEffect, useRef } from 'react';
 import { ThemeConfig } from '../types';
 
 interface BackgroundProps {
   config: ThemeConfig;
   isLight?: boolean;
+  analyser?: AnalyserNode | null;
+  isPlaying?: boolean;
 }
 
-const Background: React.FC<BackgroundProps> = React.memo(({ config, isLight }) => {
+const Background: React.FC<BackgroundProps> = React.memo(({ config, isLight, analyser, isPlaying }) => {
+  const containerRef = useRef<HTMLDivElement>(null);
+  const animationRef = useRef<number>();
+
+  useEffect(() => {
+    if (!config.animateBackground || !analyser || !isPlaying || config.backgroundType !== 'liquid') {
+      if (containerRef.current) {
+        containerRef.current.style.transform = 'scale(1)';
+      }
+      if (animationRef.current) cancelAnimationFrame(animationRef.current);
+      return;
+    }
+
+    const dataArray = new Uint8Array(analyser.frequencyBinCount);
+    
+    const update = () => {
+      analyser.getByteFrequencyData(dataArray);
+      
+      // Calculate bass intensity (first few bins)
+      let bassSum = 0;
+      const bassBins = 10;
+      for (let i = 0; i < bassBins; i++) {
+        bassSum += dataArray[i];
+      }
+      const bassAvg = bassSum / bassBins;
+      const scale = 1 + (bassAvg / 255) * 0.15; // Max scale 1.15
+
+      if (containerRef.current) {
+        containerRef.current.style.transform = `scale(${scale})`;
+      }
+
+      animationRef.current = requestAnimationFrame(update);
+    };
+
+    update();
+
+    return () => {
+      if (animationRef.current) cancelAnimationFrame(animationRef.current);
+      if (containerRef.current) containerRef.current.style.transform = 'scale(1)';
+    };
+  }, [analyser, isPlaying, config.animateBackground, config.backgroundType, config.enableGlass]);
   // Optimization: Disable filter if blur is 0 OR glass is disabled.
   const mediaStyle = useMemo(() => {
-    const isBlurred = config.enableGlass && config.blurLevel > 0;
+    const isBlurred = config.enableGlass && config.blurLevel > 0 && config.backgroundType !== 'liquid';
     return {
       filter: isBlurred ? `blur(${config.blurLevel}px)` : 'none',
       transform: 'translate3d(0, 0, 0)',
@@ -18,7 +60,7 @@ const Background: React.FC<BackgroundProps> = React.memo(({ config, isLight }) =
       perspective: '1000px',
       willChange: 'transform',
     };
-  }, [config.blurLevel, config.enableGlass]);
+  }, [config.blurLevel, config.enableGlass, config.backgroundType]);
 
   const overlayStyle = useMemo(() => ({
     opacity: config.brightness
@@ -28,13 +70,15 @@ const Background: React.FC<BackgroundProps> = React.memo(({ config, isLight }) =
 
   return (
     <div className="fixed inset-0 z-0 overflow-hidden pointer-events-none transform-gpu">
-      {config.backgroundType === 'liquid' && config.enableGlass ? (
+      {config.backgroundType === 'liquid' ? (
           <div className="liquid-bg relative w-full h-full overflow-hidden bg-[var(--bg-main)]" style={mediaStyle}>
-            <div className={`blob w-[800px] h-[800px] rounded-full top-[-200px] left-[-200px] ${blendMode} opacity-20 blur-[100px] animate-blob`} style={{ backgroundColor: config.accentColor }}></div>
-            <div className={`blob bg-blue-600 w-[600px] h-[600px] rounded-full bottom-[-100px] right-[-100px] ${blendMode} opacity-20 blur-[100px] animate-blob animation-delay-2000`}></div>
-            <div className={`blob bg-purple-600 w-[700px] h-[700px] rounded-full top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 ${blendMode} opacity-15 blur-[100px] animate-blob animation-delay-4000`}></div>
+            <div ref={containerRef} className="w-full h-full absolute inset-0 transition-transform duration-75 ease-out">
+              <div className={`blob w-[800px] h-[800px] rounded-full top-[-200px] left-[-200px] ${blendMode} opacity-20 blur-[100px] ${config.animateBackground ? 'animate-blob' : ''}`} style={{ backgroundColor: config.accentColor }}></div>
+              <div className={`blob bg-blue-600 w-[600px] h-[600px] rounded-full bottom-[-100px] right-[-100px] ${blendMode} opacity-20 blur-[100px] ${config.animateBackground ? 'animate-blob animation-delay-2000' : ''}`}></div>
+              <div className={`blob bg-purple-600 w-[700px] h-[700px] rounded-full top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 ${blendMode} opacity-15 blur-[100px] ${config.animateBackground ? 'animate-blob animation-delay-4000' : ''}`}></div>
+            </div>
           </div>
-      ) : (config.backgroundType === 'image' || (config.backgroundType === 'liquid' && !config.enableGlass)) && config.backgroundSource ? (
+      ) : config.backgroundType === 'image' && config.backgroundSource ? (
           <img 
               src={config.backgroundSource} 
               className="w-full h-full object-cover transition-opacity duration-500"
@@ -69,7 +113,10 @@ const Background: React.FC<BackgroundProps> = React.memo(({ config, isLight }) =
     prevProps.config.blurLevel === nextProps.config.blurLevel &&
     prevProps.config.brightness === nextProps.config.brightness &&
     prevProps.config.accentColor === nextProps.config.accentColor &&
-    prevProps.config.enableGlass === nextProps.config.enableGlass
+    prevProps.config.enableGlass === nextProps.config.enableGlass &&
+    prevProps.config.animateBackground === nextProps.config.animateBackground &&
+    prevProps.isPlaying === nextProps.isPlaying &&
+    prevProps.analyser === nextProps.analyser
   );
 });
 

@@ -57,7 +57,7 @@ const LyricsView: React.FC<LyricsViewProps> = ({ lyricsRaw, currentTime }) => {
   if (isPlainText) {
       return (
         <div className="w-full h-full overflow-hidden relative">
-            <div className="w-full h-full overflow-y-auto custom-scrollbar px-10 py-24 space-y-8">
+            <div className="w-full h-full overflow-y-auto px-10 py-24 space-y-8">
                 {lines.map((line, index) => (
                     <p 
                         key={index} 
@@ -76,7 +76,7 @@ const LyricsView: React.FC<LyricsViewProps> = ({ lyricsRaw, currentTime }) => {
     <div className="w-full h-full overflow-hidden relative">
       <div 
         ref={containerRef}
-        className="w-full h-full overflow-y-auto custom-scrollbar px-8 py-[45vh] text-center space-y-12"
+        className="w-full h-full overflow-y-auto px-8 py-[45vh] text-center space-y-12"
       >
         {lines.map((line, index) => {
           const isActive = index === activeIndex;

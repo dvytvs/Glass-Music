@@ -7,9 +7,12 @@ import FullScreenPlayer from './components/FullScreenPlayer';
 import SettingsModal from './components/SettingsModal';
 import ProfileModal from './components/ProfileModal';
 import OnboardingModal from './components/OnboardingModal';
+import CreatePlaylistModal from './components/CreatePlaylistModal';
+import SelectTracksModal from './components/SelectTracksModal';
 import Background from './components/Background';
+import Visualizer from './components/Visualizer';
 import SnowEffect from './components/SnowEffect';
-import { Track, PlaybackState, PlayerState, ViewType, ThemeConfig, ArtistMetadata, UserProfile } from './types';
+import { Track, PlaybackState, PlayerState, ViewType, ThemeConfig, ArtistMetadata, UserProfile, Playlist } from './types';
 import { generateMockCover, parseFileMetadata, sortTracks, fetchLyricsFromLRCLIB } from './utils';
 import { translations, TranslationKey } from './translations';
 import { GoogleGenAI } from "@google/genai";
@@ -18,6 +21,7 @@ const STORAGE_KEY = 'glass_music_library_v1';
 const THEME_KEY = 'glass_music_theme_v1';
 const ARTIST_DATA_KEY = 'glass_music_artists_v1';
 const USER_PROFILE_KEY = 'glass_music_profile_v1';
+const PLAYLISTS_KEY = 'glass_music_playlists_v1';
 
 const DEFAULT_THEME: ThemeConfig = {
   accentColor: '#db2777', 
@@ -28,7 +32,8 @@ const DEFAULT_THEME: ThemeConfig = {
   enableGlass: true, 
   seasonalTheme: false, 
   playerStyle: 'floating',
-  themeMode: 'system'
+  themeMode: 'system',
+  animateBackground: true
 };
 
 const DEFAULT_PROFILE: UserProfile = {
@@ -46,8 +51,12 @@ const App: React.FC = () => {
   const [artistMetadata, setArtistMetadata] = useState<Record<string, ArtistMetadata>>({});
   const [userProfile, setUserProfile] = useState<UserProfile>(DEFAULT_PROFILE);
   const [sidebarOpen, setSidebarOpen] = useState(true);
+  const [playlists, setPlaylists] = useState<Playlist[]>([]);
+  const [selectedPlaylist, setSelectedPlaylist] = useState<string | null>(null);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [profileOpen, setProfileOpen] = useState(false);
+  const [isCreatePlaylistOpen, setIsCreatePlaylistOpen] = useState(false);
+  const [isSelectTracksOpen, setIsSelectTracksOpen] = useState(false);
   const [fullScreenMode, setFullScreenMode] = useState<'none' | 'cover' | 'lyrics'>('none');
   const [selectedArtist, setSelectedArtist] = useState<string | null>(null);
   const [selectedAlbum, setSelectedAlbum] = useState<string | null>(null);
@@ -61,10 +70,15 @@ const App: React.FC = () => {
   const [playerState, setPlayerState] = useState<PlayerState>({
     currentTrack: null, queue: [], playbackState: PlaybackState.PAUSED,
     volume: 0.8, currentTime: 0, duration: 0, isShuffled: false,
-    isRepeating: false, currentView: 'songs', history: []
+    isRepeating: false, currentView: 'listen_now', history: []
   });
 
   const audioRef = useRef<HTMLAudioElement>(new Audio());
+  const audioContextRef = useRef<AudioContext | null>(null);
+  const sourceNodeRef = useRef<MediaElementAudioSourceNode | null>(null);
+  const eqBandsRef = useRef<BiquadFilterNode[]>([]);
+  const [analyser, setAnalyser] = useState<AnalyserNode | null>(null);
+  const analyserRef = useRef<AnalyserNode | null>(null);
   
   const shuffledQueueRef = useRef<string[]>([]);
   const historyRef = useRef<string[]>([]);
@@ -131,6 +145,64 @@ const App: React.FC = () => {
     }
   }, []);
 
+  const initAudioContext = useCallback(() => {
+    if (audioContextRef.current) return;
+    try {
+      const AudioContextClass = window.AudioContext || (window as any).webkitAudioContext;
+      const ctx = new AudioContextClass();
+      audioContextRef.current = ctx;
+      
+      const source = ctx.createMediaElementSource(audioRef.current);
+      sourceNodeRef.current = source;
+
+      // Create 10-band EQ
+      const frequencies = [32, 64, 125, 250, 500, 1000, 2000, 4000, 8000, 16000];
+      const bands = frequencies.map(freq => {
+        const filter = ctx.createBiquadFilter();
+        filter.type = 'peaking';
+        filter.frequency.value = freq;
+        filter.Q.value = 1;
+        filter.gain.value = 0;
+        return filter;
+      });
+
+      eqBandsRef.current = bands;
+
+      const analyserNode = ctx.createAnalyser();
+      analyserNode.fftSize = 256;
+      analyserRef.current = analyserNode;
+      setAnalyser(analyserNode);
+
+      // Connect source -> bands -> analyser -> destination
+      let currentConnection: AudioNode = source;
+      bands.forEach(band => {
+        currentConnection.connect(band);
+        currentConnection = band;
+      });
+      currentConnection.connect(analyserNode);
+      analyserNode.connect(ctx.destination);
+      
+      // Apply saved EQ
+      if (theme.eqBands) {
+        theme.eqBands.forEach((gain, i) => {
+          if (bands[i]) bands[i].gain.value = gain;
+        });
+      }
+    } catch (e) {
+      console.error("Failed to initialize AudioContext:", e);
+    }
+  }, [theme.eqBands]);
+
+  useEffect(() => {
+    if (eqBandsRef.current.length > 0 && theme.eqBands) {
+      theme.eqBands.forEach((gain, i) => {
+        if (eqBandsRef.current[i]) {
+          eqBandsRef.current[i].gain.value = gain;
+        }
+      });
+    }
+  }, [theme.eqBands]);
+
   const translateText = async (text: string): Promise<string> => {
     if (!text) return "";
     try {
@@ -149,20 +221,22 @@ const App: React.FC = () => {
 
   const loadData = async () => {
       try {
-          let savedTracks, savedTheme, savedArtists, savedProfile;
+          let savedTracks, savedTheme, savedArtists, savedProfile, savedPlaylists;
           if (isElectron()) {
               const { ipcRenderer } = (window as any).require('electron');
-              [savedTracks, savedTheme, savedArtists, savedProfile] = await Promise.all([
+              [savedTracks, savedTheme, savedArtists, savedProfile, savedPlaylists] = await Promise.all([
                 ipcRenderer.invoke('get-local-data', { key: STORAGE_KEY }),
                 ipcRenderer.invoke('get-local-data', { key: THEME_KEY }),
                 ipcRenderer.invoke('get-local-data', { key: ARTIST_DATA_KEY }),
-                ipcRenderer.invoke('get-local-data', { key: USER_PROFILE_KEY })
+                ipcRenderer.invoke('get-local-data', { key: USER_PROFILE_KEY }),
+                ipcRenderer.invoke('get-local-data', { key: PLAYLISTS_KEY })
               ]);
           } else {
               savedTracks = JSON.parse(localStorage.getItem(STORAGE_KEY) || 'null');
               savedTheme = JSON.parse(localStorage.getItem(THEME_KEY) || 'null');
               savedArtists = JSON.parse(localStorage.getItem(ARTIST_DATA_KEY) || 'null');
               savedProfile = JSON.parse(localStorage.getItem(USER_PROFILE_KEY) || 'null');
+              savedPlaylists = JSON.parse(localStorage.getItem(PLAYLISTS_KEY) || 'null');
           }
 
           if (savedTracks) {
@@ -172,6 +246,7 @@ const App: React.FC = () => {
           if (savedTheme) setTheme({ ...DEFAULT_THEME, ...savedTheme });
           if (savedArtists) setArtistMetadata(savedArtists);
           if (savedProfile) setUserProfile({ ...DEFAULT_PROFILE, ...savedProfile });
+          if (savedPlaylists) setPlaylists(savedPlaylists);
           
           const savedVolume = localStorage.getItem('glass_music_volume');
           if (savedVolume) {
@@ -184,8 +259,59 @@ const App: React.FC = () => {
 
   useEffect(() => { loadData(); }, []);
 
+  // Fetch metadata for top artists on load
+  useEffect(() => {
+    if (tracks.length > 0 && isElectron()) {
+      const { ipcRenderer } = (window as any).require('electron');
+      const artistCounts: Record<string, number> = {};
+      tracks.forEach(t => {
+        const splitNames = t.artist.split(ARTIST_SPLIT_REGEX).map(n => n.trim()).filter(Boolean);
+        splitNames.forEach(name => {
+          artistCounts[name] = (artistCounts[name] || 0) + (t.playCount || 1);
+        });
+      });
+      const topArtists = Object.entries(artistCounts)
+        .sort((a, b) => b[1] - a[1])
+        .slice(0, 8)
+        .map(entry => entry[0]);
+
+      topArtists.forEach(artist => {
+        if (!artistMetadata[artist] || (!artistMetadata[artist].avatar && !artistMetadata[artist].banner)) {
+          ipcRenderer.invoke('get-artist-metadata', artist).then((meta: any) => {
+            if (meta) {
+              setArtistMetadata(prev => {
+                const updated = { ...prev, [artist]: { ...prev[artist], ...meta } };
+                if (saveTimeoutRef.current) clearTimeout(saveTimeoutRef.current);
+                saveTimeoutRef.current = setTimeout(() => {
+                  ipcRenderer.invoke('save-local-data', { key: ARTIST_DATA_KEY, data: updated });
+                }, 1000);
+                return updated;
+              });
+            }
+          }).catch(console.error);
+        }
+      });
+    }
+  }, [tracks.length]);
+
   const handleUpdateTrack = useCallback((id: string, data: Partial<Track>) => {
-    setTracks(prev => sortTracks(prev.map(t => t.id === id ? { ...t, ...data } : t)));
+    setTracks(prev => {
+        const track = prev.find(t => t.id === id);
+        if (track && track.path && (window as any).require) {
+            try {
+                const { ipcRenderer } = (window as any).require('electron');
+                ipcRenderer.invoke('write-id3-tags', { filePath: track.path, tags: { ...track, ...data } })
+                    .then((result: any) => {
+                        if (!result.success) console.error("Failed to write ID3 tags:", result.error);
+                        else console.log("Successfully wrote ID3 tags to", track.path);
+                    })
+                    .catch((err: any) => console.error("IPC error writing ID3 tags:", err));
+            } catch (err) {
+                console.error("Error invoking write-id3-tags:", err);
+            }
+        }
+        return sortTracks(prev.map(t => t.id === id ? { ...t, ...data } : t));
+    });
     setPlayerState(prev => {
         if (prev.currentTrack?.id === id) {
             return { ...prev, currentTrack: { ...prev.currentTrack, ...data } as Track };
@@ -220,6 +346,10 @@ const App: React.FC = () => {
     audio.volume = targetVolume;
     
     try {
+      initAudioContext();
+      if (audioContextRef.current?.state === 'suspended') {
+        await audioContextRef.current.resume();
+      }
       await audio.play();
       setPlayerState(prev => ({ ...prev, currentTrack: track, playbackState: PlaybackState.PLAYING }));
     } catch (err) { 
@@ -237,13 +367,13 @@ const App: React.FC = () => {
     }
   }, [handleUpdateTrack]);
 
-  const handleNext = useCallback(() => {
+  const handleNext = useCallback((fromEnded: boolean = false) => {
     const activeQueue = queueRef.current.length > 0 ? queueRef.current : tracksRef.current;
     const current = playerStateRef.current.currentTrack;
     
     if (!current || activeQueue.length === 0) return;
 
-    if (playerStateRef.current.isRepeating) {
+    if (fromEnded && playerStateRef.current.isRepeating) {
         audioRef.current.currentTime = 0;
         audioRef.current.play();
         return;
@@ -316,6 +446,10 @@ const App: React.FC = () => {
           setPlayerState(prev => ({ ...prev, playbackState: PlaybackState.PAUSED }));
         } else {
           // Spotify/YouTube play handled by state
+          initAudioContext();
+          if (audioContextRef.current?.state === 'suspended') {
+            audioContextRef.current.resume();
+          }
           audio.play();
           setPlayerState(prev => ({ ...prev, playbackState: PlaybackState.PLAYING }));
         }
@@ -336,7 +470,7 @@ const App: React.FC = () => {
     
     const onEnded = () => {
         console.log("Track ended. Moving to next.");
-        handleNext();
+        handleNext(true);
     };
     const onTimeUpdate = () => setPlayerState(prev => ({ ...prev, currentTime: audio.currentTime }));
     const onDurationChange = () => {
@@ -376,12 +510,19 @@ const App: React.FC = () => {
                     ipcRenderer.invoke('save-local-data', { key: STORAGE_KEY, data: tracksToSave }),
                     ipcRenderer.invoke('save-local-data', { key: THEME_KEY, data: theme }),
                     ipcRenderer.invoke('save-local-data', { key: ARTIST_DATA_KEY, data: artistMetadata }),
-                    ipcRenderer.invoke('save-local-data', { key: USER_PROFILE_KEY, data: userProfile })
+                    ipcRenderer.invoke('save-local-data', { key: USER_PROFILE_KEY, data: userProfile }),
+                    ipcRenderer.invoke('save-local-data', { key: PLAYLISTS_KEY, data: playlists })
                 ]);
+            } else {
+                localStorage.setItem(STORAGE_KEY, JSON.stringify(tracksToSave));
+                localStorage.setItem(THEME_KEY, JSON.stringify(theme));
+                localStorage.setItem(ARTIST_DATA_KEY, JSON.stringify(artistMetadata));
+                localStorage.setItem(USER_PROFILE_KEY, JSON.stringify(userProfile));
+                localStorage.setItem(PLAYLISTS_KEY, JSON.stringify(playlists));
             }
         } catch (e) { console.error("Save error:", e); }
     }, 2000);
-  }, [tracks, theme, artistMetadata, userProfile, isLoaded]);
+  }, [tracks, theme, artistMetadata, userProfile, playlists, isLoaded]);
 
   useEffect(() => {
     const track = playerState.currentTrack;
@@ -432,6 +573,46 @@ const App: React.FC = () => {
       }
   };
 
+  useEffect(() => {
+    if (!isLoaded || !isElectron() || tracks.length === 0) return;
+
+    const fetchTopArtistsMetadata = async () => {
+      const artistCounts = new Map<string, number>();
+      tracks.forEach(t => {
+        const splitNames = t.artist.split(ARTIST_SPLIT_REGEX).map(n => n.trim()).filter(Boolean);
+        splitNames.forEach(name => {
+          artistCounts.set(name, (artistCounts.get(name) || 0) + (t.playCount || 0));
+        });
+      });
+      
+      const topArtists = Array.from(artistCounts.entries())
+        .sort((a, b) => b[1] - a[1])
+        .slice(0, 8)
+        .map(([name]) => name);
+
+      const { ipcRenderer } = (window as any).require('electron');
+      
+      for (const artist of topArtists) {
+        const existingMeta = artistMetadata[artist];
+        if (!existingMeta?.avatar || !existingMeta?.bio) {
+          try {
+            const meta = await ipcRenderer.invoke('get-artist-metadata', artist);
+            if (meta) {
+              setArtistMetadata(prev => ({
+                ...prev,
+                [artist]: { ...prev[artist], ...meta }
+              }));
+            }
+          } catch (e) {
+            console.error(`Failed to fetch metadata for ${artist}:`, e);
+          }
+        }
+      }
+    };
+
+    fetchTopArtistsMetadata();
+  }, [isLoaded, tracks.length]); // Only run when tracks are loaded or added
+
   const handleGoToAlbum = (album: string) => {
       setPreviousView(playerState.currentView);
       setSelectedAlbum(album);
@@ -459,6 +640,10 @@ const App: React.FC = () => {
         }
         return { ...prev, isShuffled: newState };
     });
+  };
+
+  const toggleRepeat = () => {
+    setPlayerState(prev => ({ ...prev, isRepeating: !prev.isRepeating }));
   };
 
   const handleToggleLike = (id: string, trackData?: Track) => {
@@ -504,7 +689,7 @@ const App: React.FC = () => {
         const metadata = await parseFileMetadata(file);
         newTracks.push({
           id: Math.random().toString(36).substr(2, 9), title: metadata.title || file.name.replace(/\.[^/.]+$/, ""),
-          artist: metadata.artist || "Неизвестный артист", album: metadata.album || "Локальный импорт",
+          artist: metadata.artist || "", album: metadata.album || "",
           duration: 0, coverUrl: metadata.coverUrl || generateMockCover(file.name),
           fileUrl: URL.createObjectURL(file), path: (file as any).path, isLiked: false, 
           year: new Date().getFullYear().toString(), source: 'local', addedAt: Date.now()
@@ -516,7 +701,8 @@ const App: React.FC = () => {
   return (
     <div className="relative w-full h-screen flex overflow-hidden bg-[var(--bg-main)] text-[var(--text-main)] selection:text-[var(--text-main)]">
       {theme.seasonalTheme && <SnowEffect />}
-      <Background config={theme} isLight={getEffectiveTheme() === 'light'} />
+      <Background config={theme} isLight={getEffectiveTheme() === 'light'} analyser={analyser} isPlaying={playerState.playbackState === PlaybackState.PLAYING} />
+      <Visualizer analyser={analyser} isPlaying={playerState.playbackState === PlaybackState.PLAYING} accentColor={theme.accentColor} enabled={theme.animateBackground} />
       
       {!userProfile.onboardingDone && isLoaded && (
         <OnboardingModal onComplete={handleOnboardingComplete} accentColor={theme.accentColor} t={t} />
@@ -528,8 +714,16 @@ const App: React.FC = () => {
         onChangeView={(view) => { setPlayerState(prev => ({ ...prev, currentView: view })); setSidebarOpen(true); }}
         isOpen={sidebarOpen} accentColor={theme.accentColor} searchQuery={searchQuery}
         onSearchChange={setSearchQuery} enableGlass={theme.enableGlass} user={userProfile} t={t}
+        playlists={playlists}
+        selectedPlaylist={selectedPlaylist}
+        onSelectPlaylist={(id) => {
+          setSelectedPlaylist(id);
+          setPlayerState(prev => ({ ...prev, currentView: 'playlist_detail' }));
+          setSidebarOpen(true);
+        }}
+        onCreatePlaylist={() => setIsCreatePlaylistOpen(true)}
       />
-      <div className={`flex-1 flex flex-col relative z-10 ${theme.enableGlass ? 'glass-panel' : 'bg-[var(--bg-main)]'} border-y-0 border-r-0 rounded-l-3xl overflow-hidden shadow-2xl transition-all duration-500 ease-[cubic-bezier(0.32,0.72,0,1)] ${!sidebarOpen ? 'ml-0 rounded-l-none' : 'ml-2'}`}>
+      <div className={`flex-1 flex flex-col relative z-10 ${theme.enableGlass ? 'glass-panel' : 'bg-[var(--panel-bg)]'} border-y-0 border-r-0 rounded-l-3xl overflow-hidden shadow-2xl transition-all duration-500 ease-[cubic-bezier(0.32,0.72,0,1)] ${!sidebarOpen ? 'ml-0 rounded-l-none' : 'ml-2'}`}>
         <MainView 
           tracks={tracks} currentTrack={playerState.currentTrack} playbackState={playerState.playbackState}
           onPlay={handlePlay} onShuffleAll={(q) => { setPlayerState(prev => ({ ...prev, isShuffled: true, queue: q })); if (q[0]) handlePlay(q[0], q); }}
@@ -539,12 +733,24 @@ const App: React.FC = () => {
           accentColor={theme.accentColor} artistMetadata={artistMetadata} onUpdateArtist={handleUpdateArtist}
           searchQuery={searchQuery} onRequestFileUnlock={() => { audioRef.current.pause(); audioRef.current.src = ""; }}
           onToggleLike={handleToggleLike} enableGlass={theme.enableGlass} t={t} onTranslate={translateText}
+          playlists={playlists} selectedPlaylist={selectedPlaylist}
+          onChangeView={(view) => { setPlayerState(prev => ({ ...prev, currentView: view })); }}
+          onDeletePlaylist={(id) => {
+            setPlaylists(prev => prev.filter(p => p.id !== id));
+            if (selectedPlaylist === id) setSelectedPlaylist(null);
+          }}
+          onUpdatePlaylist={(id, data) => {
+            setPlaylists(prev => prev.map(p => p.id === id ? { ...p, ...data } : p));
+          }}
+          onCreatePlaylist={() => setIsCreatePlaylistOpen(true)}
+          onOpenSelectTracks={() => setIsSelectTracksOpen(true)}
         />
         <PlayerControls 
           currentTrack={playerState.currentTrack} playbackState={playerState.playbackState}
           onPlayPause={() => playerState.currentTrack ? handlePlay(playerState.currentTrack) : null}
-          onNext={handleNext} onPrev={handlePrev} currentTime={playerState.currentTime} duration={playerState.duration}
+          onNext={() => handleNext(false)} onPrev={handlePrev} currentTime={playerState.currentTime} duration={playerState.duration}
           onSeek={handleSeek} volume={playerState.volume} onVolumeChange={handleVolume} isShuffled={playerState.isShuffled}
+          isRepeating={playerState.isRepeating} onToggleRepeat={toggleRepeat}
           onToggleShuffle={toggleShuffle} onToggleSidebar={() => setSidebarOpen(!sidebarOpen)}
           onToggleFullScreen={() => setFullScreenMode('cover')} onOpenLyrics={() => setFullScreenMode('lyrics')}
           onToggleLike={handleToggleLike} accentColor={theme.accentColor} onGoToArtist={handleGoToArtist}
@@ -555,11 +761,12 @@ const App: React.FC = () => {
         <FullScreenPlayer 
             track={playerState.currentTrack} playbackState={playerState.playbackState}
             currentTime={playerState.currentTime} duration={playerState.duration}
-            volume={playerState.volume} isShuffled={playerState.isShuffled}
-            onPlayPause={() => handlePlay(playerState.currentTrack!)} onNext={handleNext} onPrev={handlePrev}
-            onSeek={handleSeek} onVolumeChange={handleVolume} onToggleShuffle={toggleShuffle}
+            volume={playerState.volume} isShuffled={playerState.isShuffled} isRepeating={playerState.isRepeating}
+            onPlayPause={() => handlePlay(playerState.currentTrack!)} onNext={() => handleNext(false)} onPrev={handlePrev}
+            onSeek={handleSeek} onVolumeChange={handleVolume} onToggleShuffle={toggleShuffle} onToggleRepeat={toggleRepeat}
             onToggleLike={handleToggleLike} onClose={() => setFullScreenMode('none')}
             accentColor={theme.accentColor} initialMode={fullScreenMode === 'lyrics' ? 'lyrics' : 'cover'}
+            enableGlass={theme.enableGlass}
         />
       )}
       <SettingsModal 
@@ -569,7 +776,45 @@ const App: React.FC = () => {
       />
       <ProfileModal 
         isOpen={profileOpen} onClose={() => setProfileOpen(false)} profile={userProfile} 
-        onUpdate={(data) => setUserProfile(prev => ({ ...prev, ...data }))} accentColor={theme.accentColor} t={t}
+        onUpdate={(data) => setUserProfile(prev => ({ ...prev, ...data }))} accentColor={theme.accentColor} t={t} enableGlass={theme.enableGlass}
+      />
+      <CreatePlaylistModal
+        isOpen={isCreatePlaylistOpen}
+        onClose={() => setIsCreatePlaylistOpen(false)}
+        onCreate={(name, coverUrl) => {
+          const newPlaylist: Playlist = {
+            id: Date.now().toString(),
+            name,
+            coverUrl,
+            trackIds: [],
+            createdAt: Date.now()
+          };
+          setPlaylists(prev => [...prev, newPlaylist]);
+          setSelectedPlaylist(newPlaylist.id);
+          setPlayerState(prev => ({ ...prev, currentView: 'playlist_detail' }));
+        }}
+        accentColor={theme.accentColor}
+        enableGlass={theme.enableGlass}
+        t={t}
+      />
+      <SelectTracksModal
+        isOpen={isSelectTracksOpen}
+        onClose={() => setIsSelectTracksOpen(false)}
+        tracks={tracks}
+        playlistTrackIds={playlists.find(p => p.id === selectedPlaylist)?.trackIds || []}
+        onAddTracks={(trackIds) => {
+          if (selectedPlaylist) {
+            setPlaylists(prev => prev.map(p => {
+              if (p.id === selectedPlaylist) {
+                return { ...p, trackIds: [...p.trackIds, ...trackIds] };
+              }
+              return p;
+            }));
+          }
+        }}
+        accentColor={theme.accentColor}
+        enableGlass={theme.enableGlass}
+        t={t}
       />
       <input type="file" ref={fileInputRef} onChange={handleFileSelect} multiple accept="audio/*" className="hidden" />
     </div>

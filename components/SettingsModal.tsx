@@ -2,7 +2,7 @@
 import React, { useRef, useMemo, useState } from 'react';
 import { X, Image, Video, Droplet, Upload, Check, Sliders, Snowflake, Trash2, ArrowLeft, LayoutGrid } from './Icons';
 // Import AlertCircle directly from lucide if possible, or add it to Icons.tsx. Assuming standard set.
-import { AlertCircle, Music } from 'lucide-react'; 
+import { AlertCircle, Music, Activity } from 'lucide-react'; 
 import { ThemeConfig, UserProfile } from '../types';
 import { TranslationKey } from '../translations';
 import { fileToDataURL } from '../utils';
@@ -50,7 +50,7 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
   return (
     <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/40 backdrop-blur-md animate-fade-in">
       <div 
-        className="w-full max-w-2xl bg-[var(--bg-main)] border border-[var(--glass-border)] rounded-[40px] shadow-[0_40px_80px_rgba(0,0,0,0.2)] overflow-hidden animate-scale-in backdrop-blur-3xl relative flex flex-col max-h-[85vh]"
+        className={`w-full max-w-2xl bg-[var(--panel-bg)] border border-[var(--glass-border)] rounded-[40px] shadow-[0_40px_80px_rgba(0,0,0,0.2)] overflow-hidden animate-scale-in ${config.enableGlass ? 'backdrop-blur-3xl' : ''} relative flex flex-col max-h-[85vh]`}
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
@@ -161,6 +161,48 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
                      </div>
                 </section>
 
+                {/* Equalizer */}
+                <section>
+                     <h3 className="text-[11px] font-black text-[var(--text-muted)] uppercase tracking-[0.3em] mb-6 flex items-center gap-3">
+                        <Music className="w-4 h-4"/> Эквалайзер
+                     </h3>
+                     <div className="bg-[var(--card-bg)] p-6 rounded-[32px] border border-[var(--glass-border)]">
+                        <div className="flex items-end justify-between h-48 gap-2">
+                            {([32, 64, 125, 250, 500, 1000, 2000, 4000, 8000, 16000]).map((freq, i) => {
+                                const gain = config.eqBands?.[i] || 0;
+                                return (
+                                    <div key={freq} className="flex flex-col items-center gap-4 h-full flex-1">
+                                        <div className="relative w-full h-full flex justify-center">
+                                            <input 
+                                                type="range" 
+                                                min="-12" max="12" step="0.1" 
+                                                value={gain}
+                                                onChange={(e) => {
+                                                    const newBands = [...(config.eqBands || new Array(10).fill(0))];
+                                                    newBands[i] = parseFloat(e.target.value);
+                                                    onUpdate({ eqBands: newBands });
+                                                }}
+                                                className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-32 h-2 -rotate-90 appearance-none bg-[var(--glass-border)] rounded-full outline-none [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-4 [&::-webkit-slider-thumb]:h-4 [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-[var(--text-main)] [&::-webkit-slider-thumb]:cursor-pointer"
+                                            />
+                                        </div>
+                                        <span className="text-[9px] font-bold text-[var(--text-muted)]">{freq >= 1000 ? `${freq/1000}k` : freq}</span>
+                                    </div>
+                                );
+                            })}
+                        </div>
+                        <div className="flex justify-between mt-6 px-2">
+                            <span className="text-[10px] font-bold text-[var(--text-muted)]">-12dB</span>
+                            <button 
+                                onClick={() => onUpdate({ eqBands: new Array(10).fill(0) })}
+                                className="text-[10px] font-bold text-[var(--text-main)] hover:underline"
+                            >
+                                Сбросить
+                            </button>
+                            <span className="text-[10px] font-bold text-[var(--text-muted)]">+12dB</span>
+                        </div>
+                     </div>
+                </section>
+
                 {/* Glass Toggle */}
                 <section className="flex items-center justify-between bg-[var(--card-bg)] p-8 rounded-[32px] border border-[var(--glass-border)] hover:bg-[var(--card-hover)] transition-all group">
                     <div>
@@ -171,9 +213,29 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
                     </div>
                     <button 
                         onClick={() => onUpdate({ enableGlass: !config.enableGlass })}
-                        className={`w-16 h-9 rounded-full p-1.5 transition-all duration-500 relative ${config.enableGlass ? 'bg-[var(--text-main)]' : 'bg-[var(--text-muted)]/20'}`}
+                        className={`w-16 h-9 rounded-full p-1.5 transition-all duration-500 relative`}
+                        style={{ backgroundColor: config.enableGlass ? 'var(--text-main)' : 'rgba(128, 128, 128, 0.3)' }}
                     >
-                        <div className={`w-6 h-6 rounded-full shadow-2xl transition-all duration-500 ${config.enableGlass ? 'translate-x-7 bg-[var(--bg-main)]' : 'translate-x-0 bg-[var(--text-main)]/40'}`}></div>
+                        <div className={`w-6 h-6 rounded-full shadow-2xl transition-all duration-500 ${config.enableGlass ? 'translate-x-7 bg-[var(--bg-main)]' : 'translate-x-0'}`}
+                             style={!config.enableGlass ? { backgroundColor: 'var(--text-main)', opacity: 0.5 } : {}}></div>
+                    </button>
+                </section>
+
+                {/* Animate Background Toggle */}
+                <section className="flex items-center justify-between bg-[var(--card-bg)] p-8 rounded-[32px] border border-[var(--glass-border)] hover:bg-[var(--card-hover)] transition-all group">
+                    <div>
+                        <h3 className="text-[var(--text-main)] font-black text-lg tracking-tight flex items-center gap-3 group-hover:translate-x-1 transition-transform">
+                            <Activity className="w-5 h-5" style={{ color: config.accentColor }}/> {t('animate_background')}
+                        </h3>
+                        <p className="text-sm text-[var(--text-muted)] font-medium mt-1">{t('animate_background')}</p>
+                    </div>
+                    <button 
+                        onClick={() => onUpdate({ animateBackground: !config.animateBackground })}
+                        className={`w-16 h-9 rounded-full p-1.5 transition-all duration-500 relative`}
+                        style={{ backgroundColor: config.animateBackground ? 'var(--text-main)' : 'rgba(128, 128, 128, 0.3)' }}
+                    >
+                        <div className={`w-6 h-6 rounded-full shadow-2xl transition-all duration-500 ${config.animateBackground ? 'translate-x-7 bg-[var(--bg-main)]' : 'translate-x-0'}`}
+                             style={!config.animateBackground ? { backgroundColor: 'var(--text-main)', opacity: 0.5 } : {}}></div>
                     </button>
                 </section>
                 
@@ -236,7 +298,17 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
 
                         {/* Image/Video Upload */}
                         <button 
-                            onClick={() => fileInputRef.current?.click()}
+                            onClick={() => {
+                                if (config.backgroundSource) {
+                                    const isVideo = config.backgroundSource.startsWith('data:video');
+                                    onUpdate({ backgroundType: isVideo ? 'video' : 'image' });
+                                } else {
+                                    fileInputRef.current?.click();
+                                }
+                            }}
+                            onDoubleClick={() => {
+                                fileInputRef.current?.click();
+                            }}
                             className={`h-40 rounded-[32px] border-2 border-dashed flex flex-col items-center justify-center gap-3 transition-all relative overflow-hidden ${
                                 config.backgroundType !== 'liquid' ? 'border-[var(--text-main)] bg-[var(--text-main)]/10 shadow-2xl scale-105' : 'border-[var(--glass-border)] bg-[var(--card-bg)] hover:border-[var(--text-main)]/30 hover:bg-[var(--card-hover)]'
                             }`}
@@ -271,8 +343,8 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
                     </section>
 
                     {/* Sliders */}
-                    <section className={`space-y-10 bg-[var(--card-bg)] p-10 rounded-[40px] border border-[var(--glass-border)] transition-all duration-500 ${config.enableGlass ? 'opacity-100' : 'opacity-20 grayscale pointer-events-none scale-95'}`}>
-                        <div>
+                    <section className="space-y-10 bg-[var(--card-bg)] p-10 rounded-[40px] border border-[var(--glass-border)] transition-all duration-500">
+                        <div className={`transition-all duration-500 ${config.enableGlass ? 'opacity-100' : 'opacity-20 grayscale pointer-events-none'}`}>
                             <div className="flex justify-between mb-4 items-end">
                                 <span className="text-lg font-black text-[var(--text-main)] tracking-tight">{t('blur')}</span>
                                 <span className="text-sm font-bold text-[var(--text-muted)]">{config.blurLevel}px</span>

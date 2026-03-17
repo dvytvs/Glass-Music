@@ -1,16 +1,17 @@
 
 export type TranslationKey = 
   | 'listen_now' | 'albums' | 'artists' | 'songs' | 'favorites' | 'search' | 'settings' | 'profile'
-  | 'search_placeholder' | 'no_tracks' | 'import_tracks' | 'theme' | 'language' | 'accent_color'
+  | 'search_placeholder' | 'no_tracks' | 'add_tracks' | 'import_tracks' | 'theme' | 'language' | 'accent_color'
   | 'background' | 'blur' | 'brightness' | 'glass_effect' | 'seasonal_theme' | 'player_style'
   | 'dark' | 'light' | 'system' | 'save' | 'cancel' | 'edit' | 'delete' | 'play_all' | 'shuffle_all'
+  | 'animate_background'
   | 'lyrics' | 'bio' | 'translate' | 'original' | 'onboarding_welcome' | 'onboarding_subtitle'
   | 'onboarding_start' | 'nickname' | 'personalization' | 'premium' | 'back' | 'metadata_magic'
   | 'searching' | 'edit_track' | 'track_title' | 'artist_name' | 'album_title' | 'year' | 'lyrics_placeholder'
   | 'save_changes' | 'liquid_bg' | 'custom_bg' | 'done' | 'fetching_metadata'
   | 'new_in_collection' | 'library_empty' | 'import_tracks_hint' | 'change_banner' | 'refresh_metadata'
   | 'shuffle' | 'popular_tracks' | 'magic_api' | 'click_to_change' | 'about' | 'delete_warning'
-  | 'philosophy' | 'philosophy_text' | 'privacy' | 'privacy_text' | 'opensource_text';
+  | 'philosophy' | 'philosophy_text' | 'privacy' | 'privacy_text' | 'opensource_text' | 'create_playlist' | 'playlists' | 'no_playlists' | 'add_to_playlist' | 'playlist' | 'cover_image' | 'playlist_name' | 'my_playlist' | 'create' | 'enter_new_playlist_name' | 'delete_playlist_confirm' | 'your_library';
 
 export const translations: Record<string, Record<TranslationKey, string>> = {
   ru: {
@@ -24,6 +25,7 @@ export const translations: Record<string, Record<TranslationKey, string>> = {
     profile: 'Профиль',
     search_placeholder: 'Поиск музыки...',
     no_tracks: 'Нет треков',
+    add_tracks: 'Добавить треки',
     import_tracks: 'Импортировать музыку',
     theme: 'Тема',
     language: 'Язык',
@@ -34,6 +36,7 @@ export const translations: Record<string, Record<TranslationKey, string>> = {
     glass_effect: 'Стеклянный интерфейс',
     seasonal_theme: 'Сезонная тема',
     player_style: 'Стиль плеера',
+    animate_background: 'Анимация фона',
     dark: 'Темная',
     light: 'Светлая',
     system: 'Системная',
@@ -83,6 +86,18 @@ export const translations: Record<string, Record<TranslationKey, string>> = {
     privacy: 'Приватность',
     privacy_text: 'Твои данные — это твоя жизнь. Мы не собираем статистику, не отслеживаем прослушивания и не передаем информацию третьим лицам. Всё остается только на твоем устройстве.',
     opensource_text: 'Проект полностью открыт. Вы можете проверить каждую строчку кода и убедиться в нашей честности.',
+    create_playlist: 'Создать плейлист',
+    playlists: 'Плейлисты',
+    no_playlists: 'Нет плейлистов',
+    add_to_playlist: 'Добавить в...',
+    playlist: 'Плейлист',
+    cover_image: 'Обложка (фото или gif)',
+    playlist_name: 'Название',
+    my_playlist: 'Мой плейлист',
+    create: 'Создать',
+    enter_new_playlist_name: 'Введите новое название плейлиста',
+    delete_playlist_confirm: 'Удалить плейлист?',
+    your_library: 'Ваша медиатека',
   },
   en: {
     listen_now: 'Listen Now',
@@ -95,6 +110,7 @@ export const translations: Record<string, Record<TranslationKey, string>> = {
     profile: 'Profile',
     search_placeholder: 'Search music...',
     no_tracks: 'No tracks',
+    add_tracks: 'Add tracks',
     import_tracks: 'Import music',
     theme: 'Theme',
     language: 'Language',
@@ -105,6 +121,7 @@ export const translations: Record<string, Record<TranslationKey, string>> = {
     glass_effect: 'Glass Interface',
     seasonal_theme: 'Seasonal Theme',
     player_style: 'Player Style',
+    animate_background: 'Animate Background',
     dark: 'Dark',
     light: 'Light',
     system: 'System',
@@ -154,5 +171,17 @@ export const translations: Record<string, Record<TranslationKey, string>> = {
     privacy: 'Privacy',
     privacy_text: 'Your data is your life. We do not collect statistics, track listening, or share information with third parties. Everything stays only on your device.',
     opensource_text: 'The project is fully open source. You can check every line of code and be sure of our honesty.',
+    create_playlist: 'Create Playlist',
+    playlists: 'Playlists',
+    no_playlists: 'No playlists',
+    add_to_playlist: 'Add to...',
+    playlist: 'Playlist',
+    cover_image: 'Cover (photo or gif)',
+    playlist_name: 'Name',
+    my_playlist: 'My Playlist',
+    create: 'Create',
+    enter_new_playlist_name: 'Enter new playlist name',
+    delete_playlist_confirm: 'Delete playlist?',
+    your_library: 'Your Library',
   }
 };
