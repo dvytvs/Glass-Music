@@ -4,14 +4,14 @@ export type TranslationKey =
   | 'search_placeholder' | 'no_tracks' | 'add_tracks' | 'import_tracks' | 'theme' | 'language' | 'accent_color'
   | 'background' | 'blur' | 'brightness' | 'glass_effect' | 'seasonal_theme' | 'player_style'
   | 'dark' | 'light' | 'system' | 'save' | 'cancel' | 'edit' | 'delete' | 'play_all' | 'shuffle_all'
-  | 'animate_background'
+  | 'animate_background' | 'background_playback' | 'background_playback_desc'
   | 'lyrics' | 'bio' | 'translate' | 'original' | 'onboarding_welcome' | 'onboarding_subtitle'
   | 'onboarding_start' | 'nickname' | 'personalization' | 'premium' | 'back' | 'metadata_magic'
   | 'searching' | 'edit_track' | 'track_title' | 'artist_name' | 'album_title' | 'year' | 'lyrics_placeholder'
   | 'save_changes' | 'liquid_bg' | 'custom_bg' | 'done' | 'fetching_metadata'
   | 'new_in_collection' | 'library_empty' | 'import_tracks_hint' | 'change_banner' | 'refresh_metadata'
   | 'shuffle' | 'popular_tracks' | 'magic_api' | 'click_to_change' | 'about' | 'delete_warning'
-  | 'philosophy' | 'philosophy_text' | 'privacy' | 'privacy_text' | 'opensource_text' | 'create_playlist' | 'playlists' | 'no_playlists' | 'add_to_playlist' | 'playlist' | 'cover_image' | 'playlist_name' | 'my_playlist' | 'create' | 'enter_new_playlist_name' | 'delete_playlist_confirm' | 'your_library';
+  | 'philosophy' | 'philosophy_text' | 'privacy' | 'privacy_text' | 'opensource_text' | 'create_playlist' | 'playlists' | 'no_playlists' | 'add_to_playlist' | 'playlist' | 'cover_image' | 'playlist_name' | 'my_playlist' | 'create' | 'enter_new_playlist_name' | 'delete_playlist_confirm' | 'your_library' | 'repeat';
 
 export const translations: Record<string, Record<TranslationKey, string>> = {
   ru: {
@@ -37,6 +37,8 @@ export const translations: Record<string, Record<TranslationKey, string>> = {
     seasonal_theme: 'Сезонная тема',
     player_style: 'Стиль плеера',
     animate_background: 'Анимация фона',
+    background_playback: 'Фоновое воспроизведение',
+    background_playback_desc: 'Оставлять плеер в трее при закрытии окна',
     dark: 'Темная',
     light: 'Светлая',
     system: 'Системная',
@@ -76,6 +78,7 @@ export const translations: Record<string, Record<TranslationKey, string>> = {
     change_banner: 'Изменить баннер',
     refresh_metadata: 'Обновить метаданные',
     shuffle: 'Перемешать',
+    repeat: 'Повтор',
     popular_tracks: 'Популярные треки',
     magic_api: 'Магия API',
     click_to_change: 'Нажми, чтобы изменить',
@@ -122,6 +125,8 @@ export const translations: Record<string, Record<TranslationKey, string>> = {
     seasonal_theme: 'Seasonal Theme',
     player_style: 'Player Style',
     animate_background: 'Animate Background',
+    background_playback: 'Background Playback',
+    background_playback_desc: 'Keep player in tray when closing window',
     dark: 'Dark',
     light: 'Light',
     system: 'System',
@@ -161,6 +166,7 @@ export const translations: Record<string, Record<TranslationKey, string>> = {
     change_banner: 'Change Banner',
     refresh_metadata: 'Refresh Metadata',
     shuffle: 'Shuffle',
+    repeat: 'Repeat',
     popular_tracks: 'Popular Tracks',
     magic_api: 'API Magic',
     click_to_change: 'Click to change',

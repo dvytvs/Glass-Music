@@ -7,7 +7,6 @@ import { TranslationKey } from '../translations';
 interface SidebarProps {
   onImportClick: () => void;
   onSettingsClick: () => void;
-  onProfileClick: () => void;
   currentView: ViewType;
   onChangeView: (view: ViewType) => void;
   isOpen: boolean;
@@ -24,7 +23,7 @@ interface SidebarProps {
 }
 
 const Sidebar: React.FC<SidebarProps> = ({ 
-  onImportClick, onSettingsClick, onProfileClick, currentView, onChangeView, isOpen, accentColor,
+  onImportClick, onSettingsClick, currentView, onChangeView, isOpen, accentColor,
   searchQuery, onSearchChange, enableGlass, user, t, playlists, onSelectPlaylist, onCreatePlaylist, selectedPlaylist
 }) => {
   const [playlistsExpanded, setPlaylistsExpanded] = useState(true);
@@ -47,12 +46,31 @@ const Sidebar: React.FC<SidebarProps> = ({
         
         {/* User Profile Block */}
         <button 
-          onClick={onProfileClick}
+          onClick={() => onChangeView('profile')}
           className="flex items-center gap-3 px-3 py-2.5 mb-8 rounded-2xl hover:bg-[var(--card-hover)] active:scale-95 transition-all group border border-transparent hover:border-[var(--glass-border)]"
         >
           <div className="w-10 h-10 rounded-full bg-[var(--card-bg)] flex-shrink-0 overflow-hidden border border-[var(--glass-border)] shadow-xl relative">
             {user.avatarUrl ? (
-              <img src={user.avatarUrl} className="w-full h-full object-cover" />
+              user.avatarUrl.includes('video') || user.avatarUrl.endsWith('.mp4') || user.avatarUrl.endsWith('.webm') ? (
+                <video 
+                  key={user.avatarUrl}
+                  src={user.avatarUrl} 
+                  autoPlay 
+                  loop 
+                  muted 
+                  playsInline 
+                  className="w-full h-full object-cover" 
+                />
+              ) : (
+                <img 
+                  src={user.avatarUrl} 
+                  className="w-full h-full object-cover" 
+                  referrerPolicy="no-referrer"
+                  onError={(e) => {
+                    (e.target as HTMLImageElement).src = `https://ui-avatars.com/api/?name=${encodeURIComponent(user.name || 'User')}&background=random&size=128`;
+                  }}
+                />
+              )
             ) : (
               <div className="w-full h-full flex items-center justify-center text-[var(--text-muted)]">
                 <User className="w-5 h-5" />

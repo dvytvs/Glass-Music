@@ -22,7 +22,7 @@ export enum PlaybackState {
   BUFFERING,
 }
 
-export type ViewType = 'listen_now' | 'albums' | 'artists' | 'songs' | 'artist_detail' | 'album_detail' | 'favorites' | 'search' | 'playlists' | 'playlist_detail';
+export type ViewType = 'listen_now' | 'albums' | 'artists' | 'songs' | 'artist_detail' | 'album_detail' | 'favorites' | 'search' | 'playlists' | 'playlist_detail' | 'profile';
 
 export interface Playlist {
   id: string;
@@ -38,7 +38,14 @@ export interface UserProfile {
   bannerUrl: string | null;
   onboardingDone?: boolean;
   language?: string;
+  stats?: {
+    totalListens: number;
+    listeningTime: number; // in seconds
+    topArtists: Record<string, number>;
+  };
 }
+
+export type AudioEffect = 'normal' | 'slowed' | 'spedup';
 
 export interface PlayerState {
   currentTrack: null | Track;
@@ -51,6 +58,7 @@ export interface PlayerState {
   isRepeating: boolean;
   currentView: ViewType;
   history: string[];
+  audioEffect: AudioEffect;
 }
 
 export interface ThemeConfig {
@@ -65,6 +73,7 @@ export interface ThemeConfig {
   themeMode: 'dark' | 'light' | 'system';
   animateBackground: boolean;
   eqBands?: number[];
+  enableBackgroundPlayback?: boolean;
 }
 
 export interface ArtistMetadata {

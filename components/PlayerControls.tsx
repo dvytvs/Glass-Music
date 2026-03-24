@@ -2,7 +2,7 @@
 import React from 'react';
 import { 
   Play, Pause, SkipBack, SkipForward, Volume2, 
-  Repeat, Shuffle, ListMusic, Airplay, Heart, Maximize2, Quote
+  Repeat, Shuffle, ListMusic, Airplay, Heart, Maximize2, Quote, Rabbit, Turtle
 } from './Icons';
 import { Track, PlaybackState } from '../types';
 import { TranslationKey } from '../translations';
@@ -33,6 +33,8 @@ interface PlayerControlsProps {
   playerStyle?: 'floating' | 'classic'; // Added prop
   enableGlass?: boolean;
   t: (key: TranslationKey) => string;
+  audioEffect?: 'normal' | 'slowed' | 'spedup';
+  onToggleAudioEffect?: () => void;
 }
 
 const ARTIST_SPLIT_REGEX = /\s*(?:,|;|feat\.?|ft\.?|&|\/|featuring)\s+/i;
@@ -61,7 +63,9 @@ const PlayerControls: React.FC<PlayerControlsProps> = ({
   onGoToAlbum,
   playerStyle = 'classic', // Default if not provided
   enableGlass = true,
-  t
+  t,
+  audioEffect = 'normal',
+  onToggleAudioEffect
 }) => {
   const isPlaying = playbackState === PlaybackState.PLAYING;
   const progressPercent = duration ? (currentTime / duration) * 100 : 0;
@@ -84,8 +88,8 @@ const PlayerControls: React.FC<PlayerControlsProps> = ({
   };
 
   const containerClasses = isFloating 
-    ? `absolute bottom-8 left-1/2 -translate-x-1/2 w-[95%] max-w-5xl h-[100px] rounded-[32px] ${enableGlass ? 'glass-panel' : 'bg-[var(--panel-bg)]'} z-50 flex flex-col justify-center px-8 shadow-[0_30px_60px_rgba(0,0,0,0.5)] transition-all duration-500 border border-[var(--glass-border)] hover:border-white/20`
-    : `absolute bottom-0 left-0 right-0 h-[100px] w-full ${enableGlass ? 'glass-panel bg-black/40 backdrop-blur-3xl' : 'bg-[var(--bg-main-transparent)] shadow-[0_-10px_40px_rgba(0,0,0,0.1)]'} border-t border-[var(--glass-border)] z-50 flex flex-col justify-center px-8`;
+    ? `absolute bottom-8 left-0 right-0 w-[95%] max-w-5xl h-[100px] mx-auto rounded-[32px] ${enableGlass ? 'glass-panel' : 'bg-[var(--panel-bg)]'} z-50 flex flex-col justify-center px-8 shadow-[0_30px_60px_rgba(0,0,0,0.5)] transition-all duration-500 ease-[cubic-bezier(0.32,0.72,0,1)] border border-[var(--glass-border)] hover:border-white/20`
+    : `absolute bottom-0 left-0 right-0 h-[100px] w-full ${enableGlass ? 'glass-panel bg-black/40 backdrop-blur-3xl' : 'bg-[var(--bg-main-transparent)] shadow-[0_-10px_40px_rgba(0,0,0,0.1)]'} border-t border-[var(--glass-border)] z-50 flex flex-col justify-center px-8 transition-all duration-500 ease-[cubic-bezier(0.32,0.72,0,1)]`;
 
   return (
     <div className={containerClasses}>
@@ -161,8 +165,17 @@ const PlayerControls: React.FC<PlayerControlsProps> = ({
               onClick={onToggleRepeat}
               className={`transition-all p-2 rounded-xl hover:bg-[var(--card-hover)] ${isRepeating ? '' : 'text-[var(--text-muted)] hover:text-[var(--text-main)]'}`}
               style={{ color: isRepeating ? accentColor : undefined }}
+              title={t('repeat')}
             >
               <Repeat className="w-4 h-4" />
+            </button>
+            <button 
+              onClick={onToggleAudioEffect}
+              className={`transition-all p-2 rounded-xl hover:bg-[var(--card-hover)] ${audioEffect !== 'normal' ? '' : 'text-[var(--text-muted)] hover:text-[var(--text-main)]'}`}
+              style={{ color: audioEffect !== 'normal' ? accentColor : undefined }}
+              title={audioEffect === 'slowed' ? 'Slowed' : audioEffect === 'spedup' ? 'Speed Up' : 'Normal Speed'}
+            >
+              {audioEffect === 'slowed' ? <Turtle className="w-4 h-4" /> : <Rabbit className={`w-4 h-4 ${audioEffect === 'normal' ? 'opacity-40' : ''}`} />}
             </button>
           </div>
           

@@ -1,11 +1,43 @@
-const { app, BrowserWindow, ipcMain, nativeTheme } = require('electron');
+const { app, BrowserWindow, ipcMain, nativeTheme, Tray, Menu } = require('electron');
 const path = require('path');
 const fs = require('fs');
 const NodeID3 = require('node-id3');
 
 let mainWindow;
+let tray;
 
-function createWindow() {
+const gotTheLock = app.requestSingleInstanceLock();
+
+if (!gotTheLock) {
+    app.quit();
+} else {
+    app.on('second-instance', () => {
+        if (mainWindow) {
+            if (mainWindow.isMinimized()) mainWindow.restore();
+            if (!mainWindow.isVisible()) mainWindow.show();
+            mainWindow.focus();
+        }
+    });
+
+    function createTray() {
+        // Use a simple icon or just a text if icon not found
+        tray = new Tray(path.join(__dirname, 'index.html')); 
+        const contextMenu = Menu.buildFromTemplate([
+            { label: 'Show Player', click: () => mainWindow.show() },
+            { type: 'separator' },
+            { label: 'Quit', click: () => {
+                app.isQuitting = true;
+                app.quit();
+            }}
+        ]);
+        tray.setToolTip('Glass Music');
+        tray.setContextMenu(contextMenu);
+        tray.on('click', () => {
+            mainWindow.isVisible() ? mainWindow.hide() : mainWindow.show();
+        });
+    }
+
+    function createWindow() {
     mainWindow = new BrowserWindow({
         width: 1280,
         height: 800,
@@ -29,19 +61,45 @@ function createWindow() {
         mainWindow.loadFile(path.join(__dirname, 'dist', 'index.html'));
     }
 
-    mainWindow.on('closed', () => {
-        mainWindow = null;
-    });
+        mainWindow.on('closed', () => {
+            mainWindow = null;
+        });
 
-    // Notify renderer about theme changes
-    nativeTheme.on('updated', () => {
-        if (mainWindow) {
-            mainWindow.webContents.send('system-theme-updated', {
-                shouldUseDarkColors: nativeTheme.shouldUseDarkColors
-            });
-        }
-    });
-}
+        let isPlaying = false;
+        let enableBackgroundPlayback = false;
+
+        ipcMain.on('playback-state-changed', (e, state) => {
+            isPlaying = state === 'playing';
+            if (tray) {
+                tray.setToolTip(`Glass Music - ${state === 'playing' ? 'Playing' : 'Paused'}`);
+            }
+        });
+
+        ipcMain.on('background-playback-changed', (e, enabled) => {
+            enableBackgroundPlayback = enabled;
+        });
+
+        mainWindow.on('close', (e) => {
+            if (!app.isQuitting && enableBackgroundPlayback) {
+                e.preventDefault();
+                mainWindow.hide();
+            } else {
+                app.isQuitting = true;
+                app.quit();
+            }
+        });
+
+        // Notify renderer about theme changes
+        nativeTheme.on('updated', () => {
+            if (mainWindow) {
+                mainWindow.webContents.send('system-theme-updated', {
+                    shouldUseDarkColors: nativeTheme.shouldUseDarkColors
+                });
+            }
+        });
+
+        if (!tray) createTray();
+    }
 
 app.setPath('userData', path.join(app.getPath('appData'), 'glass-music'));
 const userDataPath = app.getPath('userData');
@@ -56,7 +114,9 @@ ipcMain.handle('get-system-info', async () => {
 ipcMain.handle('save-local-data', async (e, { key, data }) => {
     try {
         const filePath = path.join(userDataPath, `${key}.json`);
-        await fs.promises.writeFile(filePath, JSON.stringify(data));
+        const tempPath = path.join(userDataPath, `${key}.json.tmp`);
+        await fs.promises.writeFile(tempPath, JSON.stringify(data));
+        await fs.promises.rename(tempPath, filePath);
         return { success: true };
     } catch (err) { return { success: false }; }
 });
@@ -66,7 +126,13 @@ ipcMain.handle('get-local-data', async (e, { key }) => {
         const filePath = path.join(userDataPath, `${key}.json`);
         if (fs.existsSync(filePath)) {
             const raw = await fs.promises.readFile(filePath, 'utf-8');
-            return JSON.parse(raw);
+            try {
+                return JSON.parse(raw);
+            } catch (parseErr) {
+                console.error(`Failed to parse ${filePath}, backing up...`);
+                await fs.promises.copyFile(filePath, `${filePath}.corrupted-${Date.now()}`);
+                return null;
+            }
         }
         return null;
     } catch (err) { return null; }
@@ -217,5 +283,7 @@ ipcMain.handle('write-id3-tags', async (e, { filePath, tags }) => {
     }
 });
 
-app.whenReady().then(createWindow);
-app.on('window-all-closed', () => { if (process.platform !== 'darwin') app.quit(); });
+    app.on('before-quit', () => { app.isQuitting = true; });
+    app.whenReady().then(createWindow);
+    app.on('window-all-closed', () => { if (process.platform !== 'darwin') app.quit(); });
+}

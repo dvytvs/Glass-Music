@@ -4,7 +4,7 @@ import { Track, PlaybackState } from '../types';
 import { 
   Play, Pause, SkipBack, SkipForward, Volume2, 
   Shuffle, Repeat, Minimize2, Heart, MoreHorizontal, 
-  Quote
+  Quote, Rabbit, Turtle
 } from './Icons';
 import { formatTime } from '../utils';
 import LyricsView from './LyricsView';
@@ -29,6 +29,8 @@ interface FullScreenPlayerProps {
   accentColor: string;
   initialMode: 'cover' | 'lyrics';
   enableGlass: boolean;
+  audioEffect?: 'normal' | 'slowed' | 'spedup';
+  onToggleAudioEffect?: () => void;
 }
 
 const FullScreenPlayer: React.FC<FullScreenPlayerProps> = ({
@@ -50,7 +52,9 @@ const FullScreenPlayer: React.FC<FullScreenPlayerProps> = ({
   onClose,
   accentColor,
   initialMode,
-  enableGlass
+  enableGlass,
+  audioEffect = 'normal',
+  onToggleAudioEffect
 }) => {
   const isPlaying = playbackState === PlaybackState.PLAYING;
   const progressPercent = duration ? (currentTime / duration) * 100 : 0;
@@ -197,6 +201,14 @@ const FullScreenPlayer: React.FC<FullScreenPlayerProps> = ({
                         className={`transition-all p-4 rounded-2xl hover:bg-white/10 ${isRepeating ? 'text-white' : 'text-white/20 hover:text-white/40'}`}
                         >
                         <Repeat className="w-6 h-6" />
+                        </button>
+                        
+                        <button 
+                        onClick={onToggleAudioEffect}
+                        className={`transition-all p-4 rounded-2xl hover:bg-white/10 ${audioEffect !== 'normal' ? 'text-white' : 'text-white/20 hover:text-white/40'}`}
+                        title={audioEffect === 'slowed' ? 'Slowed' : audioEffect === 'spedup' ? 'Speed Up' : 'Normal Speed'}
+                        >
+                        {audioEffect === 'slowed' ? <Turtle className="w-6 h-6" /> : <Rabbit className={`w-6 h-6 ${audioEffect === 'normal' ? 'opacity-40' : ''}`} />}
                         </button>
                     </div>
 

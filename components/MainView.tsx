@@ -1,10 +1,11 @@
 
 import React, { useState, useRef, useEffect, useMemo } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
 import { Track, PlaybackState, ViewType, ArtistMetadata } from '../types';
 import { TranslationKey } from '../translations';
 import { 
   Play, Music, Disc, Mic2, Edit, Trash2, ArrowLeft, Heart, 
-  Upload, X, Check, Quote, Image as ImageIcon, Search, MoreHorizontal, User, Calendar, RefreshCw, ListMusic
+  Upload, X, Check, Quote, Image as ImageIcon, Search, MoreHorizontal, User, Calendar, RefreshCw, ListMusic, Timer
 } from './Icons';
 import { formatTime, fileToDataURL } from '../utils';
 
@@ -38,6 +39,8 @@ interface MainViewProps {
   onCreatePlaylist?: () => void;
   onChangeView?: (view: ViewType) => void;
   onOpenSelectTracks?: () => void;
+  userProfile?: import('../types').UserProfile;
+  onUpdateProfile?: (data: Partial<import('../types').UserProfile>) => void;
 }
 
 const ARTIST_SPLIT_REGEX = /\s*(?:,|;|feat\.?|ft\.?|&|\/|featuring)\s+/i;
@@ -46,7 +49,7 @@ const MainView: React.FC<MainViewProps> = ({
   tracks, currentTrack, playbackState, onPlay, onShuffleAll, currentView, 
   selectedArtist, selectedAlbum, onUpdateTrack, onDeleteTrack, onGoToArtist, onGoToAlbum, onBack, accentColor,
   artistMetadata = {}, onUpdateArtist, searchQuery = "", onRequestFileUnlock,
-  onToggleLike, enableGlass = true, t, onTranslate, playlists = [], selectedPlaylist, onUpdatePlaylist, onDeletePlaylist, onCreatePlaylist, onChangeView, onOpenSelectTracks
+  onToggleLike, enableGlass = true, t, onTranslate, playlists = [], selectedPlaylist, onUpdatePlaylist, onDeletePlaylist, onCreatePlaylist, onChangeView, onOpenSelectTracks, userProfile, onUpdateProfile
 }) => {
   const [editingTrack, setEditingTrack] = useState<Track | null>(null);
   const [translatedBio, setTranslatedBio] = useState<string | null>(null);
@@ -86,8 +89,34 @@ const MainView: React.FC<MainViewProps> = ({
   const coverInputRef = useRef<HTMLInputElement>(null);
   const artistAvatarInputRef = useRef<HTMLInputElement>(null);
   const artistBannerInputRef = useRef<HTMLInputElement>(null);
+  const avatarInputRef = useRef<HTMLInputElement>(null);
+  const bannerInputRef = useRef<HTMLInputElement>(null);
 
   const isElectron = () => (window as any).require && (window as any).require('electron');
+
+  const [editingFile, setEditingFile] = useState<{ url: string, type: 'avatar' | 'banner', fileType: string } | null>(null);
+  const [position, setPosition] = useState(50);
+
+  const handleProfileFileSelect = (e: React.ChangeEvent<HTMLInputElement>, type: 'avatar' | 'banner') => {
+    const file = e.target.files?.[0];
+    if (file) {
+      const reader = new FileReader();
+      reader.onload = (event) => {
+        const url = event.target?.result as string;
+        setEditingFile({ url, type, fileType: file.type });
+        setPosition(50);
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+
+  const handleSaveProfileEdit = () => {
+    if (editingFile && onUpdateProfile) {
+      const field = editingFile.type === 'avatar' ? 'avatarUrl' : 'bannerUrl';
+      onUpdateProfile({ [field]: editingFile.url });
+      setEditingFile(null);
+    }
+  };
 
   const handleFetchMetadata = async () => {
     if (!editingTrack || !isElectron()) return;
@@ -655,6 +684,189 @@ const MainView: React.FC<MainViewProps> = ({
           </div>
         );
 
+      case 'profile':
+        const isBannerVideo = userProfile?.bannerUrl?.includes('video') || userProfile?.bannerUrl?.endsWith('.mp4') || userProfile?.bannerUrl?.endsWith('.webm');
+        const isAvatarVideo = userProfile?.avatarUrl?.includes('video') || userProfile?.avatarUrl?.endsWith('.mp4') || userProfile?.avatarUrl?.endsWith('.webm');
+
+        return (
+            <div className="animate-fade-in space-y-12 max-w-5xl mx-auto pb-48">
+                {/* Profile Header */}
+                <div className="relative rounded-[40px] overflow-hidden border border-[var(--glass-border)] bg-[var(--card-bg)] shadow-2xl group">
+                    <div className="h-64 w-full relative bg-gradient-to-br from-[var(--accent-color)]/20 to-transparent">
+                        {userProfile?.bannerUrl ? (
+                            isBannerVideo ? (
+                                <video src={userProfile.bannerUrl} autoPlay loop muted playsInline className="w-full h-full object-cover opacity-50 mix-blend-overlay" />
+                            ) : (
+                                <img 
+                                  src={userProfile.bannerUrl} 
+                                  className="w-full h-full object-cover opacity-50 mix-blend-overlay" 
+                                  referrerPolicy="no-referrer"
+                                  onError={(e) => {
+                                    (e.target as HTMLImageElement).src = 'https://picsum.photos/seed/banner/1920/1080?blur=4';
+                                  }}
+                                />
+                            )
+                        ) : null}
+                        <div className="absolute inset-0 bg-gradient-to-t from-[var(--bg-main)] to-transparent" />
+                        <button 
+                            onClick={() => bannerInputRef.current?.click()}
+                            className="absolute top-6 right-6 p-3 rounded-2xl bg-black/40 border border-white/10 text-white/60 hover:text-white hover:bg-black/60 transition-all opacity-0 group-hover:opacity-100 backdrop-blur-md"
+                            title="Change Banner"
+                        >
+                            <ImageIcon className="w-5 h-5" />
+                        </button>
+                    </div>
+                    <div className="px-12 pb-12 relative -mt-24 flex flex-col md:flex-row items-center md:items-end gap-8">
+                        <div className="w-48 h-48 rounded-full border-4 border-[var(--bg-main)] shadow-2xl overflow-hidden bg-[var(--card-bg)] shrink-0 relative group/avatar">
+                            {userProfile?.avatarUrl ? (
+                                isAvatarVideo ? (
+                                    <video src={userProfile.avatarUrl} autoPlay loop muted playsInline className="w-full h-full object-cover" />
+                                ) : (
+                                    <img 
+                                      src={userProfile.avatarUrl} 
+                                      className="w-full h-full object-cover" 
+                                      referrerPolicy="no-referrer"
+                                      onError={(e) => {
+                                        (e.target as HTMLImageElement).src = `https://ui-avatars.com/api/?name=${encodeURIComponent(userProfile?.name || 'User')}&background=random&size=256`;
+                                      }}
+                                    />
+                                )
+                            ) : (
+                                <div className="w-full h-full flex items-center justify-center text-[var(--text-muted)]">
+                                    <User className="w-20 h-20" />
+                                </div>
+                            )}
+                            <button 
+                                onClick={() => avatarInputRef.current?.click()}
+                                className="absolute inset-0 bg-black/60 opacity-0 group-hover/avatar:opacity-100 flex items-center justify-center transition-all backdrop-blur-sm"
+                            >
+                                <Upload className="w-8 h-8 text-white" />
+                            </button>
+                        </div>
+                        <div className="flex-1 text-center md:text-left mb-4">
+                            <h1 className="text-5xl font-black text-[var(--text-main)] tracking-tight mb-2">{userProfile?.name || 'User'}</h1>
+                            <p className="text-[var(--text-muted)] font-medium tracking-widest uppercase text-sm">Music Lover</p>
+                        </div>
+                    </div>
+                </div>
+
+                <input 
+                    type="file" 
+                    ref={avatarInputRef} 
+                    className="hidden" 
+                    accept="image/*,video/*,.gif" 
+                    onChange={(e) => handleProfileFileSelect(e, 'avatar')} 
+                />
+                <input 
+                    type="file" 
+                    ref={bannerInputRef} 
+                    className="hidden" 
+                    accept="image/*,video/*,.gif" 
+                    onChange={(e) => handleProfileFileSelect(e, 'banner')} 
+                />
+
+                <AnimatePresence>
+                  {editingFile && (
+                    <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm">
+                      <motion.div 
+                        initial={{ opacity: 0, scale: 0.9 }}
+                        animate={{ opacity: 1, scale: 1 }}
+                        exit={{ opacity: 0, scale: 0.9 }}
+                        className="bg-[var(--card-bg)] border border-white/10 rounded-[40px] p-8 max-w-2xl w-full shadow-2xl"
+                      >
+                        <div className="flex items-center justify-between mb-6">
+                          <h2 className="text-2xl font-bold text-[var(--text-main)]">
+                            {editingFile.type === 'avatar' ? 'Настройка аватара' : 'Настройка фона'}
+                          </h2>
+                          <button onClick={() => setEditingFile(null)} className="p-2 hover:bg-white/5 rounded-full transition-colors">
+                            <X className="w-6 h-6 text-[var(--text-muted)]" />
+                          </button>
+                        </div>
+
+                        <div className={`relative overflow-hidden bg-black/20 rounded-3xl mb-8 ${editingFile.type === 'avatar' ? 'aspect-square max-w-sm mx-auto rounded-full' : 'aspect-video'}`}>
+                          {editingFile.fileType.includes('video') ? (
+                            <video 
+                              src={editingFile.url} 
+                              autoPlay 
+                              loop 
+                              muted 
+                              className="w-full h-full object-cover"
+                              style={{ objectPosition: editingFile.type === 'avatar' ? 'center' : `center ${position}%` }}
+                            />
+                          ) : (
+                            <img 
+                              src={editingFile.url} 
+                              className="w-full h-full object-cover"
+                              style={{ objectPosition: editingFile.type === 'avatar' ? 'center' : `center ${position}%` }}
+                            />
+                          )}
+                        </div>
+
+                        {editingFile.type === 'banner' && (
+                          <div className="mb-8">
+                            <div className="flex justify-between mb-4">
+                              <label className="text-sm font-medium text-[var(--text-muted)]">
+                                Позиция по вертикали
+                              </label>
+                              <span className="text-sm font-bold text-[var(--accent-color)]">{position}%</span>
+                            </div>
+                            <input 
+                              type="range" 
+                              min="0" 
+                              max="100" 
+                              value={position}
+                              onChange={(e) => setPosition(parseInt(e.target.value))}
+                              className="w-full h-2 bg-white/10 rounded-lg appearance-none cursor-pointer accent-purple-500"
+                            />
+                          </div>
+                        )}
+
+                        <div className="flex gap-4">
+                          <button 
+                            onClick={() => setEditingFile(null)}
+                            className="flex-1 py-4 rounded-2xl font-bold text-[var(--text-main)] bg-white/5 hover:bg-white/10 transition-all"
+                          >
+                            Отмена
+                          </button>
+                          <button 
+                            onClick={handleSaveProfileEdit}
+                            className="flex-1 py-4 rounded-2xl font-bold text-white bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-500 hover:to-blue-500 transition-all shadow-lg shadow-purple-500/20"
+                          >
+                            Сохранить
+                          </button>
+                        </div>
+                      </motion.div>
+                    </div>
+                  )}
+                </AnimatePresence>
+
+                {/* Stats Grid */}
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                    <div className="bg-[var(--card-bg)] border border-[var(--glass-border)] rounded-[32px] p-8 flex flex-col items-center justify-center text-center shadow-xl hover:scale-[1.02] transition-transform">
+                        <div className="w-16 h-16 rounded-full bg-[var(--accent-color)]/10 flex items-center justify-center mb-6 text-[var(--accent-color)]">
+                            <Play className="w-8 h-8 fill-current" />
+                        </div>
+                        <h3 className="text-4xl font-black text-[var(--text-main)] mb-2">{userProfile?.stats?.totalListens || 0}</h3>
+                        <p className="text-[var(--text-muted)] font-medium tracking-widest uppercase text-xs">Total Listens</p>
+                    </div>
+                    <div className="bg-[var(--card-bg)] border border-[var(--glass-border)] rounded-[32px] p-8 flex flex-col items-center justify-center text-center shadow-xl hover:scale-[1.02] transition-transform">
+                        <div className="w-16 h-16 rounded-full bg-[var(--accent-color)]/10 flex items-center justify-center mb-6 text-[var(--accent-color)]">
+                            <Timer className="w-8 h-8" />
+                        </div>
+                        <h3 className="text-4xl font-black text-[var(--text-main)] mb-2">{Math.floor((userProfile?.stats?.listeningTime || 0) / 60)}</h3>
+                        <p className="text-[var(--text-muted)] font-medium tracking-widest uppercase text-xs">Minutes Listened</p>
+                    </div>
+                    <div className="bg-[var(--card-bg)] border border-[var(--glass-border)] rounded-[32px] p-8 flex flex-col items-center justify-center text-center shadow-xl hover:scale-[1.02] transition-transform">
+                        <div className="w-16 h-16 rounded-full bg-[var(--accent-color)]/10 flex items-center justify-center mb-6 text-[var(--accent-color)]">
+                            <Heart className="w-8 h-8 fill-current" />
+                        </div>
+                        <h3 className="text-4xl font-black text-[var(--text-main)] mb-2">{tracks.filter(t => t.isLiked).length}</h3>
+                        <p className="text-[var(--text-muted)] font-medium tracking-widest uppercase text-xs">Favorite Tracks</p>
+                    </div>
+                </div>
+            </div>
+        );
+
       default:
         return renderTrackList(filteredTracks);
     }
@@ -674,7 +886,7 @@ const MainView: React.FC<MainViewProps> = ({
   };
 
   return (
-    <div className="flex-1 h-full overflow-y-auto pb-32 pt-8 px-8 custom-scrollbar relative animate-fade-in" key={currentView}>
+    <div className="flex-1 h-full overflow-y-auto pb-48 pt-8 px-8 custom-scrollbar relative animate-fade-in" key={currentView}>
       {editingTrack && (
         <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/60 backdrop-blur-xl p-4 animate-fade-in-view">
              <div className="bg-[var(--bg-main)] border border-[var(--glass-border)] w-full max-w-4xl rounded-[32px] shadow-2xl overflow-hidden animate-zoom-in flex flex-col max-h-[95vh]">

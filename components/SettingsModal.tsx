@@ -238,6 +238,26 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
                              style={!config.animateBackground ? { backgroundColor: 'var(--text-main)', opacity: 0.5 } : {}}></div>
                     </button>
                 </section>
+
+                {/* Background Playback Toggle (Electron Only) */}
+                {(window as any).require && (window as any).require('electron') && (
+                    <section className="flex items-center justify-between bg-[var(--card-bg)] p-8 rounded-[32px] border border-[var(--glass-border)] hover:bg-[var(--card-hover)] transition-all group">
+                        <div>
+                            <h3 className="text-[var(--text-main)] font-black text-lg tracking-tight flex items-center gap-3 group-hover:translate-x-1 transition-transform">
+                                <Music className="w-5 h-5" style={{ color: config.accentColor }}/> {t('background_playback')}
+                            </h3>
+                            <p className="text-sm text-[var(--text-muted)] font-medium mt-1">{t('background_playback_desc')}</p>
+                        </div>
+                        <button 
+                            onClick={() => onUpdate({ enableBackgroundPlayback: !config.enableBackgroundPlayback })}
+                            className={`w-16 h-9 rounded-full p-1.5 transition-all duration-500 relative`}
+                            style={{ backgroundColor: config.enableBackgroundPlayback ? 'var(--text-main)' : 'rgba(128, 128, 128, 0.3)' }}
+                        >
+                            <div className={`w-6 h-6 rounded-full shadow-2xl transition-all duration-500 ${config.enableBackgroundPlayback ? 'translate-x-7 bg-[var(--bg-main)]' : 'translate-x-0'}`}
+                                 style={!config.enableBackgroundPlayback ? { backgroundColor: 'var(--text-main)', opacity: 0.5 } : {}}></div>
+                        </button>
+                    </section>
+                )}
                 
                 {/* Seasonal Theme (Visible only in winter) */}
                 {isWinterSeason && (
