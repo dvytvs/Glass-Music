@@ -32,8 +32,7 @@ const DEFAULT_THEME: ThemeConfig = {
   seasonalTheme: false, 
   playerStyle: 'floating',
   themeMode: 'system',
-  animateBackground: true,
-  enableBackgroundPlayback: false
+  animateBackground: true
 };
 
 const DEFAULT_PROFILE: UserProfile = {
@@ -277,17 +276,6 @@ const App: React.FC = () => {
   };
 
   useEffect(() => { loadData(); }, []);
-
-  useEffect(() => {
-    if (isLoaded && isElectron()) {
-      try {
-        const { ipcRenderer } = (window as any).require('electron');
-        ipcRenderer.send('background-playback-changed', !!theme.enableBackgroundPlayback);
-      } catch (e) {
-        console.error("Failed to sync background playback state", e);
-      }
-    }
-  }, [isLoaded, theme.enableBackgroundPlayback]);
 
   // Fetch metadata for top artists on load
 
@@ -595,13 +583,7 @@ const App: React.FC = () => {
   }, [playerState.currentTrack?.id, handleUpdateTrack]);
 
   const handleUpdateTheme = (newConfig: Partial<ThemeConfig>) => {
-    setTheme(prev => {
-      const updated = { ...prev, ...newConfig };
-      if (newConfig.enableBackgroundPlayback !== undefined && isElectron()) {
-          (window as any).require('electron').ipcRenderer.send('background-playback-changed', newConfig.enableBackgroundPlayback);
-      }
-      return updated;
-    });
+    setTheme(prev => ({ ...prev, ...newConfig }));
   };
 
   const handleUpdateArtist = (artist: string, data: Partial<ArtistMetadata>, overwrite = false) => {

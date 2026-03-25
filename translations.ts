@@ -4,7 +4,7 @@ export type TranslationKey =
   | 'search_placeholder' | 'no_tracks' | 'add_tracks' | 'import_tracks' | 'theme' | 'language' | 'accent_color'
   | 'background' | 'blur' | 'brightness' | 'glass_effect' | 'seasonal_theme' | 'player_style'
   | 'dark' | 'light' | 'system' | 'save' | 'cancel' | 'edit' | 'delete' | 'play_all' | 'shuffle_all'
-  | 'animate_background' | 'background_playback' | 'background_playback_desc'
+  | 'animate_background'
   | 'lyrics' | 'bio' | 'translate' | 'original' | 'onboarding_welcome' | 'onboarding_subtitle'
   | 'onboarding_start' | 'nickname' | 'personalization' | 'premium' | 'back' | 'metadata_magic'
   | 'searching' | 'edit_track' | 'track_title' | 'artist_name' | 'album_title' | 'year' | 'lyrics_placeholder'
@@ -37,8 +37,6 @@ export const translations: Record<string, Record<TranslationKey, string>> = {
     seasonal_theme: 'Сезонная тема',
     player_style: 'Стиль плеера',
     animate_background: 'Анимация фона',
-    background_playback: 'Фоновое воспроизведение',
-    background_playback_desc: 'Оставлять плеер в трее при закрытии окна',
     dark: 'Темная',
     light: 'Светлая',
     system: 'Системная',
@@ -125,8 +123,6 @@ export const translations: Record<string, Record<TranslationKey, string>> = {
     seasonal_theme: 'Seasonal Theme',
     player_style: 'Player Style',
     animate_background: 'Animate Background',
-    background_playback: 'Background Playback',
-    background_playback_desc: 'Keep player in tray when closing window',
     dark: 'Dark',
     light: 'Light',
     system: 'System',

@@ -66,7 +66,6 @@ if (!gotTheLock) {
         });
 
         let isPlaying = false;
-        let enableBackgroundPlayback = false;
 
         ipcMain.on('playback-state-changed', (e, state) => {
             isPlaying = state === 'playing';
@@ -75,12 +74,8 @@ if (!gotTheLock) {
             }
         });
 
-        ipcMain.on('background-playback-changed', (e, enabled) => {
-            enableBackgroundPlayback = enabled;
-        });
-
         mainWindow.on('close', (e) => {
-            if (!app.isQuitting && enableBackgroundPlayback) {
+            if (!app.isQuitting && isPlaying) {
                 e.preventDefault();
                 mainWindow.hide();
             } else {

@@ -73,7 +73,6 @@ export interface ThemeConfig {
   themeMode: 'dark' | 'light' | 'system';
   animateBackground: boolean;
   eqBands?: number[];
-  enableBackgroundPlayback?: boolean;
 }
 
 export interface ArtistMetadata {
