@@ -11,7 +11,8 @@ export type TranslationKey =
   | 'save_changes' | 'liquid_bg' | 'custom_bg' | 'done' | 'fetching_metadata'
   | 'new_in_collection' | 'library_empty' | 'import_tracks_hint' | 'change_banner' | 'refresh_metadata'
   | 'shuffle' | 'popular_tracks' | 'magic_api' | 'click_to_change' | 'about' | 'delete_warning'
-  | 'philosophy' | 'philosophy_text' | 'privacy' | 'privacy_text' | 'opensource_text' | 'create_playlist' | 'playlists' | 'no_playlists' | 'add_to_playlist' | 'playlist' | 'cover_image' | 'playlist_name' | 'my_playlist' | 'create' | 'enter_new_playlist_name' | 'delete_playlist_confirm' | 'your_library' | 'repeat';
+  | 'philosophy' | 'philosophy_text' | 'privacy' | 'privacy_text' | 'opensource_text' | 'create_playlist' | 'playlists' | 'no_playlists' | 'add_to_playlist' | 'playlist' | 'cover_image' | 'playlist_name' | 'my_playlist' | 'create' | 'enter_new_playlist_name' | 'delete_playlist_confirm' | 'your_library' | 'repeat'
+  | 'good_evening' | 'good_morning' | 'good_afternoon' | 'artist' | 'recently_added';
 
 export const translations: Record<string, Record<TranslationKey, string>> = {
   ru: {
@@ -99,6 +100,11 @@ export const translations: Record<string, Record<TranslationKey, string>> = {
     enter_new_playlist_name: 'Введите новое название плейлиста',
     delete_playlist_confirm: 'Удалить плейлист?',
     your_library: 'Ваша медиатека',
+    good_evening: 'Добрый вечер',
+    good_morning: 'Доброе утро',
+    good_afternoon: 'Добрый день',
+    artist: 'Артист',
+    recently_added: 'Недавно добавлено',
   },
   en: {
     listen_now: 'Listen Now',
@@ -185,5 +191,10 @@ export const translations: Record<string, Record<TranslationKey, string>> = {
     enter_new_playlist_name: 'Enter new playlist name',
     delete_playlist_confirm: 'Delete playlist?',
     your_library: 'Your Library',
+    good_evening: 'Good evening',
+    good_morning: 'Good morning',
+    good_afternoon: 'Good afternoon',
+    artist: 'Artist',
+    recently_added: 'Recently added',
   }
 };

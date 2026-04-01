@@ -749,6 +749,18 @@ const App: React.FC = () => {
     }
   };
 
+  const getAudioDuration = (url: string): Promise<number> => {
+    return new Promise((resolve) => {
+      const audio = new Audio(url);
+      audio.addEventListener('loadedmetadata', () => {
+        resolve(audio.duration);
+      });
+      audio.addEventListener('error', () => {
+        resolve(0);
+      });
+    });
+  };
+
   const handleFileSelect = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const files = event.target.files; if (!files) return;
     const newTracks: Track[] = [];
@@ -757,11 +769,18 @@ const App: React.FC = () => {
         const isAudioExt = /\.(mp3|wav|flac|m4a|ogg|aac)$/i.test(file.name);
         if (!isAudioType && !isAudioExt) continue;
         const metadata = await parseFileMetadata(file);
+        
+        const isElectron = () => (window as any).require && (window as any).require('electron');
+        const filePath = (file as any).path;
+        const fileUrl = (isElectron() && filePath) ? `file://${filePath.replace(/\\/g, '/')}` : URL.createObjectURL(file);
+        
+        const duration = await getAudioDuration(fileUrl);
+
         newTracks.push({
           id: Math.random().toString(36).substr(2, 9), title: metadata.title || file.name.replace(/\.[^/.]+$/, ""),
           artist: metadata.artist || "", album: metadata.album || "",
-          duration: 0, coverUrl: metadata.coverUrl || generateMockCover(file.name),
-          fileUrl: URL.createObjectURL(file), path: (file as any).path, isLiked: false, 
+          duration: duration || 0, coverUrl: metadata.coverUrl || generateMockCover(file.name),
+          fileUrl: fileUrl, path: filePath, isLiked: false, 
           year: new Date().getFullYear().toString(), source: 'local', addedAt: Date.now()
         });
     }
@@ -769,7 +788,7 @@ const App: React.FC = () => {
   };
 
   return (
-    <div className="relative w-full h-screen flex overflow-hidden bg-[var(--bg-main)] text-[var(--text-main)] selection:text-[var(--text-main)]">
+    <div className="relative w-full h-screen flex flex-col overflow-hidden bg-[var(--bg-main)] text-[var(--text-main)] selection:text-[var(--text-main)]">
       {theme.seasonalTheme && <SnowEffect />}
       <Background config={theme} isLight={getEffectiveTheme() === 'light'} analyser={analyser} isPlaying={playerState.playbackState === PlaybackState.PLAYING} profileBannerUrl={userProfile.bannerUrl} />
       <Visualizer analyser={analyser} isPlaying={playerState.playbackState === PlaybackState.PLAYING} accentColor={theme.accentColor} enabled={theme.animateBackground} />
@@ -778,45 +797,64 @@ const App: React.FC = () => {
         <OnboardingModal onComplete={handleOnboardingComplete} accentColor={theme.accentColor} t={t} />
       )}
 
-      <Sidebar 
-        onImportClick={() => fileInputRef.current?.click()} onSettingsClick={() => setSettingsOpen(true)}
-        currentView={playerState.currentView}
-        onChangeView={(view) => { setPlayerState(prev => ({ ...prev, currentView: view })); setSidebarOpen(true); }}
-        isOpen={sidebarOpen} accentColor={theme.accentColor} searchQuery={searchQuery}
-        onSearchChange={setSearchQuery} enableGlass={theme.enableGlass} user={userProfile} t={t}
-        playlists={playlists}
-        selectedPlaylist={selectedPlaylist}
-        onSelectPlaylist={(id) => {
-          setSelectedPlaylist(id);
-          setPlayerState(prev => ({ ...prev, currentView: 'playlist_detail' }));
-          setSidebarOpen(true);
-        }}
-        onCreatePlaylist={() => setIsCreatePlaylistOpen(true)}
-      />
-      <div className={`flex-1 flex flex-col relative z-10 ${theme.enableGlass ? 'glass-panel' : 'bg-[var(--panel-bg)]'} border-y-0 border-r-0 rounded-l-3xl overflow-hidden shadow-2xl transition-all duration-500 ease-[cubic-bezier(0.32,0.72,0,1)] ${!sidebarOpen ? 'ml-0 rounded-l-none' : 'ml-2'}`}>
-        <MainView 
-          tracks={tracks} currentTrack={playerState.currentTrack} playbackState={playerState.playbackState}
-          onPlay={handlePlay} onShuffleAll={(q) => { setPlayerState(prev => ({ ...prev, isShuffled: true, queue: q })); if (q[0]) handlePlay(q[0], q); }}
-          currentView={playerState.currentView} selectedArtist={selectedArtist} selectedAlbum={selectedAlbum}
-          onUpdateTrack={handleUpdateTrack} onDeleteTrack={handleDeleteTrack} onGoToArtist={handleGoToArtist}
-          onGoToAlbum={handleGoToAlbum} onBack={() => setPlayerState(prev => ({ ...prev, currentView: previousView }))}
-          accentColor={theme.accentColor} artistMetadata={artistMetadata} onUpdateArtist={handleUpdateArtist}
-          searchQuery={searchQuery} onRequestFileUnlock={() => { audioRef.current.pause(); audioRef.current.src = ""; }}
-          onToggleLike={handleToggleLike} enableGlass={theme.enableGlass} t={t} onTranslate={translateText}
-          playlists={playlists} selectedPlaylist={selectedPlaylist}
-          onChangeView={(view) => { setPlayerState(prev => ({ ...prev, currentView: view })); }}
-          onDeletePlaylist={(id) => {
-            setPlaylists(prev => prev.filter(p => p.id !== id));
-            if (selectedPlaylist === id) setSelectedPlaylist(null);
-          }}
-          onUpdatePlaylist={(id, data) => {
-            setPlaylists(prev => prev.map(p => p.id === id ? { ...p, ...data } : p));
+      <div className="flex-1 flex overflow-hidden relative z-10">
+        <Sidebar 
+          onImportClick={() => fileInputRef.current?.click()} onSettingsClick={() => setSettingsOpen(true)}
+          currentView={playerState.currentView}
+          onChangeView={(view) => { setPlayerState(prev => ({ ...prev, currentView: view })); setSidebarOpen(true); }}
+          isOpen={sidebarOpen} accentColor={theme.accentColor} searchQuery={searchQuery}
+          onSearchChange={setSearchQuery} enableGlass={theme.enableGlass} user={userProfile} t={t}
+          playlists={playlists}
+          selectedPlaylist={selectedPlaylist}
+          onSelectPlaylist={(id) => {
+            setSelectedPlaylist(id);
+            setPlayerState(prev => ({ ...prev, currentView: 'playlist_detail' }));
+            setSidebarOpen(true);
           }}
           onCreatePlaylist={() => setIsCreatePlaylistOpen(true)}
-          onOpenSelectTracks={() => setIsSelectTracksOpen(true)}
-          userProfile={userProfile}
-          onUpdateProfile={handleUpdateProfile}
         />
+        <div className={`flex-1 flex flex-col relative z-10 ${theme.enableGlass ? 'bg-black/40 backdrop-blur-3xl border-l border-white/5' : 'bg-[var(--panel-bg)] border-l border-[var(--glass-border)]'} rounded-tl-[2.5rem] overflow-hidden shadow-2xl transition-all duration-500 ease-[cubic-bezier(0.32,0.72,0,1)] ${!sidebarOpen ? 'ml-0 rounded-tl-none border-l-0' : 'ml-2'}`}>
+          <MainView 
+            tracks={tracks} currentTrack={playerState.currentTrack} playbackState={playerState.playbackState}
+            onPlay={handlePlay} onShuffleAll={(q) => { setPlayerState(prev => ({ ...prev, isShuffled: true, queue: q })); if (q[0]) handlePlay(q[0], q); }}
+            currentView={playerState.currentView} selectedArtist={selectedArtist} selectedAlbum={selectedAlbum}
+            onUpdateTrack={handleUpdateTrack} onDeleteTrack={handleDeleteTrack} onGoToArtist={handleGoToArtist}
+            onGoToAlbum={handleGoToAlbum} onBack={() => setPlayerState(prev => ({ ...prev, currentView: previousView }))}
+            accentColor={theme.accentColor} artistMetadata={artistMetadata} onUpdateArtist={handleUpdateArtist}
+            searchQuery={searchQuery} onRequestFileUnlock={() => { audioRef.current.pause(); audioRef.current.src = ""; }}
+            onToggleLike={handleToggleLike} enableGlass={theme.enableGlass} t={t} onTranslate={translateText}
+            playlists={playlists} selectedPlaylist={selectedPlaylist}
+            onChangeView={(view) => { setPlayerState(prev => ({ ...prev, currentView: view })); }}
+            onDeletePlaylist={(id) => {
+              setPlaylists(prev => prev.filter(p => p.id !== id));
+              if (selectedPlaylist === id) setSelectedPlaylist(null);
+            }}
+            onUpdatePlaylist={(id, data) => {
+              setPlaylists(prev => prev.map(p => p.id === id ? { ...p, ...data } : p));
+            }}
+            onCreatePlaylist={() => setIsCreatePlaylistOpen(true)}
+            onOpenSelectTracks={() => setIsSelectTracksOpen(true)}
+            userProfile={userProfile}
+            onUpdateProfile={handleUpdateProfile}
+            playerStyle={theme.playerStyle}
+          />
+          {theme.playerStyle === 'floating' && (
+            <PlayerControls 
+              currentTrack={playerState.currentTrack} playbackState={playerState.playbackState}
+              onPlayPause={() => playerState.currentTrack ? handlePlay(playerState.currentTrack) : null}
+              onNext={() => handleNext(false)} onPrev={handlePrev} currentTime={playerState.currentTime} duration={playerState.duration}
+              onSeek={handleSeek} volume={playerState.volume} onVolumeChange={handleVolume} isShuffled={playerState.isShuffled}
+              isRepeating={playerState.isRepeating} onToggleRepeat={toggleRepeat}
+              onToggleShuffle={toggleShuffle} onToggleSidebar={() => setSidebarOpen(!sidebarOpen)}
+              onToggleFullScreen={() => setFullScreenMode('cover')} onOpenLyrics={() => setFullScreenMode('lyrics')}
+              onToggleLike={handleToggleLike} accentColor={theme.accentColor} onGoToArtist={handleGoToArtist}
+              onGoToAlbum={handleGoToAlbum} playerStyle={theme.playerStyle} enableGlass={theme.enableGlass} t={t}
+              audioEffect={playerState.audioEffect} onToggleAudioEffect={toggleAudioEffect}
+            />
+          )}
+        </div>
+      </div>
+      {theme.playerStyle === 'classic' && (
         <PlayerControls 
           currentTrack={playerState.currentTrack} playbackState={playerState.playbackState}
           onPlayPause={() => playerState.currentTrack ? handlePlay(playerState.currentTrack) : null}
@@ -829,7 +867,7 @@ const App: React.FC = () => {
           onGoToAlbum={handleGoToAlbum} playerStyle={theme.playerStyle} enableGlass={theme.enableGlass} t={t}
           audioEffect={playerState.audioEffect} onToggleAudioEffect={toggleAudioEffect}
         />
-      </div>
+      )}
       {fullScreenMode !== 'none' && playerState.currentTrack && (
         <FullScreenPlayer 
             track={playerState.currentTrack} playbackState={playerState.playbackState}

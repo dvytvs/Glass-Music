@@ -30,6 +30,8 @@ const LyricsView: React.FC<LyricsViewProps> = ({ lyricsRaw, currentTime }) => {
       return -1;
   }, [lines, currentTime, isPlainText]);
 
+  const activeLineRef = useRef<HTMLDivElement>(null);
+
   // Auto-scroll logic (only for synced)
   useEffect(() => {
     if (!isPlainText && activeLineRef.current && containerRef.current) {
@@ -39,8 +41,6 @@ const LyricsView: React.FC<LyricsViewProps> = ({ lyricsRaw, currentTime }) => {
       });
     }
   }, [activeIndex, isPlainText]);
-
-  const activeLineRef = useRef<HTMLDivElement>(null);
 
   if (!lyricsRaw || lines.length === 0) {
     return (
@@ -76,27 +76,45 @@ const LyricsView: React.FC<LyricsViewProps> = ({ lyricsRaw, currentTime }) => {
     <div className="w-full h-full overflow-hidden relative">
       <div 
         ref={containerRef}
-        className="w-full h-full overflow-y-auto px-8 py-[45vh] text-center space-y-12"
+        className="w-full h-full overflow-y-auto px-8 py-[45vh] text-center space-y-12 scroll-smooth"
+        style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}
       >
         {lines.map((line, index) => {
           const isActive = index === activeIndex;
+          const isPast = index < activeIndex;
           const distance = Math.abs(index - activeIndex);
-          const blur = isActive ? 0 : Math.min(distance * 2, 10);
-          const scale = isActive ? 1.15 : 1;
-          const opacity = isActive ? 1 : Math.max(0.1, 1 - distance * 0.25);
+          
+          // Cinematic karaoke style
+          let blur = 0;
+          let scale = 1;
+          let opacity = 1;
+          
+          if (isActive) {
+            scale = 1.15;
+            opacity = 1;
+            blur = 0;
+          } else if (isPast) {
+            scale = 0.95;
+            opacity = Math.max(0.1, 0.5 - distance * 0.1);
+            blur = Math.min(distance * 1.5, 8);
+          } else {
+            scale = 0.95;
+            opacity = Math.max(0.1, 0.7 - distance * 0.15);
+            blur = Math.min(distance * 1, 4);
+          }
 
           return (
             <div
               key={index}
               ref={isActive ? activeLineRef : null}
-              className="transition-all duration-700 ease-out origin-center"
+              className="transition-all duration-700 ease-[cubic-bezier(0.23,1,0.32,1)] origin-center"
               style={{
                 transform: `scale(${scale})`,
                 opacity: opacity,
                 filter: `blur(${blur}px)`,
               }}
             >
-              <p className={`text-4xl md:text-6xl leading-tight cursor-pointer tracking-tighter font-black ${isActive ? 'text-white drop-shadow-[0_0_30px_rgba(255,255,255,0.3)]' : 'text-white/40'}`}>
+              <p className={`text-4xl md:text-6xl lg:text-7xl leading-tight cursor-pointer tracking-tighter font-black transition-colors duration-700 ${isActive ? 'text-white drop-shadow-[0_0_40px_rgba(255,255,255,0.6)]' : 'text-white/40'}`}>
                 {line.text}
               </p>
             </div>

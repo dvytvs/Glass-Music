@@ -1,7 +1,8 @@
 
-import React from 'react';
+import React, { useRef } from 'react';
+import { motion } from 'framer-motion';
 import { 
-  Play, Pause, SkipBack, SkipForward, Volume2, 
+  Play, Pause, SkipBack, SkipForward, Volume2, VolumeX,
   Repeat, Shuffle, ListMusic, Airplay, Heart, Maximize2, Quote, Rabbit, Turtle
 } from './Icons';
 import { Track, PlaybackState } from '../types';
@@ -71,6 +72,16 @@ const PlayerControls: React.FC<PlayerControlsProps> = ({
   const progressPercent = duration ? (currentTime / duration) * 100 : 0;
   
   const isFloating = playerStyle === 'floating';
+  const prevVolumeRef = useRef(1);
+
+  const handleVolumeToggle = () => {
+    if (volume > 0) {
+      prevVolumeRef.current = volume;
+      onVolumeChange(0);
+    } else {
+      onVolumeChange(prevVolumeRef.current || 1);
+    }
+  };
 
   const renderArtists = (artistString: string) => {
     const artists = artistString.split(ARTIST_SPLIT_REGEX).map(a => a.trim()).filter(Boolean);
@@ -88,101 +99,96 @@ const PlayerControls: React.FC<PlayerControlsProps> = ({
   };
 
   const containerClasses = isFloating 
-    ? `absolute bottom-8 left-0 right-0 w-[95%] max-w-5xl h-[100px] mx-auto rounded-[32px] ${enableGlass ? 'glass-panel' : 'bg-[var(--panel-bg)]'} z-50 flex flex-col justify-center px-8 shadow-[0_30px_60px_rgba(0,0,0,0.5)] transition-all duration-500 ease-[cubic-bezier(0.32,0.72,0,1)] border border-[var(--glass-border)] hover:border-white/20`
-    : `absolute bottom-0 left-0 right-0 h-[100px] w-full ${enableGlass ? 'glass-panel bg-black/40 backdrop-blur-3xl' : 'bg-[var(--bg-main-transparent)] shadow-[0_-10px_40px_rgba(0,0,0,0.1)]'} border-t border-[var(--glass-border)] z-50 flex flex-col justify-center px-8 transition-all duration-500 ease-[cubic-bezier(0.32,0.72,0,1)]`;
+    ? `absolute bottom-6 left-1/2 -translate-x-1/2 w-[96%] max-w-6xl h-[90px] rounded-[2.5rem] ${enableGlass ? 'bg-black/60 backdrop-blur-2xl border border-white/10' : 'bg-[var(--panel-bg)] border border-[var(--glass-border)]'} z-50 flex flex-col justify-center px-8 shadow-2xl transition-all duration-500`
+    : `w-full h-[100px] shrink-0 ${enableGlass ? 'bg-black/70 backdrop-blur-3xl border-t border-white/5' : 'bg-[var(--panel-bg)] border-t border-[var(--glass-border)]'} z-50 flex flex-col justify-center px-8 transition-all duration-500 relative`;
 
   return (
     <div className={containerClasses}>
-      
-      <div className="flex items-center justify-between h-full w-full gap-8">
+      <div className="flex items-center justify-between h-full w-full gap-4">
         
         {/* Track Info */}
-        <div className="flex items-center gap-5 w-1/3 min-w-[240px] z-20">
+        <div 
+          className="flex items-center gap-4 w-[30%] min-w-[180px] z-20 cursor-pointer group/trackinfo"
+          onClick={onToggleFullScreen}
+        >
           {currentTrack ? (
             <>
-              <div 
-                className="w-14 h-14 rounded-2xl overflow-hidden shadow-2xl relative group cursor-pointer flex-shrink-0 border border-[var(--glass-border)] transition-transform duration-500 hover:scale-105 bg-[var(--card-bg)]"
-                onClick={onToggleFullScreen}
-              >
+              <div className="w-16 h-16 rounded-2xl overflow-hidden relative group cursor-pointer flex-shrink-0 bg-[var(--card-bg)] shadow-lg">
                 <img src={currentTrack.coverUrl} alt="Album Art" className="w-full h-full object-cover" />
-                <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-all backdrop-blur-[2px]">
-                  <Maximize2 className="w-5 h-5 text-[var(--text-main)]" />
+                <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity">
+                  <Maximize2 className="w-5 h-5 text-white" />
                 </div>
               </div>
-              <div className="flex flex-col overflow-hidden">
+              <div className="flex flex-col overflow-hidden justify-center">
                 <span 
-                  className="text-[15px] font-black text-[var(--text-main)] truncate hover:opacity-80 cursor-pointer transition-colors tracking-tight"
-                  onClick={() => onGoToAlbum(currentTrack.album)}
+                  className="text-[15px] font-bold text-[var(--text-main)] truncate hover:underline cursor-pointer tracking-tight group-hover/trackinfo:text-[var(--accent-color)] transition-colors"
+                  onClick={(e) => { e.stopPropagation(); onGoToAlbum(currentTrack.album); }}
                 >
                   {currentTrack.title}
                 </span>
-                <span className="text-[12px] text-[var(--text-muted)] truncate font-bold tracking-tight">
+                <span className="text-[13px] text-[var(--text-muted)] truncate mt-0.5 font-medium">
                    {renderArtists(currentTrack.artist)}
                 </span>
               </div>
-              <button 
-                onClick={() => onToggleLike(currentTrack.id)}
-                className={`transition-all ml-2 hover:scale-125 active:scale-90 p-2 rounded-xl hover:bg-[var(--card-hover)] ${currentTrack.isLiked ? '' : 'text-[var(--text-muted)] hover:text-[var(--text-main)]'}`}
+              <motion.button 
+                whileTap={{ scale: 0.8 }}
+                onClick={(e) => { e.stopPropagation(); onToggleLike(currentTrack.id); }}
+                className={`ml-2 p-2.5 rounded-full hover:bg-[var(--card-hover)] transition-all ${currentTrack.isLiked ? '' : 'text-[var(--text-muted)] hover:text-[var(--text-main)]'}`}
                 style={{ color: currentTrack.isLiked ? accentColor : undefined }}
               >
-                <Heart className={`w-4 h-4 ${currentTrack.isLiked ? 'fill-current' : ''}`} />
-              </button>
+                <Heart className={`w-5 h-5 ${currentTrack.isLiked ? 'fill-current' : ''}`} />
+              </motion.button>
             </>
           ) : (
-            <div className="flex items-center gap-5 opacity-30">
-              <div className="w-14 h-14 rounded-2xl bg-[var(--card-bg)] animate-pulse"></div>
+            <div className="flex items-center gap-4 opacity-40">
+              <div className="w-16 h-16 rounded-2xl bg-[var(--card-bg)] animate-pulse"></div>
               <div className="space-y-2">
-                <div className="h-3 w-32 bg-[var(--card-bg)] rounded-full animate-pulse"></div>
-                <div className="h-2 w-20 bg-[var(--card-bg)] rounded-full animate-pulse"></div>
+                <div className="h-3 w-24 bg-[var(--card-bg)] rounded-full animate-pulse"></div>
+                <div className="h-2 w-16 bg-[var(--card-bg)] rounded-full animate-pulse"></div>
               </div>
             </div>
           )}
         </div>
 
         {/* Center Controls */}
-        <div className="flex flex-col items-center justify-center flex-1 max-w-xl gap-2 z-10">
-          <div className="flex items-center gap-8">
-            <button 
+        <div className="flex flex-col items-center justify-center w-[40%] max-w-[722px] z-10">
+          <div className="flex items-center gap-6 mb-2">
+            <motion.button 
+              whileTap={{ scale: 0.9 }}
               onClick={onToggleShuffle}
-              className={`transition-all p-2 rounded-xl hover:bg-[var(--card-hover)] ${isShuffled ? '' : 'text-[var(--text-muted)] hover:text-[var(--text-main)]'}`}
+              className={`p-2 rounded-full hover:bg-[var(--card-hover)] transition-all ${isShuffled ? '' : 'text-[var(--text-muted)] hover:text-[var(--text-main)]'}`}
               style={{ color: isShuffled ? accentColor : undefined }}
             >
               <Shuffle className="w-4 h-4" />
-            </button>
-            <button onClick={onPrev} className="text-[var(--text-muted)] hover:text-[var(--text-main)] transition-all p-2 hover:bg-[var(--card-hover)] rounded-xl active:scale-90">
-              <SkipBack className="w-6 h-6 fill-current" />
-            </button>
-            <button 
+            </motion.button>
+            <motion.button whileTap={{ scale: 0.9 }} onClick={onPrev} className="text-[var(--text-muted)] hover:text-[var(--text-main)] transition-all p-2 hover:bg-[var(--card-hover)] rounded-full">
+              <SkipBack className="w-5 h-5 fill-current" />
+            </motion.button>
+            <motion.button 
+              whileTap={{ scale: 0.9 }}
               onClick={onPlayPause}
-              className="w-12 h-12 rounded-2xl bg-[var(--text-main)] flex items-center justify-center text-[var(--bg-main)] hover:scale-110 active:scale-90 transition-all shadow-[0_0_30px_rgba(255,255,255,0.2)]"
+              className="w-10 h-10 rounded-full bg-[var(--text-main)] flex items-center justify-center text-[var(--bg-main)] hover:scale-105 transition-all shadow-md"
             >
-              {isPlaying ? <Pause className="w-6 h-6 fill-current" /> : <Play className="w-6 h-6 fill-current ml-1" />}
-            </button>
-            <button onClick={onNext} className="text-[var(--text-muted)] hover:text-[var(--text-main)] transition-all p-2 hover:bg-[var(--card-hover)] rounded-xl active:scale-90">
-              <SkipForward className="w-6 h-6 fill-current" />
-            </button>
-            <button 
+              {isPlaying ? <Pause className="w-5 h-5 fill-current" /> : <Play className="w-5 h-5 fill-current ml-0.5" />}
+            </motion.button>
+            <motion.button whileTap={{ scale: 0.9 }} onClick={onNext} className="text-[var(--text-muted)] hover:text-[var(--text-main)] transition-all p-2 hover:bg-[var(--card-hover)] rounded-full">
+              <SkipForward className="w-5 h-5 fill-current" />
+            </motion.button>
+            <motion.button 
+              whileTap={{ scale: 0.9 }}
               onClick={onToggleRepeat}
-              className={`transition-all p-2 rounded-xl hover:bg-[var(--card-hover)] ${isRepeating ? '' : 'text-[var(--text-muted)] hover:text-[var(--text-main)]'}`}
+              className={`p-2 rounded-full hover:bg-[var(--card-hover)] transition-all ${isRepeating ? '' : 'text-[var(--text-muted)] hover:text-[var(--text-main)]'}`}
               style={{ color: isRepeating ? accentColor : undefined }}
               title={t('repeat')}
             >
               <Repeat className="w-4 h-4" />
-            </button>
-            <button 
-              onClick={onToggleAudioEffect}
-              className={`transition-all p-2 rounded-xl hover:bg-[var(--card-hover)] ${audioEffect !== 'normal' ? '' : 'text-[var(--text-muted)] hover:text-[var(--text-main)]'}`}
-              style={{ color: audioEffect !== 'normal' ? accentColor : undefined }}
-              title={audioEffect === 'slowed' ? 'Slowed' : audioEffect === 'spedup' ? 'Speed Up' : 'Normal Speed'}
-            >
-              {audioEffect === 'slowed' ? <Turtle className="w-4 h-4" /> : <Rabbit className={`w-4 h-4 ${audioEffect === 'normal' ? 'opacity-40' : ''}`} />}
-            </button>
+            </motion.button>
           </div>
           
-          <div className="w-full flex items-center gap-4 text-[10px] text-[var(--text-muted)] font-black tracking-widest mt-1">
+          <div className="w-full flex items-center gap-3 text-[12px] text-[var(--text-muted)] font-medium">
             <span className="w-10 text-right">{formatTime(currentTime)}</span>
             <div 
-              className="flex-1 h-1.5 bg-[var(--card-bg)] rounded-full cursor-pointer relative group overflow-hidden"
+              className="flex-1 h-1.5 bg-[var(--card-bg)] rounded-full cursor-pointer relative group flex items-center"
               onClick={(e) => {
                 const rect = e.currentTarget.getBoundingClientRect();
                 const percent = (e.clientX - rect.left) / rect.width;
@@ -190,12 +196,12 @@ const PlayerControls: React.FC<PlayerControlsProps> = ({
               }}
             >
               <div 
-                className="absolute h-full bg-[var(--text-muted)] group-hover:bg-[var(--text-main)] rounded-full transition-colors" 
+                className="absolute h-1.5 bg-[var(--text-muted)] group-hover:bg-[var(--text-main)] rounded-full transition-colors" 
                 style={{ width: `${progressPercent}%` }}
               ></div>
               <div 
-                className="absolute h-full bg-[var(--text-main)] rounded-full shadow-[0_0_15px_rgba(255,255,255,0.5)]" 
-                style={{ width: `${progressPercent}%`, opacity: isPlaying ? 0.8 : 0.4 }}
+                className="absolute h-3.5 w-3.5 bg-white rounded-full shadow-md opacity-0 group-hover:opacity-100 transition-opacity" 
+                style={{ left: `calc(${progressPercent}% - 7px)` }}
               ></div>
             </div>
             <span className="w-10">{formatTime(duration)}</span>
@@ -203,21 +209,32 @@ const PlayerControls: React.FC<PlayerControlsProps> = ({
         </div>
 
         {/* Volume & Extras */}
-        <div className="flex items-center justify-end gap-3 w-1/3 z-20">
-           <button 
+        <div className="flex items-center justify-end gap-2 w-[30%] min-w-[180px] z-20">
+           <motion.button 
+              whileTap={{ scale: 0.9 }}
+              onClick={onToggleAudioEffect}
+              className={`p-2.5 rounded-full hover:bg-[var(--card-hover)] transition-all ${audioEffect !== 'normal' ? '' : 'text-[var(--text-muted)] hover:text-[var(--text-main)]'}`}
+              style={{ color: audioEffect !== 'normal' ? accentColor : undefined }}
+              title={audioEffect === 'slowed' ? 'Slowed' : audioEffect === 'spedup' ? 'Speed Up' : 'Normal Speed'}
+            >
+              {audioEffect === 'slowed' ? <Turtle className="w-4 h-4" /> : <Rabbit className={`w-4 h-4 ${audioEffect === 'normal' ? 'opacity-50' : ''}`} />}
+            </motion.button>
+           <motion.button 
+              whileTap={{ scale: 0.9 }}
               onClick={onOpenLyrics} 
-              className="text-[var(--text-muted)] hover:text-[var(--text-main)] transition-all p-2.5 rounded-xl hover:bg-[var(--card-hover)]"
+              className="text-[var(--text-muted)] hover:text-[var(--text-main)] transition-all p-2.5 rounded-full hover:bg-[var(--card-hover)]"
               title={t('lyrics')}
            >
               <Quote className="w-4 h-4" />
-           </button>
-
-           <button onClick={onToggleSidebar} className="text-[var(--text-muted)] hover:text-[var(--text-main)] transition-all p-2.5 rounded-xl hover:bg-[var(--card-hover)]">
+           </motion.button>
+           <motion.button whileTap={{ scale: 0.9 }} onClick={onToggleSidebar} className="text-[var(--text-muted)] hover:text-[var(--text-main)] transition-all p-2.5 rounded-full hover:bg-[var(--card-hover)]">
               <ListMusic className="w-4 h-4" />
-            </button>
-            <div className="flex items-center gap-3 w-32 group ml-2">
-              <Volume2 className="w-4 h-4 text-[var(--text-muted)] group-hover:text-[var(--text-main)] transition-colors" />
-              <div className="relative flex-1 h-1.5 bg-[var(--card-bg)] rounded-full overflow-hidden cursor-pointer">
+            </motion.button>
+            <div className="flex items-center gap-2 w-28 group ml-2">
+              <motion.button whileTap={{ scale: 0.9 }} onClick={handleVolumeToggle} className="text-[var(--text-muted)] hover:text-[var(--text-main)] transition-colors p-1 rounded-full hover:bg-[var(--card-hover)]">
+                {volume === 0 ? <VolumeX className="w-4 h-4" /> : <Volume2 className="w-4 h-4" />}
+              </motion.button>
+              <div className="relative flex-1 h-1.5 bg-[var(--card-bg)] rounded-full flex items-center cursor-pointer">
                 <input 
                     type="range" 
                     min="0" 
@@ -227,12 +244,10 @@ const PlayerControls: React.FC<PlayerControlsProps> = ({
                     onChange={(e) => onVolumeChange(parseFloat(e.target.value))}
                     className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10"
                 />
-                <div className="absolute h-full bg-[var(--text-muted)] group-hover:bg-[var(--text-main)] transition-colors" style={{ width: `${volume * 100}%` }}></div>
+                <div className="absolute h-1.5 bg-[var(--text-muted)] group-hover:bg-[var(--text-main)] rounded-full transition-colors" style={{ width: `${volume * 100}%` }}></div>
+                <div className="absolute h-3.5 w-3.5 bg-white rounded-full shadow-md opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none" style={{ left: `calc(${volume * 100}% - 7px)` }}></div>
               </div>
             </div>
-             <button className="text-[var(--text-muted)] transition-all hidden sm:block hover:text-[var(--text-main)] p-2.5 rounded-xl hover:bg-[var(--card-hover)]" title="AirPlay Unavailable in Browser">
-              <Airplay className="w-4 h-4" />
-            </button>
         </div>
 
       </div>

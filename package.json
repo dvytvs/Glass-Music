@@ -1,6 +1,6 @@
 {
   "name": "glass-music",
-  "version": "1.9.5",
+  "version": "2.0.0",
   "description": "A futuristic, liquid-glass aesthetic music player for Linux",
   "main": "main.js",
   "homepage": "https://github.com/glass-music/app",
@@ -25,12 +25,17 @@
     "motion": "^12.38.0",
     "node-id3": "^0.2.6",
     "react": "^18.2.0",
-    "react-dom": "^18.2.0"
+    "react-dom": "^18.2.0",
+    "react-virtualized-auto-sizer": "^2.0.3",
+    "react-virtuoso": "^4.18.3",
+    "react-window": "^2.2.7"
   },
   "devDependencies": {
     "@types/jsmediatags": "^3.9.6",
     "@types/react": "^18.2.64",
     "@types/react-dom": "^18.2.21",
+    "@types/react-virtualized-auto-sizer": "^1.0.4",
+    "@types/react-window": "^1.8.8",
     "@vitejs/plugin-react": "^4.2.1",
     "autoprefixer": "^10.4.18",
     "concurrently": "^8.2.2",

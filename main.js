@@ -236,6 +236,40 @@ ipcMain.handle('get-artist-metadata', async (e, artistName) => {
     return (result.avatar || result.bio) ? result : null;
 });
 
+ipcMain.handle('read-id3-tags', async (e, filePath) => {
+    try {
+        if (!fs.existsSync(filePath)) return null;
+        const tags = NodeID3.read(filePath);
+        if (!tags) return null;
+
+        let coverUrl = null;
+        if (tags.image && tags.image.imageBuffer) {
+            const crypto = require('crypto');
+            const hash = crypto.createHash('md5').update(tags.image.imageBuffer).digest('hex');
+            const coversDir = path.join(userDataPath, 'covers');
+            if (!fs.existsSync(coversDir)) {
+                fs.mkdirSync(coversDir, { recursive: true });
+            }
+            const ext = tags.image.mime === 'image/png' ? 'png' : 'jpg';
+            const coverPath = path.join(coversDir, `${hash}.${ext}`);
+            if (!fs.existsSync(coverPath)) {
+                fs.writeFileSync(coverPath, tags.image.imageBuffer);
+            }
+            coverUrl = `file://${coverPath.replace(/\\/g, '/')}`;
+        }
+
+        return {
+            title: tags.title,
+            artist: tags.artist,
+            album: tags.album,
+            coverUrl: coverUrl
+        };
+    } catch (err) {
+        console.error("Error reading ID3 tags:", err);
+        return null;
+    }
+});
+
 ipcMain.handle('write-id3-tags', async (e, { filePath, tags }) => {
     try {
         if (!fs.existsSync(filePath)) return { success: false, error: 'File not found' };

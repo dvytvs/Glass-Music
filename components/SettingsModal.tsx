@@ -1,5 +1,6 @@
 
 import React, { useRef, useMemo, useState } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
 import { X, Image, Video, Droplet, Upload, Check, Sliders, Snowflake, Trash2, ArrowLeft, LayoutGrid } from './Icons';
 // Import AlertCircle directly from lucide if possible, or add it to Icons.tsx. Assuming standard set.
 import { AlertCircle, Music, Activity } from 'lucide-react'; 
@@ -31,8 +32,6 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
       return month === 11 || month === 0 || month === 1;
   }, []);
 
-  if (!isOpen) return null;
-
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
@@ -48,65 +47,77 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/40 backdrop-blur-md animate-fade-in">
-      <div 
-        className={`w-full max-w-2xl bg-[var(--panel-bg)] border border-[var(--glass-border)] rounded-[40px] shadow-[0_40px_80px_rgba(0,0,0,0.2)] overflow-hidden animate-scale-in ${config.enableGlass ? 'backdrop-blur-3xl' : ''} relative flex flex-col max-h-[85vh]`}
+    <AnimatePresence>
+    {isOpen && (
+    <motion.div 
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0 }}
+      className="fixed inset-0 z-[100] flex items-center justify-center bg-black/40 backdrop-blur-md"
+      onClick={onClose}
+    >
+      <motion.div 
+        initial={{ scale: 0.95, y: 20, opacity: 0 }}
+        animate={{ scale: 1, y: 0, opacity: 1 }}
+        exit={{ scale: 0.95, y: 20, opacity: 0 }}
+        transition={{ type: "spring", damping: 25, stiffness: 300 }}
+        className={`w-full max-w-2xl bg-[var(--panel-bg)] border border-[var(--glass-border)] rounded-[3rem] shadow-[0_40px_80px_rgba(0,0,0,0.2)] overflow-hidden ${config.enableGlass ? 'backdrop-blur-3xl' : ''} relative flex flex-col max-h-[85vh]`}
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
-        <div className="flex items-center justify-between px-10 py-8 border-b border-[var(--glass-border)] shrink-0">
+        <div className="flex items-center justify-between px-8 py-6 border-b border-[var(--glass-border)] shrink-0 bg-[var(--panel-bg)]/80 backdrop-blur-md sticky top-0 z-10">
           <div className="flex items-center gap-4">
               {view === 'about' && (
-                  <button onClick={() => setView('settings')} className="p-2 hover:bg-[var(--card-hover)] rounded-2xl transition-all active:scale-90">
+                  <button onClick={() => setView('settings')} className="p-2 hover:bg-[var(--card-hover)] rounded-full transition-all active:scale-95">
                       <ArrowLeft className="w-5 h-5 text-[var(--text-main)]" />
                   </button>
               )}
-              <h2 className="text-3xl font-black text-[var(--text-main)] tracking-tighter">
+              <h2 className="text-2xl font-black text-[var(--text-main)] tracking-tight">
                 {view === 'about' ? t('original') : t('settings')}
               </h2>
           </div>
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2">
               {view === 'settings' && (
                 <button 
                     onClick={() => setView('about')} 
-                    className="p-3 hover:bg-[var(--card-hover)] rounded-2xl transition-all text-[var(--text-muted)] hover:text-[var(--text-main)]"
+                    className="p-2 hover:bg-[var(--card-hover)] rounded-full transition-all text-[var(--text-muted)] hover:text-[var(--text-main)]"
                     title={t('about')}
                 >
                     <AlertCircle className="w-5 h-5" />
                 </button>
               )}
-              <button onClick={onClose} className="p-3 hover:bg-[var(--card-hover)] rounded-2xl transition-all text-[var(--text-muted)] hover:text-[var(--text-main)]">
+              <button onClick={onClose} className="p-2 hover:bg-[var(--card-hover)] rounded-full transition-all text-[var(--text-muted)] hover:text-[var(--text-main)]">
                 <X className="w-5 h-5" />
               </button>
           </div>
         </div>
 
-        <div className="p-10 overflow-y-auto custom-scrollbar flex-1 relative">
+        <div className="p-8 overflow-y-auto custom-scrollbar flex-1 relative">
           
           {/* VIEW: SETTINGS */}
           {view === 'settings' && (
-            <div className="space-y-12 animate-fade-in">
+            <div className="space-y-10 animate-fade-in">
                 {/* Theme Mode */}
                 <section>
-                     <h3 className="text-[11px] font-black text-[var(--text-muted)] uppercase tracking-[0.3em] mb-6 flex items-center gap-3">
+                     <h3 className="text-xs font-bold text-[var(--text-muted)] uppercase tracking-wider mb-4 flex items-center gap-2">
                         <Sliders className="w-4 h-4"/> {t('theme')}
                      </h3>
-                     <div className="grid grid-cols-3 gap-4">
+                     <div className="grid grid-cols-3 gap-3">
                          <button 
                             onClick={() => onUpdate({ themeMode: 'dark' })}
-                            className={`py-5 rounded-3xl text-sm font-black transition-all border-2 ${config.themeMode === 'dark' ? 'bg-[var(--text-main)] text-[var(--bg-main)] border-[var(--text-main)] shadow-2xl scale-105' : 'bg-[var(--card-bg)] text-[var(--text-muted)] border-transparent hover:bg-[var(--card-hover)]'}`}
+                            className={`py-3 rounded-full text-sm font-bold transition-all border ${config.themeMode === 'dark' ? 'bg-[var(--text-main)] text-[var(--bg-main)] border-[var(--text-main)] shadow-md' : 'bg-[var(--card-bg)] text-[var(--text-muted)] border-[var(--glass-border)] hover:bg-[var(--card-hover)] hover:text-[var(--text-main)]'}`}
                          >
                              {t('dark')}
                          </button>
                          <button 
                             onClick={() => onUpdate({ themeMode: 'light' })}
-                            className={`py-5 rounded-3xl text-sm font-black transition-all border-2 ${config.themeMode === 'light' ? 'bg-[var(--text-main)] text-[var(--bg-main)] border-[var(--text-main)] shadow-2xl scale-105' : 'bg-[var(--card-bg)] text-[var(--text-muted)] border-transparent hover:bg-[var(--card-hover)]'}`}
+                            className={`py-3 rounded-full text-sm font-bold transition-all border ${config.themeMode === 'light' ? 'bg-[var(--text-main)] text-[var(--bg-main)] border-[var(--text-main)] shadow-md' : 'bg-[var(--card-bg)] text-[var(--text-muted)] border-[var(--glass-border)] hover:bg-[var(--card-hover)] hover:text-[var(--text-main)]'}`}
                          >
                              {t('light')}
                          </button>
                          <button 
                             onClick={() => onUpdate({ themeMode: 'system' })}
-                            className={`py-5 rounded-3xl text-sm font-black transition-all border-2 ${config.themeMode === 'system' ? 'bg-[var(--text-main)] text-[var(--bg-main)] border-[var(--text-main)] shadow-2xl scale-105' : 'bg-[var(--card-bg)] text-[var(--text-muted)] border-transparent hover:bg-[var(--card-hover)]'}`}
+                            className={`py-3 rounded-full text-sm font-bold transition-all border ${config.themeMode === 'system' ? 'bg-[var(--text-main)] text-[var(--bg-main)] border-[var(--text-main)] shadow-md' : 'bg-[var(--card-bg)] text-[var(--text-muted)] border-[var(--glass-border)] hover:bg-[var(--card-hover)] hover:text-[var(--text-main)]'}`}
                          >
                              {t('system')}
                          </button>
@@ -115,25 +126,25 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
 
                 {/* Language */}
                 <section>
-                     <h3 className="text-[11px] font-black text-[var(--text-muted)] uppercase tracking-[0.3em] mb-6 flex items-center gap-3">
+                     <h3 className="text-xs font-bold text-[var(--text-muted)] uppercase tracking-wider mb-4 flex items-center gap-2">
                         <LayoutGrid className="w-4 h-4"/> {t('language')}
                      </h3>
-                     <div className="grid grid-cols-3 gap-4">
+                     <div className="grid grid-cols-3 gap-3">
                          <button 
                             onClick={() => onUpdateProfile({ language: 'ru' })}
-                            className={`py-5 rounded-3xl text-sm font-black transition-all border-2 ${userProfile.language === 'ru' ? 'bg-[var(--text-main)] text-[var(--bg-main)] border-[var(--text-main)] shadow-2xl scale-105' : 'bg-[var(--card-bg)] text-[var(--text-muted)] border-transparent hover:bg-[var(--card-hover)]'}`}
+                            className={`py-3 rounded-full text-sm font-bold transition-all border ${userProfile.language === 'ru' ? 'bg-[var(--text-main)] text-[var(--bg-main)] border-[var(--text-main)] shadow-md' : 'bg-[var(--card-bg)] text-[var(--text-muted)] border-[var(--glass-border)] hover:bg-[var(--card-hover)] hover:text-[var(--text-main)]'}`}
                          >
                              Русский
                          </button>
                          <button 
                             onClick={() => onUpdateProfile({ language: 'en' })}
-                            className={`py-5 rounded-3xl text-sm font-black transition-all border-2 ${userProfile.language === 'en' ? 'bg-[var(--text-main)] text-[var(--bg-main)] border-[var(--text-main)] shadow-2xl scale-105' : 'bg-[var(--card-bg)] text-[var(--text-muted)] border-transparent hover:bg-[var(--card-hover)]'}`}
+                            className={`py-3 rounded-full text-sm font-bold transition-all border ${userProfile.language === 'en' ? 'bg-[var(--text-main)] text-[var(--bg-main)] border-[var(--text-main)] shadow-md' : 'bg-[var(--card-bg)] text-[var(--text-muted)] border-[var(--glass-border)] hover:bg-[var(--card-hover)] hover:text-[var(--text-main)]'}`}
                          >
                              English
                          </button>
                          <button 
                             onClick={() => onUpdateProfile({ language: 'system' })}
-                            className={`py-5 rounded-3xl text-sm font-black transition-all border-2 ${userProfile.language === 'system' ? 'bg-[var(--text-main)] text-[var(--bg-main)] border-[var(--text-main)] shadow-2xl scale-105' : 'bg-[var(--card-bg)] text-[var(--text-muted)] border-transparent hover:bg-[var(--card-hover)]'}`}
+                            className={`py-3 rounded-full text-sm font-bold transition-all border ${userProfile.language === 'system' ? 'bg-[var(--text-main)] text-[var(--bg-main)] border-[var(--text-main)] shadow-md' : 'bg-[var(--card-bg)] text-[var(--text-muted)] border-[var(--glass-border)] hover:bg-[var(--card-hover)] hover:text-[var(--text-main)]'}`}
                          >
                              {t('system')}
                          </button>
@@ -142,19 +153,19 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
 
                 {/* Player Style Toggle */}
                 <section>
-                     <h3 className="text-[11px] font-black text-[var(--text-muted)] uppercase tracking-[0.3em] mb-6 flex items-center gap-3">
+                     <h3 className="text-xs font-bold text-[var(--text-muted)] uppercase tracking-wider mb-4 flex items-center gap-2">
                         <LayoutGrid className="w-4 h-4"/> {t('player_style')}
                      </h3>
-                     <div className="grid grid-cols-2 gap-4">
+                     <div className="grid grid-cols-2 gap-3">
                          <button 
                             onClick={() => onUpdate({ playerStyle: 'floating' })}
-                            className={`py-5 rounded-3xl text-sm font-black transition-all border-2 ${config.playerStyle === 'floating' ? 'bg-[var(--text-main)] text-[var(--bg-main)] border-[var(--text-main)] shadow-2xl scale-105' : 'bg-[var(--card-bg)] text-[var(--text-muted)] border-transparent hover:bg-[var(--card-hover)]'}`}
+                            className={`py-3 rounded-full text-sm font-bold transition-all border ${config.playerStyle === 'floating' ? 'bg-[var(--text-main)] text-[var(--bg-main)] border-[var(--text-main)] shadow-md' : 'bg-[var(--card-bg)] text-[var(--text-muted)] border-[var(--glass-border)] hover:bg-[var(--card-hover)] hover:text-[var(--text-main)]'}`}
                          >
                              {t('player_style')} (Floating)
                          </button>
                          <button 
                             onClick={() => onUpdate({ playerStyle: 'classic' })}
-                            className={`py-5 rounded-3xl text-sm font-black transition-all border-2 ${config.playerStyle === 'classic' ? 'bg-[var(--text-main)] text-[var(--bg-main)] border-[var(--text-main)] shadow-2xl scale-105' : 'bg-[var(--card-bg)] text-[var(--text-muted)] border-transparent hover:bg-[var(--card-hover)]'}`}
+                            className={`py-3 rounded-full text-sm font-bold transition-all border ${config.playerStyle === 'classic' ? 'bg-[var(--text-main)] text-[var(--bg-main)] border-[var(--text-main)] shadow-md' : 'bg-[var(--card-bg)] text-[var(--text-muted)] border-[var(--glass-border)] hover:bg-[var(--card-hover)] hover:text-[var(--text-main)]'}`}
                          >
                              {t('player_style')} (Classic)
                          </button>
@@ -163,15 +174,15 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
 
                 {/* Equalizer */}
                 <section>
-                     <h3 className="text-[11px] font-black text-[var(--text-muted)] uppercase tracking-[0.3em] mb-6 flex items-center gap-3">
+                     <h3 className="text-xs font-bold text-[var(--text-muted)] uppercase tracking-wider mb-4 flex items-center gap-2">
                         <Music className="w-4 h-4"/> Эквалайзер
                      </h3>
-                     <div className="bg-[var(--card-bg)] p-6 rounded-[32px] border border-[var(--glass-border)]">
-                        <div className="flex items-end justify-between h-48 gap-2">
+                     <div className="bg-[var(--card-bg)] p-6 rounded-[2.5rem] border border-[var(--glass-border)] shadow-sm">
+                        <div className="flex items-end justify-between h-32 gap-1">
                             {([32, 64, 125, 250, 500, 1000, 2000, 4000, 8000, 16000]).map((freq, i) => {
                                 const gain = config.eqBands?.[i] || 0;
                                 return (
-                                    <div key={freq} className="flex flex-col items-center gap-4 h-full flex-1">
+                                    <div key={freq} className="flex flex-col items-center gap-2 h-full flex-1">
                                         <div className="relative w-full h-full flex justify-center">
                                             <input 
                                                 type="range" 
@@ -182,118 +193,116 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
                                                     newBands[i] = parseFloat(e.target.value);
                                                     onUpdate({ eqBands: newBands });
                                                 }}
-                                                className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-32 h-2 -rotate-90 appearance-none bg-[var(--glass-border)] rounded-full outline-none [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-4 [&::-webkit-slider-thumb]:h-4 [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-[var(--text-main)] [&::-webkit-slider-thumb]:cursor-pointer"
+                                                className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-24 h-1.5 -rotate-90 appearance-none bg-[var(--glass-border)] rounded-full outline-none [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-3 [&::-webkit-slider-thumb]:h-3 [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-[var(--text-main)] [&::-webkit-slider-thumb]:cursor-pointer hover:[&::-webkit-slider-thumb]:scale-125 transition-all"
                                             />
                                         </div>
-                                        <span className="text-[9px] font-bold text-[var(--text-muted)]">{freq >= 1000 ? `${freq/1000}k` : freq}</span>
+                                        <span className="text-[10px] font-semibold text-[var(--text-muted)]">{freq >= 1000 ? `${freq/1000}k` : freq}</span>
                                     </div>
                                 );
                             })}
                         </div>
-                        <div className="flex justify-between mt-6 px-2">
-                            <span className="text-[10px] font-bold text-[var(--text-muted)]">-12dB</span>
+                        <div className="flex justify-between mt-4 px-1">
+                            <span className="text-[10px] font-semibold text-[var(--text-muted)]">-12dB</span>
                             <button 
                                 onClick={() => onUpdate({ eqBands: new Array(10).fill(0) })}
-                                className="text-[10px] font-bold text-[var(--text-main)] hover:underline"
+                                className="text-[10px] font-semibold text-[var(--text-main)] hover:underline"
                             >
                                 Сбросить
                             </button>
-                            <span className="text-[10px] font-bold text-[var(--text-muted)]">+12dB</span>
+                            <span className="text-[10px] font-semibold text-[var(--text-muted)]">+12dB</span>
                         </div>
                      </div>
                 </section>
-
-                {/* Glass Toggle */}
-                <section className="flex items-center justify-between bg-[var(--card-bg)] p-8 rounded-[32px] border border-[var(--glass-border)] hover:bg-[var(--card-hover)] transition-all group">
-                    <div>
-                        <h3 className="text-[var(--text-main)] font-black text-lg tracking-tight flex items-center gap-3 group-hover:translate-x-1 transition-transform">
-                            <Droplet className="w-5 h-5" style={{ color: config.accentColor }}/> {t('glass_effect')}
-                        </h3>
-                        <p className="text-sm text-[var(--text-muted)] font-medium mt-1">{t('glass_effect')}</p>
-                    </div>
-                    <button 
-                        onClick={() => onUpdate({ enableGlass: !config.enableGlass })}
-                        className={`w-16 h-9 rounded-full p-1.5 transition-all duration-500 relative`}
-                        style={{ backgroundColor: config.enableGlass ? 'var(--text-main)' : 'rgba(128, 128, 128, 0.3)' }}
-                    >
-                        <div className={`w-6 h-6 rounded-full shadow-2xl transition-all duration-500 ${config.enableGlass ? 'translate-x-7 bg-[var(--bg-main)]' : 'translate-x-0'}`}
-                             style={!config.enableGlass ? { backgroundColor: 'var(--text-main)', opacity: 0.5 } : {}}></div>
-                    </button>
-                </section>
-
-                {/* Animate Background Toggle */}
-                <section className="flex items-center justify-between bg-[var(--card-bg)] p-8 rounded-[32px] border border-[var(--glass-border)] hover:bg-[var(--card-hover)] transition-all group">
-                    <div>
-                        <h3 className="text-[var(--text-main)] font-black text-lg tracking-tight flex items-center gap-3 group-hover:translate-x-1 transition-transform">
-                            <Activity className="w-5 h-5" style={{ color: config.accentColor }}/> {t('animate_background')}
-                        </h3>
-                        <p className="text-sm text-[var(--text-muted)] font-medium mt-1">{t('animate_background')}</p>
-                    </div>
-                    <button 
-                        onClick={() => onUpdate({ animateBackground: !config.animateBackground })}
-                        className={`w-16 h-9 rounded-full p-1.5 transition-all duration-500 relative`}
-                        style={{ backgroundColor: config.animateBackground ? 'var(--text-main)' : 'rgba(128, 128, 128, 0.3)' }}
-                    >
-                        <div className={`w-6 h-6 rounded-full shadow-2xl transition-all duration-500 ${config.animateBackground ? 'translate-x-7 bg-[var(--bg-main)]' : 'translate-x-0'}`}
-                             style={!config.animateBackground ? { backgroundColor: 'var(--text-main)', opacity: 0.5 } : {}}></div>
-                    </button>
-                </section>
-                
-                {/* Seasonal Theme (Visible only in winter) */}
-                {isWinterSeason && (
-                    <section className="flex items-center justify-between bg-gradient-to-br from-blue-600/20 to-indigo-600/20 p-8 rounded-[32px] border border-blue-500/20 hover:scale-[1.02] transition-all">
-                        <div>
-                            <h3 className="text-white font-black text-lg tracking-tight flex items-center gap-3">
-                                <Snowflake className="w-5 h-5 text-blue-400 animate-spin-slow"/> {t('seasonal_theme')}
-                            </h3>
-                            <p className="text-sm text-blue-200/40 font-medium mt-1">{t('seasonal_theme')}</p>
+                   {/* Toggles Section */}
+                <div className="space-y-3">
+                    {/* Glass Toggle */}
+                    <motion.section whileTap={{ scale: 0.98 }} className="flex items-center justify-between bg-[var(--card-bg)] p-4 rounded-[2.5rem] border border-[var(--glass-border)] hover:bg-[var(--card-hover)] transition-all cursor-pointer" onClick={() => onUpdate({ enableGlass: !config.enableGlass })}>
+                        <div className="flex items-center gap-3">
+                            <div className="w-10 h-10 rounded-full bg-[var(--glass-border)] flex items-center justify-center">
+                                <Droplet className="w-5 h-5" style={{ color: config.accentColor }}/>
+                            </div>
+                            <div>
+                                <h3 className="text-[var(--text-main)] font-bold text-sm">{t('glass_effect')}</h3>
+                                <p className="text-xs text-[var(--text-muted)] mt-0.5">{t('glass_effect')}</p>
+                            </div>
                         </div>
-                        <button 
-                            onClick={() => onUpdate({ seasonalTheme: !config.seasonalTheme })}
-                            className={`w-16 h-9 rounded-full p-1.5 transition-all duration-500 relative ${config.seasonalTheme ? 'bg-blue-400' : 'bg-white/10'}`}
-                        >
-                            <div className={`w-6 h-6 rounded-full shadow-2xl transition-all duration-500 ${config.seasonalTheme ? 'translate-x-7 bg-white' : 'translate-x-0 bg-white/40'}`}></div>
-                        </button>
-                    </section>
-                )}
+                        <div className={`w-12 h-6 rounded-full p-1 transition-all duration-300 relative ${config.enableGlass ? 'bg-[var(--text-main)]' : 'bg-[var(--glass-border)]'}`}>
+                            <div className={`w-4 h-4 rounded-full bg-[var(--bg-main)] shadow-sm transition-all duration-300 ${config.enableGlass ? 'translate-x-6' : 'translate-x-0'}`}></div>
+                        </div>
+                    </motion.section>
+
+                    {/* Animate Background Toggle */}
+                    <motion.section whileTap={{ scale: 0.98 }} className="flex items-center justify-between bg-[var(--card-bg)] p-4 rounded-[2.5rem] border border-[var(--glass-border)] hover:bg-[var(--card-hover)] transition-all cursor-pointer" onClick={() => onUpdate({ animateBackground: !config.animateBackground })}>
+                        <div className="flex items-center gap-3">
+                            <div className="w-10 h-10 rounded-full bg-[var(--glass-border)] flex items-center justify-center">
+                                <Activity className="w-5 h-5" style={{ color: config.accentColor }}/>
+                            </div>
+                            <div>
+                                <h3 className="text-[var(--text-main)] font-bold text-sm">{t('animate_background')}</h3>
+                                <p className="text-xs text-[var(--text-muted)] mt-0.5">{t('animate_background')}</p>
+                            </div>
+                        </div>
+                        <div className={`w-12 h-6 rounded-full p-1 transition-all duration-300 relative ${config.animateBackground ? 'bg-[var(--text-main)]' : 'bg-[var(--glass-border)]'}`}>
+                            <div className={`w-4 h-4 rounded-full bg-[var(--bg-main)] shadow-sm transition-all duration-300 ${config.animateBackground ? 'translate-x-6' : 'translate-x-0'}`}></div>
+                        </div>
+                    </motion.section>
+                    
+                    {/* Seasonal Theme (Visible only in winter) */}
+                    {isWinterSeason && (
+                        <motion.section whileTap={{ scale: 0.98 }} className="flex items-center justify-between bg-blue-500/10 p-4 rounded-[2.5rem] border border-blue-500/20 hover:bg-blue-500/20 transition-all cursor-pointer" onClick={() => onUpdate({ seasonalTheme: !config.seasonalTheme })}>
+                            <div className="flex items-center gap-3">
+                                <div className="w-10 h-10 rounded-full bg-blue-500/20 flex items-center justify-center">
+                                    <Snowflake className="w-5 h-5 text-blue-400 animate-spin-slow"/>
+                                </div>
+                                <div>
+                                    <h3 className="text-blue-400 font-bold text-sm">{t('seasonal_theme')}</h3>
+                                    <p className="text-xs text-blue-400/70 mt-0.5">{t('seasonal_theme')}</p>
+                                </div>
+                            </div>
+                            <div className={`w-12 h-6 rounded-full p-1 transition-all duration-300 relative ${config.seasonalTheme ? 'bg-blue-500' : 'bg-blue-500/20'}`}>
+                                <div className={`w-4 h-4 rounded-full bg-white shadow-sm transition-all duration-300 ${config.seasonalTheme ? 'translate-x-6' : 'translate-x-0'}`}></div>
+                            </div>
+                        </motion.section>
+                    )}
+                </div>
 
                 {/* Accent Color */}
                 <section>
-                    <h3 className="text-[11px] font-black text-[var(--text-muted)] uppercase tracking-[0.3em] mb-6">{t('accent_color')}</h3>
-                    <div className="flex items-center gap-8 bg-[var(--card-bg)] p-8 rounded-[32px] border border-[var(--glass-border)]">
-                        <div className="relative group">
+                    <h3 className="text-xs font-bold text-[var(--text-muted)] uppercase tracking-wider mb-4">{t('accent_color')}</h3>
+                    <div className="flex items-center gap-6 bg-[var(--card-bg)] p-6 rounded-[2.5rem] border border-[var(--glass-border)] shadow-sm">
+                        <div className="relative group shrink-0">
                             <input 
                                 type="color" 
                                 value={config.accentColor}
                                 onChange={(e) => onUpdate({ accentColor: e.target.value })}
-                                className="w-20 h-20 rounded-[24px] overflow-hidden cursor-pointer border-none p-0 bg-transparent transition-all hover:scale-110 active:scale-90 shadow-2xl"
+                                className="w-16 h-16 rounded-full overflow-hidden cursor-pointer border-none p-0 bg-transparent transition-transform hover:scale-105 active:scale-95 shadow-md"
                             />
-                            <div className="absolute inset-0 rounded-[24px] border-4 border-[var(--glass-border)] pointer-events-none group-hover:border-[var(--text-main)]/20 transition-colors"></div>
+                            <div className="absolute inset-0 rounded-full border-2 border-[var(--glass-border)] pointer-events-none group-hover:border-[var(--text-main)]/30 transition-colors"></div>
                         </div>
                         <div className="flex flex-col">
-                            <span className="text-xl font-black text-[var(--text-main)] tracking-tight">{t('accent_color')}</span>
-                            <span className="text-[var(--text-muted)] font-medium text-sm mt-1">{t('personalization')}</span>
+                            <span className="text-lg font-bold text-[var(--text-main)] tracking-tight">{t('accent_color')}</span>
+                            <span className="text-[var(--text-muted)] text-xs mt-1">{t('personalization')}</span>
                         </div>
                     </div>
                 </section>
 
                 {/* Background Source */}
-                <div className="space-y-12 transition-all duration-500">
+                <div className="space-y-8 transition-all duration-500">
                     <section>
-                        <h3 className="text-[11px] font-black text-[var(--text-muted)] uppercase tracking-[0.3em] mb-6">{t('background')}</h3>
-                        <div className="grid grid-cols-2 gap-6">
+                        <h3 className="text-xs font-bold text-[var(--text-muted)] uppercase tracking-wider mb-4">{t('background')}</h3>
+                        <div className="grid grid-cols-2 gap-4">
                         
                         {/* Liquid (Default) */}
                         <button 
                             onClick={() => onUpdate({ backgroundType: 'liquid' })}
-                            className={`h-40 rounded-[32px] border-2 flex flex-col items-center justify-center gap-3 transition-all ${
+                            className={`h-32 rounded-[2.5rem] border flex flex-col items-center justify-center gap-2 transition-all ${
                             config.backgroundType === 'liquid' 
-                                ? 'border-[var(--text-main)] bg-[var(--text-main)]/10 shadow-2xl scale-105' 
-                                : 'border-transparent bg-[var(--card-bg)] hover:bg-[var(--card-hover)] text-[var(--text-muted)] hover:text-[var(--text-main)]/60'
+                                ? 'border-[var(--text-main)] bg-[var(--text-main)]/5 shadow-md' 
+                                : 'border-[var(--glass-border)] bg-[var(--card-bg)] hover:bg-[var(--card-hover)] text-[var(--text-muted)] hover:text-[var(--text-main)]'
                             }`}
                         >
-                            <Droplet className={`w-10 h-10 ${config.backgroundType === 'liquid' ? 'text-[var(--text-main)]' : 'opacity-40'}`} />
-                            <span className="text-sm font-black uppercase tracking-widest">{t('liquid_bg')}</span>
+                            <Droplet className={`w-8 h-8 ${config.backgroundType === 'liquid' ? 'text-[var(--text-main)]' : 'opacity-50'}`} />
+                            <span className="text-xs font-bold uppercase tracking-wider">{t('liquid_bg')}</span>
                         </button>
 
                         {/* Image/Video Upload */}
@@ -309,26 +318,26 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
                             onDoubleClick={() => {
                                 fileInputRef.current?.click();
                             }}
-                            className={`h-40 rounded-[32px] border-2 border-dashed flex flex-col items-center justify-center gap-3 transition-all relative overflow-hidden ${
-                                config.backgroundType !== 'liquid' ? 'border-[var(--text-main)] bg-[var(--text-main)]/10 shadow-2xl scale-105' : 'border-[var(--glass-border)] bg-[var(--card-bg)] hover:border-[var(--text-main)]/30 hover:bg-[var(--card-hover)]'
+                            className={`h-32 rounded-[2.5rem] border border-dashed flex flex-col items-center justify-center gap-2 transition-all relative overflow-hidden ${
+                                config.backgroundType !== 'liquid' ? 'border-[var(--text-main)] bg-[var(--text-main)]/5 shadow-md' : 'border-[var(--glass-border)] bg-[var(--card-bg)] hover:border-[var(--text-main)]/50 hover:bg-[var(--card-hover)]'
                             }`}
                         >
                             {config.backgroundType !== 'liquid' && config.backgroundSource ? (
                                 <>
                                     {config.backgroundType === 'video' ? (
-                                        <video src={config.backgroundSource} className="absolute inset-0 w-full h-full object-cover opacity-40" autoPlay muted loop />
+                                        <video src={config.backgroundSource} className="absolute inset-0 w-full h-full object-cover opacity-50" autoPlay muted loop />
                                     ) : (
-                                        <img src={config.backgroundSource} className="absolute inset-0 w-full h-full object-cover opacity-40" />
+                                        <img src={config.backgroundSource} className="absolute inset-0 w-full h-full object-cover opacity-50" />
                                     )}
-                                    <div className="relative z-10 bg-[var(--text-main)] text-[var(--bg-main)] px-5 py-2 rounded-2xl flex items-center gap-2 font-black text-xs uppercase tracking-widest shadow-2xl">
-                                        <Check className="w-4 h-4" />
+                                    <div className="relative z-10 bg-[var(--text-main)] text-[var(--bg-main)] px-4 py-1.5 rounded-full flex items-center gap-1.5 font-bold text-[10px] uppercase tracking-wider shadow-md">
+                                        <Check className="w-3 h-3" />
                                         <span>{t('done')}</span>
                                     </div>
                                 </>
                             ) : (
                                 <>
-                                    <Upload className="w-10 h-10 text-[var(--text-muted)]/20" />
-                                    <span className="text-xs font-black uppercase tracking-widest text-[var(--text-muted)]/40">{t('custom_bg')}</span>
+                                    <Upload className="w-8 h-8 text-[var(--text-muted)]/50" />
+                                    <span className="text-xs font-bold uppercase tracking-wider text-[var(--text-muted)]/70">{t('custom_bg')}</span>
                                 </>
                             )}
                         </button>
@@ -343,11 +352,11 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
                     </section>
 
                     {/* Sliders */}
-                    <section className="space-y-10 bg-[var(--card-bg)] p-10 rounded-[40px] border border-[var(--glass-border)] transition-all duration-500">
-                        <div className={`transition-all duration-500 ${config.enableGlass ? 'opacity-100' : 'opacity-20 grayscale pointer-events-none'}`}>
-                            <div className="flex justify-between mb-4 items-end">
-                                <span className="text-lg font-black text-[var(--text-main)] tracking-tight">{t('blur')}</span>
-                                <span className="text-sm font-bold text-[var(--text-muted)]">{config.blurLevel}px</span>
+                    <section className="space-y-8 bg-[var(--card-bg)] p-6 rounded-[2.5rem] border border-[var(--glass-border)] shadow-sm transition-all duration-500">
+                        <div className={`transition-all duration-500 ${config.enableGlass ? 'opacity-100' : 'opacity-40 grayscale pointer-events-none'}`}>
+                            <div className="flex justify-between mb-3 items-end">
+                                <span className="text-sm font-bold text-[var(--text-main)] tracking-tight">{t('blur')}</span>
+                                <span className="text-xs font-semibold text-[var(--text-muted)]">{config.blurLevel}px</span>
                             </div>
                             <input 
                                 type="range" 
@@ -431,7 +440,7 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
                                      window.open(url, '_blank');
                                  }
                              }}
-                             className="block w-full py-5 bg-[var(--text-main)] text-[var(--bg-main)] text-center font-black rounded-3xl hover:scale-105 active:scale-95 transition-all shadow-2xl"
+                             className="block w-full py-5 bg-[var(--text-main)] text-[var(--bg-main)] text-center font-black rounded-full hover:scale-105 active:scale-95 transition-all shadow-2xl"
                           >
                               GitHub Repository
                           </button>
@@ -450,15 +459,17 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
             <div className="p-10 border-t border-[var(--glass-border)] bg-[var(--card-bg)]/20 flex justify-end shrink-0">
                 <button 
                     onClick={onClose}
-                    className="px-12 py-5 rounded-3xl font-black text-sm uppercase tracking-widest text-white shadow-2xl hover:scale-105 active:scale-95 transition-all border-0"
+                    className="px-12 py-5 rounded-full font-black text-sm uppercase tracking-widest text-white shadow-2xl hover:scale-105 active:scale-95 transition-all border-0"
                     style={{ backgroundColor: config.accentColor }}
                 >
                     {t('save')}
                 </button>
             </div>
         )}
-      </div>
-    </div>
+      </motion.div>
+    </motion.div>
+    )}
+    </AnimatePresence>
   );
 };
 

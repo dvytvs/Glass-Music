@@ -177,6 +177,16 @@ h1, h2, h3, .font-display {
 }
 
 /* Animations */
+@keyframes slideUpFull {
+  from { transform: translateY(100%); }
+  to { transform: translateY(0); }
+}
+
+@keyframes slideDownFull {
+  from { transform: translateY(0); }
+  to { transform: translateY(100%); }
+}
+
 @keyframes slideUp {
   from { transform: translateY(40px); opacity: 0; }
   to { transform: translateY(0); opacity: 1; }
@@ -211,6 +221,14 @@ h1, h2, h3, .font-display {
 
 .animate-slide-up {
   animation: slideUp 0.8s cubic-bezier(0.23, 1, 0.32, 1) forwards;
+}
+
+.animate-slide-up-full {
+  animation: slideUpFull 0.5s cubic-bezier(0.23, 1, 0.32, 1) forwards;
+}
+
+.animate-slide-down-full {
+  animation: slideDownFull 0.5s cubic-bezier(0.23, 1, 0.32, 1) forwards;
 }
 
 .animate-fade-in {

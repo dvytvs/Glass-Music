@@ -38,137 +38,92 @@ const Sidebar: React.FC<SidebarProps> = ({
 
   return (
     <div 
-      className={`h-full flex flex-col ${enableGlass ? 'glass-sidebar' : 'bg-[var(--sidebar-bg)] border-r border-[var(--glass-border)]'} z-20 relative transition-all duration-500 ease-[cubic-bezier(0.32,0.72,0,1)] overflow-hidden ${
+      className={`h-full flex flex-col ${enableGlass ? 'bg-black/40 backdrop-blur-3xl border-r border-white/5' : 'bg-[var(--sidebar-bg)] border-r border-[var(--glass-border)]'} z-20 relative transition-all duration-500 ease-[cubic-bezier(0.32,0.72,0,1)] overflow-hidden ${
         isOpen ? 'w-64 pt-6 pb-4 px-4 opacity-100' : 'w-0 pt-6 pb-4 px-0 opacity-0'
       }`}
     >
       <div className="w-56 flex flex-col h-full">
         
-        {/* User Profile Block */}
-        <button 
-          onClick={() => onChangeView('profile')}
-          className="flex items-center gap-3 px-3 py-2.5 mb-8 rounded-2xl hover:bg-[var(--card-hover)] active:scale-95 transition-all group border border-transparent hover:border-[var(--glass-border)]"
-        >
-          <div className="w-10 h-10 rounded-full bg-[var(--card-bg)] flex-shrink-0 overflow-hidden border border-[var(--glass-border)] shadow-xl relative">
-            {user.avatarUrl ? (
-              user.avatarUrl.includes('video') || user.avatarUrl.endsWith('.mp4') || user.avatarUrl.endsWith('.webm') ? (
-                <video 
-                  key={user.avatarUrl}
-                  src={user.avatarUrl} 
-                  autoPlay 
-                  loop 
-                  muted 
-                  playsInline 
-                  className="w-full h-full object-cover" 
-                />
-              ) : (
-                <img 
-                  src={user.avatarUrl} 
-                  className="w-full h-full object-cover" 
-                  referrerPolicy="no-referrer"
-                  onError={(e) => {
-                    (e.target as HTMLImageElement).src = `https://ui-avatars.com/api/?name=${encodeURIComponent(user.name || 'User')}&background=random&size=128`;
-                  }}
-                />
-              )
-            ) : (
-              <div className="w-full h-full flex items-center justify-center text-[var(--text-muted)]">
-                <User className="w-5 h-5" />
-              </div>
-            )}
-            <div className="absolute inset-0 bg-black/20 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
-              <Settings className="w-3 h-3 text-white" />
-            </div>
-          </div>
-          <div className="flex flex-col items-start min-w-0">
-            <span className="text-sm font-bold text-[var(--text-main)] truncate group-hover:text-[var(--text-main)] transition-all animate-fade-in" key={user.name}>
-              {user.name || t('nickname')}
-            </span>
-            <span className="text-[9px] text-[var(--text-muted)] uppercase tracking-[0.2em] font-black">{t('premium')}</span>
-          </div>
-        </button>
-
-        <div className="px-1 mb-8">
+        {/* Search Bar at Top */}
+        <div className="px-1 mb-6">
           <div className="relative group">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-[var(--text-muted)] group-focus-within:text-[var(--text-main)] transition-colors" />
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[var(--text-muted)] group-focus-within:text-[var(--text-main)] transition-colors" />
             <input 
               type="text" 
               placeholder={t('search_placeholder')} 
               value={searchQuery}
               onChange={handleSearch}
-              className="w-full bg-[var(--card-bg)] border border-[var(--glass-border)] rounded-xl py-2 pl-9 pr-4 text-xs text-[var(--text-main)] placeholder-[var(--text-muted)] focus:bg-[var(--card-hover)] focus:border-[var(--glass-border)] transition-all outline-none"
+              className="w-full bg-[var(--card-bg)] border border-[var(--glass-border)] rounded-full py-2.5 pl-10 pr-4 text-sm font-medium text-[var(--text-main)] placeholder-[var(--text-muted)] focus:bg-[var(--card-hover)] focus:border-[var(--glass-border)] transition-all outline-none"
             />
           </div>
         </div>
 
-        <nav className="flex-1 space-y-8 overflow-y-auto custom-scrollbar pr-2">
-          <div>
-            <h3 className="px-4 text-[10px] font-black text-[var(--text-muted)] uppercase tracking-[0.3em] mb-4">{t('listen_now')}</h3>
-            <div className="space-y-1">
-              <NavItem 
-                icon={<Play className="w-4 h-4 fill-current" />} 
-                label={t('listen_now')} 
-                active={currentView === 'listen_now'} 
-                onClick={() => onChangeView('listen_now')}
-                accentColor={accentColor}
-              />
-            </div>
+        <nav className="flex-1 space-y-6 overflow-y-auto custom-scrollbar pr-2">
+          {/* Main Navigation */}
+          <div className="space-y-1">
+            <NavItem 
+              icon={<Play className="w-5 h-5 fill-current" />} 
+              label={t('listen_now')} 
+              active={currentView === 'listen_now'} 
+              onClick={() => onChangeView('listen_now')}
+              accentColor={accentColor}
+            />
+            <NavItem 
+              icon={<Heart className="w-5 h-5" />} 
+              label={t('favorites')} 
+              active={currentView === 'favorites'}
+              onClick={() => onChangeView('favorites')}
+              accentColor={accentColor}
+            />
           </div>
 
+          {/* Library Section */}
           <div>
+            <h3 className="px-4 text-[11px] font-bold text-[var(--text-muted)] uppercase tracking-wider mb-3">{t('your_library')}</h3>
             <div className="space-y-1">
               <NavItem 
-                icon={<Heart className="w-4 h-4" />} 
-                label={t('favorites')} 
-                active={currentView === 'favorites'}
-                onClick={() => onChangeView('favorites')}
+                icon={<ListMusic className="w-5 h-5" />} 
+                label={t('songs')} 
+                active={currentView === 'songs'}
+                onClick={() => onChangeView('songs')}
                 accentColor={accentColor}
               />
               <NavItem 
-                icon={<Disc className="w-4 h-4" />} 
+                icon={<Disc className="w-5 h-5" />} 
                 label={t('albums')} 
                 active={currentView === 'albums'}
                 onClick={() => onChangeView('albums')}
                 accentColor={accentColor}
               />
               <NavItem 
-                icon={<Mic2 className="w-4 h-4" />} 
+                icon={<Mic2 className="w-5 h-5" />} 
                 label={t('artists')} 
                 active={currentView === 'artists'}
                 onClick={() => onChangeView('artists')}
                 accentColor={accentColor}
               />
-              <NavItem 
-                icon={<ListMusic className="w-4 h-4" />} 
-                label={t('songs')} 
-                active={currentView === 'songs'}
-                onClick={() => onChangeView('songs')}
-                accentColor={accentColor}
-              />
             </div>
           </div>
 
+          {/* Playlists Section */}
           <div>
-            <div className="flex items-center justify-between px-4 mb-4 group cursor-pointer" onClick={() => setPlaylistsExpanded(!playlistsExpanded)}>
-              <h3 className="text-[10px] font-black text-[var(--text-muted)] uppercase tracking-[0.3em] group-hover:text-[var(--text-main)] transition-colors">{t('playlists')}</h3>
-              <div className="flex items-center gap-2">
+            <div className="flex items-center justify-between px-4 mb-3 group cursor-pointer" onClick={() => setPlaylistsExpanded(!playlistsExpanded)}>
+              <h3 className="text-[11px] font-bold text-[var(--text-muted)] uppercase tracking-wider group-hover:text-[var(--text-main)] transition-colors">{t('playlists')}</h3>
+              <div className="flex items-center gap-1">
                 <button 
                   onClick={(e) => { e.stopPropagation(); onCreatePlaylist(); }}
-                  className="text-[var(--text-muted)] hover:text-[var(--text-main)] transition-colors p-1"
+                  className="text-[var(--text-muted)] hover:text-[var(--text-main)] transition-colors p-1 rounded-full hover:bg-[var(--card-hover)]"
                 >
-                  <Plus className="w-3.5 h-3.5" />
-                </button>
-                <button className="text-[var(--text-muted)] hover:text-[var(--text-main)] transition-colors p-1">
-                  {playlistsExpanded ? <ChevronDown className="w-3.5 h-3.5" /> : <ChevronRight className="w-3.5 h-3.5" />}
+                  <Plus className="w-4 h-4" />
                 </button>
               </div>
             </div>
             
             <div className={`space-y-1 overflow-hidden transition-all duration-300 ${playlistsExpanded ? 'max-h-96 opacity-100' : 'max-h-0 opacity-0'}`}>
               {playlists.length === 0 ? (
-                <div className="px-4 py-3 text-xs text-[var(--text-muted)] text-center">
+                <div className="px-4 py-3 text-sm text-[var(--text-muted)] text-center">
                   {t('no_playlists')}
-                  <button onClick={onCreatePlaylist} className="block w-full mt-2 py-1.5 rounded-lg border border-[var(--glass-border)] hover:bg-[var(--card-hover)] transition-colors">
+                  <button onClick={onCreatePlaylist} className="block w-full mt-3 py-2 rounded-full border border-[var(--glass-border)] hover:bg-[var(--card-hover)] transition-colors font-medium text-[var(--text-main)]">
                     {t('create_playlist')}
                   </button>
                 </div>
@@ -176,7 +131,7 @@ const Sidebar: React.FC<SidebarProps> = ({
                 playlists.map(p => (
                   <NavItem 
                     key={p.id}
-                    icon={<ListMusic className="w-4 h-4" />} 
+                    icon={<ListMusic className="w-5 h-5" />} 
                     label={p.name} 
                     active={currentView === 'playlist_detail' && p.id === selectedPlaylist}
                     onClick={() => onSelectPlaylist(p.id)}
@@ -189,21 +144,45 @@ const Sidebar: React.FC<SidebarProps> = ({
           </div>
         </nav>
 
-        <div className="mt-auto pt-6 space-y-2">
+        {/* Bottom Actions & Profile */}
+        <div className="mt-auto pt-4 border-t border-[var(--glass-border)]">
           <button 
             onClick={onImportClick}
-            className="w-full py-3 px-4 rounded-xl text-white font-bold text-xs flex items-center justify-center gap-2 transition-all glass-button border-white/5 hover:border-white/10"
-            style={{ background: `linear-gradient(135deg, ${accentColor}30, ${accentColor}10)` }}
+            className="w-full py-2.5 px-4 mb-2 rounded-full text-white font-bold text-sm flex items-center justify-center gap-2 transition-all hover:opacity-90 shadow-md"
+            style={{ background: accentColor }}
           >
-            <Music className="w-3.5 h-3.5" />
+            <Plus className="w-4 h-4" />
             <span>{t('import_tracks')}</span>
           </button>
+          
           <button 
-            onClick={onSettingsClick}
-            className="w-full py-2.5 px-4 rounded-xl text-[var(--text-muted)] hover:text-[var(--text-main)] font-bold text-xs flex items-center justify-center gap-2 transition-all hover:bg-[var(--card-hover)]"
+            onClick={() => onChangeView('profile')}
+            className="flex items-center gap-3 px-3 py-2 w-full rounded-xl hover:bg-[var(--card-hover)] transition-colors group"
           >
-            <Settings className="w-3.5 h-3.5" />
-            <span>{t('settings')}</span>
+            <div className="w-8 h-8 rounded-full bg-[var(--card-bg)] flex-shrink-0 overflow-hidden relative">
+              {user.avatarUrl ? (
+                user.avatarUrl.includes('video') || user.avatarUrl.endsWith('.mp4') || user.avatarUrl.endsWith('.webm') ? (
+                  <video src={user.avatarUrl} autoPlay loop muted playsInline className="w-full h-full object-cover" />
+                ) : (
+                  <img src={user.avatarUrl} className="w-full h-full object-cover" referrerPolicy="no-referrer" onError={(e) => { (e.target as HTMLImageElement).src = `https://ui-avatars.com/api/?name=${encodeURIComponent(user.name || 'User')}&background=random&size=128`; }} />
+                )
+              ) : (
+                <div className="w-full h-full flex items-center justify-center text-[var(--text-muted)]">
+                  <User className="w-4 h-4" />
+                </div>
+              )}
+            </div>
+            <div className="flex flex-col items-start min-w-0 flex-1">
+              <span className="text-sm font-bold text-[var(--text-main)] truncate group-hover:underline transition-all">
+                {user.name || t('nickname')}
+              </span>
+            </div>
+            <button 
+              onClick={(e) => { e.stopPropagation(); onSettingsClick(); }}
+              className="p-1.5 text-[var(--text-muted)] hover:text-[var(--text-main)] rounded-full hover:bg-[var(--card-bg)] transition-colors"
+            >
+              <Settings className="w-4 h-4" />
+            </button>
           </button>
         </div>
       </div>
@@ -214,14 +193,14 @@ const Sidebar: React.FC<SidebarProps> = ({
 const NavItem: React.FC<{ icon: React.ReactNode; label: string; active?: boolean; onClick: () => void; accentColor: string; coverUrl?: string }> = ({ icon, label, active, onClick, accentColor, coverUrl }) => (
   <button 
     onClick={onClick}
-    className={`w-full flex items-center gap-3 px-4 py-2 rounded-xl text-[13px] font-semibold transition-all duration-300 group ${
+    className={`w-full flex items-center gap-4 px-4 py-2.5 rounded-lg text-sm font-semibold transition-colors group ${
     active 
-      ? 'bg-[var(--card-hover)] text-[var(--text-main)] shadow-lg shadow-black/5' 
-      : 'text-[var(--text-muted)] hover:text-[var(--text-main)] hover:bg-[var(--card-bg)]'
+      ? 'bg-[var(--card-hover)] text-[var(--text-main)]' 
+      : 'text-[var(--text-muted)] hover:text-[var(--text-main)]'
   }`}
   >
-    <span className={`transition-transform duration-300 ${active ? 'scale-110' : 'group-hover:scale-110'} flex items-center justify-center`} style={{ color: active ? accentColor : 'inherit' }}>
-      {coverUrl ? <img src={coverUrl} alt={label} className="w-4 h-4 rounded-sm object-cover" /> : icon}
+    <span className={`flex items-center justify-center ${active ? '' : 'opacity-70 group-hover:opacity-100'}`} style={{ color: active ? accentColor : 'inherit' }}>
+      {coverUrl ? <img src={coverUrl} alt={label} className="w-5 h-5 rounded-sm object-cover" /> : icon}
     </span>
     <span className="truncate">{label}</span>
   </button>
