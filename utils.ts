@@ -20,7 +20,7 @@ export const generateMockCover = (id: string) => {
   return `data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="500" height="500" viewBox="0 0 500 500"><rect width="500" height="500" fill="hsl(${hue}, 70%, 20%)"/><text x="50%" y="50%" dominant-baseline="middle" text-anchor="middle" font-family="sans-serif" font-size="100" fill="rgba(255,255,255,0.2)">♫</text></svg>`;
 };
 
-export const parseFileMetadata = async (file: File): Promise<{ title?: string, artist?: string, album?: string, coverUrl?: string }> => {
+export const parseFileMetadata = async (file: File): Promise<{ title?: string, artist?: string, album?: string, coverUrl?: string, year?: string }> => {
   const isElectron = () => (window as any).require && (window as any).require('electron');
   
   if (isElectron() && (file as any).path) {
@@ -32,7 +32,8 @@ export const parseFileMetadata = async (file: File): Promise<{ title?: string, a
           title: tags.title,
           artist: tags.artist,
           album: tags.album,
-          coverUrl: tags.coverUrl
+          coverUrl: tags.coverUrl,
+          year: tags.year
         };
       }
     } catch (e) {
@@ -63,7 +64,8 @@ export const parseFileMetadata = async (file: File): Promise<{ title?: string, a
           title: tags.title,
           artist: tags.artist,
           album: tags.album,
-          coverUrl
+          coverUrl,
+          year: tags.year
         });
       },
       onError: (error: any) => {

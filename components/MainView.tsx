@@ -272,7 +272,7 @@ const MainView: React.FC<MainViewProps> = ({
                  </div>
 
                  <div className="hidden lg:block w-32 text-sm text-[var(--text-muted)] truncate">
-                   {track.addedAt ? new Date(track.addedAt).toLocaleDateString() : ''}
+                   {track.year || ''}
                  </div>
 
                  <div className="flex items-center justify-end gap-2 w-32 shrink-0">

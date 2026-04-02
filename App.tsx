@@ -81,6 +81,7 @@ const App: React.FC = () => {
   
   const shuffledQueueRef = useRef<string[]>([]);
   const historyRef = useRef<string[]>([]);
+  const forwardHistoryRef = useRef<string[]>([]);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const saveTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   
@@ -254,7 +255,7 @@ const App: React.FC = () => {
               const restored = (Array.isArray(savedTracks) ? savedTracks : []).map(t => {
                   if (t.path && !t.fileUrl) {
                       const safePath = t.path.replace(/\\/g, '/');
-                      const encodedPath = encodeURI(safePath).replace(/#/g, '%23').replace(/\?/g, '%3F');
+                      const encodedPath = safePath.split('/').map(s => encodeURIComponent(s)).join('/').replace(/%3A/g, ':');
                       return { ...t, fileUrl: `file://${safePath.startsWith('/') ? '' : '/'}${encodedPath}` };
                   }
                   return t;
@@ -328,6 +329,7 @@ const App: React.FC = () => {
         historyRef.current.push(currentTrack.id);
         if (historyRef.current.length > 100) historyRef.current.shift();
         setPlayerState(prev => ({ ...prev, history: [...historyRef.current] }));
+        forwardHistoryRef.current = []; // Clear forward history when playing a new track
     }
 
     // Stop current playback
@@ -355,9 +357,9 @@ const App: React.FC = () => {
     });
 
     let src = track.fileUrl;
-    if (!src && track.path) {
+    if (isElectron() && track.path) {
         const safePath = track.path.replace(/\\/g, '/');
-        const encodedPath = encodeURI(safePath).replace(/#/g, '%23').replace(/\?/g, '%3F');
+        const encodedPath = safePath.split('/').map(s => encodeURIComponent(s)).join('/').replace(/%3A/g, ':');
         src = `file://${safePath.startsWith('/') ? '' : '/'}${encodedPath}`;
     }
     if (!src) return;
@@ -406,6 +408,15 @@ const App: React.FC = () => {
 
     let nextTrack: Track | undefined;
 
+    if (forwardHistoryRef.current.length > 0) {
+        const nextId = forwardHistoryRef.current.pop();
+        nextTrack = activeQueue.find(t => t.id === nextId) || tracksRef.current.find(t => t.id === nextId);
+        if (nextTrack) {
+            playTrackInternal(nextTrack, true);
+            return;
+        }
+    }
+
     if (playerStateRef.current.isShuffled) {
         if (shuffledQueueRef.current.length === 0) {
             // Refill shuffled queue
@@ -442,6 +453,7 @@ const App: React.FC = () => {
      }
 
      if (historyRef.current.length > 0) {
+         if (current) forwardHistoryRef.current.push(current.id);
          const prevId = historyRef.current.pop();
          setPlayerState(prev => ({ ...prev, history: [...historyRef.current] }));
          const allTracks = tracksRef.current;
@@ -454,7 +466,6 @@ const App: React.FC = () => {
      
      // Fallback to sequential prev if history is empty
      const activeQueue = queueRef.current.length > 0 ? queueRef.current : tracksRef.current;
-     const currentTrack = playerStateRef.current.currentTrack;
      if (!current || activeQueue.length === 0) return;
 
      const currentIndex = activeQueue.findIndex(t => t.id === current.id);
@@ -628,23 +639,17 @@ const App: React.FC = () => {
   useEffect(() => {
     if (!isLoaded || !isElectron() || tracks.length === 0) return;
 
-    const fetchTopArtistsMetadata = async () => {
-      const artistCounts = new Map<string, number>();
+    const fetchAllArtistsMetadata = async () => {
+      const uniqueArtists = new Set<string>();
       tracks.forEach(t => {
         const splitNames = t.artist.split(ARTIST_SPLIT_REGEX).map(n => n.trim()).filter(Boolean);
-        splitNames.forEach(name => {
-          artistCounts.set(name, (artistCounts.get(name) || 0) + (t.playCount || 0));
-        });
+        splitNames.forEach(name => uniqueArtists.add(name));
       });
       
-      const topArtists = Array.from(artistCounts.entries())
-        .sort((a, b) => b[1] - a[1])
-        .slice(0, 8)
-        .map(([name]) => name);
-
+      const artistsToFetch = Array.from(uniqueArtists);
       const { ipcRenderer } = (window as any).require('electron');
       
-      for (const artist of topArtists) {
+      for (const artist of artistsToFetch) {
         const existingMeta = artistMetadata[artist];
         if (!existingMeta?.avatar || !existingMeta?.bio) {
           try {
@@ -652,6 +657,8 @@ const App: React.FC = () => {
             if (meta) {
               handleUpdateArtist(artist, meta, false);
             }
+            // Add a small delay to avoid rate-limiting from Last.fm / Deezer APIs
+            await new Promise(resolve => setTimeout(resolve, 1000));
           } catch (e) {
             console.error(`Failed to fetch metadata for ${artist}:`, e);
           }
@@ -659,8 +666,8 @@ const App: React.FC = () => {
       }
     };
 
-    fetchTopArtistsMetadata();
-  }, [isLoaded, tracks.length]); // Only run when tracks are loaded or added
+    fetchAllArtistsMetadata();
+  }, [isLoaded, tracks.length]); // Run when tracks are loaded or added
 
   const handleGoToAlbum = (album: string) => {
       setPreviousView(playerState.currentView);
@@ -749,15 +756,27 @@ const App: React.FC = () => {
     }
   };
 
-  const getAudioDuration = (url: string): Promise<number> => {
+  const getAudioDuration = (file: File): Promise<number> => {
     return new Promise((resolve) => {
-      const audio = new Audio(url);
+      const audio = new Audio();
+      const objectUrl = URL.createObjectURL(file);
+      audio.preload = 'metadata';
+      
+      const cleanup = () => {
+        URL.revokeObjectURL(objectUrl);
+        audio.removeAttribute('src');
+        audio.load();
+      };
+
       audio.addEventListener('loadedmetadata', () => {
         resolve(audio.duration);
+        cleanup();
       });
       audio.addEventListener('error', () => {
         resolve(0);
+        cleanup();
       });
+      audio.src = objectUrl;
     });
   };
 
@@ -772,16 +791,21 @@ const App: React.FC = () => {
         
         const isElectron = () => (window as any).require && (window as any).require('electron');
         const filePath = (file as any).path;
-        const fileUrl = (isElectron() && filePath) ? `file://${filePath.replace(/\\/g, '/')}` : URL.createObjectURL(file);
+        let fileUrl = URL.createObjectURL(file);
+        if (isElectron() && filePath) {
+            const safePath = filePath.replace(/\\/g, '/');
+            const encodedPath = safePath.split('/').map(s => encodeURIComponent(s)).join('/').replace(/%3A/g, ':');
+            fileUrl = `file://${safePath.startsWith('/') ? '' : '/'}${encodedPath}`;
+        }
         
-        const duration = await getAudioDuration(fileUrl);
+        const duration = await getAudioDuration(file);
 
         newTracks.push({
           id: Math.random().toString(36).substr(2, 9), title: metadata.title || file.name.replace(/\.[^/.]+$/, ""),
           artist: metadata.artist || "", album: metadata.album || "",
           duration: duration || 0, coverUrl: metadata.coverUrl || generateMockCover(file.name),
           fileUrl: fileUrl, path: filePath, isLiked: false, 
-          year: new Date().getFullYear().toString(), source: 'local', addedAt: Date.now()
+          year: metadata.year || new Date().getFullYear().toString(), source: 'local', addedAt: Date.now()
         });
     }
     setTracks(prev => sortTracks([...prev, ...newTracks]));

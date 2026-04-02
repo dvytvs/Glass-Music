@@ -57,7 +57,8 @@
     "files": [
       "dist/**/*",
       "main.js",
-      "assets/**/*"
+      "assets/**/*",
+      "trei/**/*"
     ],
     "linux": {
       "target": [

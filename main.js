@@ -20,8 +20,13 @@ if (!gotTheLock) {
     });
 
     function createTray() {
-        // Use a simple icon or just a text if icon not found
-        tray = new Tray(path.join(__dirname, 'index.html')); 
+        const { nativeImage } = require('electron');
+        const iconPath = path.join(__dirname, 'trei', 'trei.png');
+        
+        // Create native image from path (works better inside asar archives)
+        let trayIcon = nativeImage.createFromPath(iconPath);
+        
+        tray = new Tray(trayIcon); 
         const contextMenu = Menu.buildFromTemplate([
             { label: 'Show Player', click: () => mainWindow.show() },
             { type: 'separator' },
@@ -262,7 +267,8 @@ ipcMain.handle('read-id3-tags', async (e, filePath) => {
             title: tags.title,
             artist: tags.artist,
             album: tags.album,
-            coverUrl: coverUrl
+            coverUrl: coverUrl,
+            year: tags.year
         };
     } catch (err) {
         console.error("Error reading ID3 tags:", err);
