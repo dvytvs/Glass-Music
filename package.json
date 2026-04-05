@@ -66,11 +66,19 @@
         "deb",
         "pacman",
         "tar.gz",
-        "flatpak"
+        "flatpak",
+        "snap"
       ],
       "icon": "build/icons/linux/",
       "category": "Audio",
       "maintainer": "Glass Music Team <info@glassmusic.app>"
+    },
+    "snap": {
+      "publish": [
+        "github"
+      ],
+      "confinement": "strict",
+      "grade": "stable"
     },
     "flatpak": {
       "runtimeVersion": "23.08",
