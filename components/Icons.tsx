@@ -8,7 +8,7 @@ import {
   Trash2, Edit, X, Check, ArrowLeft, ArrowRight,
   Settings, Image, Video, Droplet, Palette, Sliders,
   MicVocal, Snowflake, Quote, User, Youtube, Calendar, RefreshCw,
-  Plus, ChevronDown, ChevronRight, Rabbit, Turtle, Timer
+  Plus, ChevronDown, ChevronRight, Rabbit, Turtle, Timer, Download, Loader2
 } from 'lucide-react';
 
 export { 
@@ -19,5 +19,5 @@ export {
   Trash2, Edit, X, Check, ArrowLeft, ArrowRight,
   Settings, Image, Video, Droplet, Palette, Sliders,
   MicVocal, Snowflake, Quote, User, Youtube, Calendar, RefreshCw,
-  Plus, ChevronDown, ChevronRight, Rabbit, Turtle, Timer
+  Plus, ChevronDown, ChevronRight, Rabbit, Turtle, Timer, Download, Loader2
 };

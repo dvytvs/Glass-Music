@@ -6,6 +6,7 @@ import { TranslationKey } from '../translations';
 
 interface SidebarProps {
   onImportClick: () => void;
+  onYouTubeImportClick?: () => void;
   onSettingsClick: () => void;
   currentView: ViewType;
   onChangeView: (view: ViewType) => void;
@@ -23,7 +24,7 @@ interface SidebarProps {
 }
 
 const Sidebar: React.FC<SidebarProps> = ({ 
-  onImportClick, onSettingsClick, currentView, onChangeView, isOpen, accentColor,
+  onImportClick, onYouTubeImportClick, onSettingsClick, currentView, onChangeView, isOpen, accentColor,
   searchQuery, onSearchChange, enableGlass, user, t, playlists, onSelectPlaylist, onCreatePlaylist, selectedPlaylist
 }) => {
   const [playlistsExpanded, setPlaylistsExpanded] = useState(true);
@@ -154,6 +155,18 @@ const Sidebar: React.FC<SidebarProps> = ({
             <Plus className="w-4 h-4" />
             <span>{t('import_tracks')}</span>
           </button>
+
+          {onYouTubeImportClick && (
+            <button 
+              onClick={onYouTubeImportClick}
+              className="w-full py-2.5 px-4 mb-4 rounded-full bg-[var(--card-bg)] border border-[var(--glass-border)] text-[var(--text-main)] font-bold text-sm flex items-center justify-center gap-2 transition-all hover:bg-[var(--card-hover)] shadow-sm"
+            >
+              <svg className="w-4 h-4 text-red-500" viewBox="0 0 24 24" fill="currentColor">
+                <path d="M23.498 6.186a3.016 3.016 0 0 0-2.122-2.136C19.505 3.545 12 3.545 12 3.545s-7.505 0-9.377.505A3.017 3.017 0 0 0 .502 6.186C0 8.07 0 12 0 12s0 3.93.502 5.814a3.016 3.016 0 0 0 2.122 2.136c1.871.505 9.376.505 9.376.505s7.505 0 9.377-.505a3.015 3.015 0 0 0 2.122-2.136C24 15.93 24 12 24 12s0-3.93-.502-5.814zM9.545 15.568V8.432L15.818 12l-6.273 3.568z"/>
+              </svg>
+              <span>YouTube MP3</span>
+            </button>
+          )}
           
           <button 
             onClick={() => onChangeView('profile')}

@@ -1114,17 +1114,18 @@ const MainView: React.FC<MainViewProps> = ({
   };
 
   return (
-    <div className="flex-1 h-full overflow-y-auto pb-48 custom-scrollbar relative animate-fade-in" key={currentView} ref={scrollParentRef}>
-      {/* Dynamic Top Gradient */}
-      <div 
-        className="absolute top-0 left-0 right-0 h-80 pointer-events-none opacity-40 transition-colors duration-1000"
-        style={{
-          background: `linear-gradient(to bottom, ${accentColor} 0%, transparent 100%)`
-        }}
-      />
+    <div className="flex-1 h-full overflow-y-auto pb-48 custom-scrollbar relative" ref={scrollParentRef}>
+      <div key={currentView} className="animate-fade-in">
+        {/* Dynamic Top Gradient */}
+        <div 
+          className="absolute top-0 left-0 right-0 h-80 pointer-events-none opacity-40 transition-colors duration-1000"
+          style={{
+            background: `linear-gradient(to bottom, ${accentColor} 0%, transparent 100%)`
+          }}
+        />
 
-      <div className="relative z-10 pt-8 px-8">
-        {editingTrack && (
+        <div className="relative z-10 pt-8 px-8">
+          {editingTrack && (
           <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/60 backdrop-blur-xl p-4 animate-fade-in-view">
                <div className="bg-[var(--bg-main)] border border-[var(--glass-border)] w-full max-w-4xl rounded-[32px] shadow-2xl overflow-hidden animate-zoom-in flex flex-col max-h-[95vh]">
                   <div className="p-6 border-b border-[var(--glass-border)] flex justify-between items-center bg-[var(--card-bg)]">
@@ -1201,6 +1202,7 @@ const MainView: React.FC<MainViewProps> = ({
         )}
 
         <div className="min-h-[50vh]">{renderView()}</div>
+      </div>
       </div>
     </div>
   );

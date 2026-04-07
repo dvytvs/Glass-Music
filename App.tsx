@@ -8,6 +8,7 @@ import SettingsModal from './components/SettingsModal';
 import OnboardingModal from './components/OnboardingModal';
 import CreatePlaylistModal from './components/CreatePlaylistModal';
 import SelectTracksModal from './components/SelectTracksModal';
+import YouTubeModal from './components/YouTubeModal';
 import Background from './components/Background';
 import Visualizer from './components/Visualizer';
 import SnowEffect from './components/SnowEffect';
@@ -53,6 +54,7 @@ const App: React.FC = () => {
   const [playlists, setPlaylists] = useState<Playlist[]>([]);
   const [selectedPlaylist, setSelectedPlaylist] = useState<string | null>(null);
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [isYouTubeModalOpen, setIsYouTubeModalOpen] = useState(false);
   const [isCreatePlaylistOpen, setIsCreatePlaylistOpen] = useState(false);
   const [isSelectTracksOpen, setIsSelectTracksOpen] = useState(false);
   const [fullScreenMode, setFullScreenMode] = useState<'none' | 'cover' | 'lyrics'>('none');
@@ -823,7 +825,9 @@ const App: React.FC = () => {
 
       <div className="flex-1 flex overflow-hidden relative z-10">
         <Sidebar 
-          onImportClick={() => fileInputRef.current?.click()} onSettingsClick={() => setSettingsOpen(true)}
+          onImportClick={() => fileInputRef.current?.click()} 
+          onYouTubeImportClick={() => setIsYouTubeModalOpen(true)}
+          onSettingsClick={() => setSettingsOpen(true)}
           currentView={playerState.currentView}
           onChangeView={(view) => { setPlayerState(prev => ({ ...prev, currentView: view })); setSidebarOpen(true); }}
           isOpen={sidebarOpen} accentColor={theme.accentColor} searchQuery={searchQuery}
@@ -947,6 +951,12 @@ const App: React.FC = () => {
         accentColor={theme.accentColor}
         enableGlass={theme.enableGlass}
         t={t}
+      />
+      <YouTubeModal
+        isOpen={isYouTubeModalOpen}
+        onClose={() => setIsYouTubeModalOpen(false)}
+        t={t}
+        accentColor={theme.accentColor}
       />
       <input type="file" ref={fileInputRef} onChange={handleFileSelect} multiple accept="audio/*" className="hidden" />
     </div>
