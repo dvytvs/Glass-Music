@@ -154,17 +154,23 @@ ipcMain.handle('get-metadata', async (e, query) => {
             const trackFull = await trackRes.json();
             const albumFull = await albumRes.json();
             
-            // Handle multiple artists
+            // Handle multiple artists for track
             let artistName = trackFull.artist.name;
             if (trackFull.contributors && trackFull.contributors.length > 1) {
                 artistName = trackFull.contributors.map(c => c.name).join(', ');
+            }
+            
+            // Handle multiple artists for album
+            let albumArtistName = albumFull.artist ? albumFull.artist.name : (trackFull.album.artist ? trackFull.album.artist.name : artistName);
+            if (albumFull.contributors && albumFull.contributors.length > 1) {
+                albumArtistName = albumFull.contributors.map(c => c.name).join(', ');
             }
             
             return {
                 title: trackFull.title,
                 artist: artistName,
                 album: trackFull.album.title,
-                albumArtist: albumFull.artist ? albumFull.artist.name : (trackFull.album.artist ? trackFull.album.artist.name : artistName),
+                albumArtist: albumArtistName,
                 cover: trackFull.album.cover_xl || trackFull.album.cover_big,
                 year: trackFull.release_date ? trackFull.release_date.substring(0, 4) : (albumFull.release_date ? albumFull.release_date.substring(0, 4) : "")
             };
