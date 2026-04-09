@@ -60,6 +60,7 @@ const MainView: React.FC<MainViewProps> = ({
   const [playlistMenuOpen, setPlaylistMenuOpen] = useState<string | null>(null);
   const [showAllPopularTracks, setShowAllPopularTracks] = useState(false);
   const [showAllAlbums, setShowAllAlbums] = useState(false);
+  const [sortOption, setSortOption] = useState<'default' | 'title_asc' | 'title_desc' | 'date_desc' | 'date_asc' | 'duration_desc' | 'duration_asc'>('default');
 
   const handleTranslateBio = async (text: string) => {
     if (isTranslatingBio) return;
@@ -96,6 +97,16 @@ const MainView: React.FC<MainViewProps> = ({
   const artistBannerInputRef = useRef<HTMLInputElement>(null);
   const avatarInputRef = useRef<HTMLInputElement>(null);
   const bannerInputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    if (scrollParentRef.current) {
+      setTimeout(() => {
+          if (scrollParentRef.current) {
+              scrollParentRef.current.scrollTo({ top: 0, behavior: 'smooth' });
+          }
+      }, 10);
+    }
+  }, [currentView, selectedArtist, selectedAlbum, selectedPlaylist]);
 
   const isElectron = () => (window as any).require && (window as any).require('electron');
 
@@ -138,6 +149,8 @@ const MainView: React.FC<MainViewProps> = ({
                 title: result.title || editingTrack.title,
                 artist: result.artist || editingTrack.artist,
                 album: result.album || editingTrack.album,
+                albumArtist: result.albumArtist || editingTrack.albumArtist,
+                year: result.year || editingTrack.year,
                 coverUrl: result.cover || editingTrack.coverUrl
             });
         }
@@ -178,10 +191,29 @@ const MainView: React.FC<MainViewProps> = ({
   };
 
   const albums = useMemo(() => {
-    const map = new Map<string, { title: string, artist: string, cover: string, year?: string }>();
+    const map = new Map<string, { title: string, artist: string, cover: string, year?: string, artists: Set<string> }>();
     tracks.forEach(t => {
-      const key = `${t.album}-${t.artist}`;
-      if (!map.has(key)) map.set(key, { title: t.album, artist: t.artist, cover: t.coverUrl, year: t.year });
+      const key = t.album;
+      if (!map.has(key)) {
+        map.set(key, { 
+            title: t.album, 
+            artist: t.albumArtist || t.artist, 
+            cover: t.coverUrl, 
+            year: t.year,
+            artists: new Set([t.artist])
+        });
+      } else {
+        const existing = map.get(key)!;
+        existing.artists.add(t.artist);
+        if (t.albumArtist && existing.artist !== t.albumArtist) {
+            existing.artist = t.albumArtist; // Prefer explicit album artist
+        } else if (!t.albumArtist && existing.artists.size > 1 && !existing.artist.includes("Various")) {
+            existing.artist = "Various Artists";
+        }
+        if (!existing.cover || existing.cover.includes('default')) {
+            existing.cover = t.coverUrl;
+        }
+      }
     });
     return Array.from(map.values()).sort((a, b) => a.title.localeCompare(b.title));
   }, [tracks]);
@@ -196,7 +228,7 @@ const MainView: React.FC<MainViewProps> = ({
   }, [tracks]);
 
   const filteredTracks = useMemo(() => {
-    return tracks.filter(t => {
+    let result = tracks.filter(t => {
       if (currentView === 'favorites') return t.isLiked;
       if (currentView === 'artist_detail') return t.artist.split(ARTIST_SPLIT_REGEX).map(n => n.trim().toLowerCase()).includes(selectedArtist?.toLowerCase() || "");
       if (currentView === 'album_detail') return t.album === selectedAlbum;
@@ -210,7 +242,22 @@ const MainView: React.FC<MainViewProps> = ({
       }
       return true;
     });
-  }, [tracks, currentView, selectedArtist, selectedAlbum, searchQuery, selectedPlaylist, playlists]);
+
+    if (sortOption !== 'default') {
+      result = [...result].sort((a, b) => {
+        switch (sortOption) {
+          case 'title_asc': return a.title.localeCompare(b.title);
+          case 'title_desc': return b.title.localeCompare(a.title);
+          case 'date_desc': return (b.addedAt || 0) - (a.addedAt || 0);
+          case 'date_asc': return (a.addedAt || 0) - (b.addedAt || 0);
+          case 'duration_desc': return b.duration - a.duration;
+          case 'duration_asc': return a.duration - b.duration;
+          default: return 0;
+        }
+      });
+    }
+    return result;
+  }, [tracks, currentView, selectedArtist, selectedAlbum, searchQuery, selectedPlaylist, playlists, sortOption]);
 
   const renderTrackList = (tracksToRender: Track[]) => (
     <div className="w-full">
@@ -1159,6 +1206,10 @@ const MainView: React.FC<MainViewProps> = ({
                                       <input type="text" value={editingTrack.artist === "Неизвестный артист" || editingTrack.artist === "Unknown Artist" ? "" : editingTrack.artist} onChange={e => setEditingTrack({...editingTrack, artist: e.target.value})} className="w-full glass-input rounded-xl px-4 py-3 text-[var(--text-main)]" placeholder={t('artists')} />
                                   </div>
                                   <div className="space-y-1">
+                                      <label className="text-[10px] text-[var(--text-muted)] font-bold uppercase ml-2">Исполнитель альбома</label>
+                                      <input type="text" value={editingTrack.albumArtist || ""} onChange={e => setEditingTrack({...editingTrack, albumArtist: e.target.value})} className="w-full glass-input rounded-xl px-4 py-3 text-[var(--text-main)]" placeholder="Исполнитель альбома" />
+                                  </div>
+                                  <div className="space-y-1">
                                       <label className="text-[10px] text-[var(--text-muted)] font-bold uppercase ml-2">{t('albums')}</label>
                                       <input type="text" value={editingTrack.album === "Локальный импорт" || editingTrack.album === "Local Import" ? "" : editingTrack.album} onChange={e => setEditingTrack({...editingTrack, album: e.target.value})} className="w-full glass-input rounded-xl px-4 py-3 text-[var(--text-main)]" placeholder={t('albums')} />
                                   </div>
@@ -1192,6 +1243,26 @@ const MainView: React.FC<MainViewProps> = ({
         {currentView !== 'artist_detail' && currentView !== 'album_detail' && (
             <div className="flex items-end justify-between mb-8 px-4 pt-8">
                 <div><h1 className="text-5xl md:text-6xl font-black text-[var(--text-main)] tracking-tighter">{getTitle()}</h1></div>
+                {currentView === 'songs' && (
+                  <div className="relative">
+                    <select
+                      value={sortOption}
+                      onChange={(e) => setSortOption(e.target.value as any)}
+                      className="appearance-none bg-[var(--card-bg)] border border-[var(--glass-border)] text-[var(--text-main)] text-sm font-bold py-2 pl-4 pr-10 rounded-full focus:outline-none focus:ring-2 focus:ring-[var(--accent-color)] cursor-pointer"
+                    >
+                      <option value="default">{t('sort_default') || 'По умолчанию'}</option>
+                      <option value="title_asc">{t('sort_title_asc') || 'По названию (А-Я)'}</option>
+                      <option value="title_desc">{t('sort_title_desc') || 'По названию (Я-А)'}</option>
+                      <option value="date_desc">{t('sort_date_desc') || 'Сначала новые'}</option>
+                      <option value="date_asc">{t('sort_date_asc') || 'Сначала старые'}</option>
+                      <option value="duration_desc">{t('sort_duration_desc') || 'Сначала длинные'}</option>
+                      <option value="duration_asc">{t('sort_duration_asc') || 'Сначала короткие'}</option>
+                    </select>
+                    <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-3 text-[var(--text-muted)]">
+                      <ChevronDown className="w-4 h-4" />
+                    </div>
+                  </div>
+                )}
             </div>
         )}
 

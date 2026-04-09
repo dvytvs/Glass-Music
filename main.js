@@ -164,6 +164,7 @@ ipcMain.handle('get-metadata', async (e, query) => {
                 title: trackFull.title,
                 artist: artistName,
                 album: trackFull.album.title,
+                albumArtist: albumFull.artist ? albumFull.artist.name : (trackFull.album.artist ? trackFull.album.artist.name : artistName),
                 cover: trackFull.album.cover_xl || trackFull.album.cover_big,
                 year: trackFull.release_date ? trackFull.release_date.substring(0, 4) : (albumFull.release_date ? albumFull.release_date.substring(0, 4) : "")
             };
@@ -267,6 +268,7 @@ ipcMain.handle('read-id3-tags', async (e, filePath) => {
             title: tags.title,
             artist: tags.artist,
             album: tags.album,
+            albumArtist: tags.performerInfo,
             coverUrl: coverUrl,
             year: tags.year
         };
@@ -294,6 +296,7 @@ ipcMain.handle('write-id3-tags', async (e, { filePath, tags }) => {
             title: tags.title,
             artist: tags.artist,
             album: tags.album,
+            performerInfo: tags.albumArtist,
             year: tags.year,
             unsynchronisedLyrics: {
                 language: 'eng',

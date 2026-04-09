@@ -12,7 +12,8 @@ export type TranslationKey =
   | 'new_in_collection' | 'library_empty' | 'import_tracks_hint' | 'change_banner' | 'refresh_metadata'
   | 'shuffle' | 'popular_tracks' | 'magic_api' | 'click_to_change' | 'about' | 'delete_warning'
   | 'philosophy' | 'philosophy_text' | 'privacy' | 'privacy_text' | 'opensource_text' | 'create_playlist' | 'playlists' | 'no_playlists' | 'add_to_playlist' | 'playlist' | 'cover_image' | 'playlist_name' | 'my_playlist' | 'create' | 'enter_new_playlist_name' | 'delete_playlist_confirm' | 'your_library' | 'repeat'
-  | 'good_evening' | 'good_morning' | 'good_afternoon' | 'artist' | 'recently_added';
+  | 'good_evening' | 'good_morning' | 'good_afternoon' | 'artist' | 'recently_added'
+  | 'sort_default' | 'sort_title_asc' | 'sort_title_desc' | 'sort_date_desc' | 'sort_date_asc' | 'sort_duration_desc' | 'sort_duration_asc';
 
 export const translations: Record<string, Record<TranslationKey, string>> = {
   ru: {
@@ -105,6 +106,13 @@ export const translations: Record<string, Record<TranslationKey, string>> = {
     good_afternoon: 'Добрый день',
     artist: 'Артист',
     recently_added: 'Недавно добавлено',
+    sort_default: 'По умолчанию',
+    sort_title_asc: 'По названию (А-Я)',
+    sort_title_desc: 'По названию (Я-А)',
+    sort_date_desc: 'Сначала новые',
+    sort_date_asc: 'Сначала старые',
+    sort_duration_desc: 'Сначала длинные',
+    sort_duration_asc: 'Сначала короткие',
   },
   en: {
     listen_now: 'Listen Now',
@@ -196,5 +204,12 @@ export const translations: Record<string, Record<TranslationKey, string>> = {
     good_afternoon: 'Good afternoon',
     artist: 'Artist',
     recently_added: 'Recently added',
+    sort_default: 'Default',
+    sort_title_asc: 'Title (A-Z)',
+    sort_title_desc: 'Title (Z-A)',
+    sort_date_desc: 'Newest First',
+    sort_date_asc: 'Oldest First',
+    sort_duration_desc: 'Longest First',
+    sort_duration_asc: 'Shortest First',
   }
 };

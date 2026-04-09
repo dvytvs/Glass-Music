@@ -247,6 +247,80 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
                         </div>
                     </motion.section>
                     
+                    {/* Pulse to Beat Toggle */}
+                    <motion.section whileTap={{ scale: 0.98 }} className="flex items-center justify-between bg-[var(--card-bg)] p-4 rounded-[2.5rem] border border-[var(--glass-border)] hover:bg-[var(--card-hover)] transition-all cursor-pointer" onClick={() => onUpdate({ pulseToBeat: !config.pulseToBeat })}>
+                        <div className="flex items-center gap-3">
+                            <div className="w-10 h-10 rounded-full bg-[var(--glass-border)] flex items-center justify-center">
+                                <Activity className="w-5 h-5" style={{ color: config.accentColor }}/>
+                            </div>
+                            <div>
+                                <h3 className="text-[var(--text-main)] font-bold text-sm">Пульсация обложки</h3>
+                                <p className="text-xs text-[var(--text-muted)] mt-0.5">Обложка пульсирует под бит в полном экране</p>
+                            </div>
+                        </div>
+                        <div className={`w-12 h-6 rounded-full p-1 transition-all duration-300 relative ${config.pulseToBeat ? 'bg-[var(--text-main)]' : 'bg-[var(--glass-border)]'}`}>
+                            <div className={`w-4 h-4 rounded-full bg-[var(--bg-main)] shadow-sm transition-all duration-300 ${config.pulseToBeat ? 'translate-x-6' : 'translate-x-0'}`}></div>
+                        </div>
+                    </motion.section>
+
+                    {/* Speed Up / Slowed Rates */}
+                    <section className="bg-[var(--card-bg)] p-4 rounded-[2.5rem] border border-[var(--glass-border)]">
+                        <div className="flex items-center gap-3 mb-4">
+                            <div className="w-10 h-10 rounded-full bg-[var(--glass-border)] flex items-center justify-center">
+                                <Sliders className="w-5 h-5" style={{ color: config.accentColor }}/>
+                            </div>
+                            <h3 className="text-[var(--text-main)] font-bold text-sm">Настройки скорости (Глобальные)</h3>
+                        </div>
+                        
+                        <div className="flex gap-4 mb-6 px-2">
+                            <label className="flex items-center gap-2 cursor-pointer">
+                                <input 
+                                    type="checkbox" 
+                                    checked={config.globalAudioEffect === 'spedup'}
+                                    onChange={() => onUpdate({ globalAudioEffect: config.globalAudioEffect === 'spedup' ? 'none' : 'spedup' })}
+                                    className="w-4 h-4 rounded border-[var(--glass-border)] bg-[var(--bg-main)] text-[var(--accent-color)] focus:ring-0 focus:ring-offset-0"
+                                />
+                                <span className="text-sm font-medium text-[var(--text-main)]">Все треки Speed Up</span>
+                            </label>
+                            <label className="flex items-center gap-2 cursor-pointer">
+                                <input 
+                                    type="checkbox" 
+                                    checked={config.globalAudioEffect === 'slowed'}
+                                    onChange={() => onUpdate({ globalAudioEffect: config.globalAudioEffect === 'slowed' ? 'none' : 'slowed' })}
+                                    className="w-4 h-4 rounded border-[var(--glass-border)] bg-[var(--bg-main)] text-[var(--accent-color)] focus:ring-0 focus:ring-offset-0"
+                                />
+                                <span className="text-sm font-medium text-[var(--text-main)]">Все треки Slowed</span>
+                            </label>
+                        </div>
+
+                        <div className="space-y-4 px-2">
+                            <div>
+                                <div className="flex justify-between mb-2">
+                                    <label className="text-xs font-bold text-[var(--text-muted)] uppercase">Speed Up</label>
+                                    <span className="text-xs font-bold text-[var(--text-main)]">{config.speedUpRate || 1.25}x</span>
+                                </div>
+                                <input 
+                                    type="range" min="1.05" max="2.0" step="0.05" 
+                                    value={config.speedUpRate || 1.25}
+                                    onChange={(e) => onUpdate({ speedUpRate: parseFloat(e.target.value) })}
+                                    className="w-full h-1.5 bg-[var(--glass-border)] rounded-full appearance-none outline-none [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-4 [&::-webkit-slider-thumb]:h-4 [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-[var(--text-main)] [&::-webkit-slider-thumb]:cursor-pointer"
+                                />
+                            </div>
+                            <div>
+                                <div className="flex justify-between mb-2">
+                                    <label className="text-xs font-bold text-[var(--text-muted)] uppercase">Slowed</label>
+                                    <span className="text-xs font-bold text-[var(--text-main)]">{config.slowedRate || 0.85}x</span>
+                                </div>
+                                <input 
+                                    type="range" min="0.5" max="0.95" step="0.05" 
+                                    value={config.slowedRate || 0.85}
+                                    onChange={(e) => onUpdate({ slowedRate: parseFloat(e.target.value) })}
+                                    className="w-full h-1.5 bg-[var(--glass-border)] rounded-full appearance-none outline-none [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-4 [&::-webkit-slider-thumb]:h-4 [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-[var(--text-main)] [&::-webkit-slider-thumb]:cursor-pointer"
+                                />
+                            </div>
+                        </div>
+                    </section>
+                    
                     {/* Seasonal Theme (Visible only in winter) */}
                     {isWinterSeason && (
                         <motion.section whileTap={{ scale: 0.98 }} className="flex items-center justify-between bg-blue-500/10 p-4 rounded-[2.5rem] border border-blue-500/20 hover:bg-blue-500/20 transition-all cursor-pointer" onClick={() => onUpdate({ seasonalTheme: !config.seasonalTheme })}>

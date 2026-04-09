@@ -32,6 +32,8 @@ interface FullScreenPlayerProps {
   enableGlass: boolean;
   audioEffect?: 'normal' | 'slowed' | 'spedup';
   onToggleAudioEffect?: () => void;
+  analyser?: AnalyserNode | null;
+  pulseToBeat?: boolean;
 }
 
 const FullScreenPlayer: React.FC<FullScreenPlayerProps> = ({
@@ -55,7 +57,9 @@ const FullScreenPlayer: React.FC<FullScreenPlayerProps> = ({
   initialMode,
   enableGlass,
   audioEffect = 'normal',
-  onToggleAudioEffect
+  onToggleAudioEffect,
+  analyser,
+  pulseToBeat
 }) => {
   const isPlaying = playbackState === PlaybackState.PLAYING;
   const progressPercent = duration ? (currentTime / duration) * 100 : 0;
@@ -63,11 +67,60 @@ const FullScreenPlayer: React.FC<FullScreenPlayerProps> = ({
   const [showLyrics, setShowLyrics] = useState(initialMode === 'lyrics');
   const [isClosing, setIsClosing] = useState(false);
   const prevVolumeRef = useRef<number>(1);
-  const [mousePos, setMousePos] = useState({ x: 0, y: 0 });
+  const coverRef = useRef<HTMLDivElement>(null);
+  const animationRef = useRef<number>();
 
   useEffect(() => {
      setShowLyrics(initialMode === 'lyrics');
   }, [initialMode]);
+
+  useEffect(() => {
+    if (!pulseToBeat || !analyser || !isPlaying) {
+      if (coverRef.current) {
+        coverRef.current.style.transform = 'scale(1)';
+        coverRef.current.style.transition = 'all 0.7s cubic-bezier(0.23, 1, 0.32, 1)';
+      }
+      if (animationRef.current) {
+        cancelAnimationFrame(animationRef.current);
+      }
+      return;
+    }
+
+    const dataArray = new Uint8Array(analyser.frequencyBinCount);
+    
+    if (coverRef.current) {
+        coverRef.current.style.transition = 'transform 0.05s ease-out';
+    }
+
+    const updatePulse = () => {
+      analyser.getByteFrequencyData(dataArray);
+      
+      // Calculate average bass level (lower frequencies)
+      let sum = 0;
+      const bassRange = Math.floor(dataArray.length * 0.1); // Top 10% of bins (bass)
+      for (let i = 0; i < bassRange; i++) {
+        sum += dataArray[i];
+      }
+      const average = sum / bassRange;
+      
+      // Map average (0-255) to scale (1.0 - 1.15)
+      const scale = 1 + (average / 255) * 0.15;
+      
+      if (coverRef.current) {
+        coverRef.current.style.transform = `scale(${scale})`;
+      }
+      
+      animationRef.current = requestAnimationFrame(updatePulse);
+    };
+
+    updatePulse();
+
+    return () => {
+      if (animationRef.current) {
+        cancelAnimationFrame(animationRef.current);
+      }
+    };
+  }, [pulseToBeat, analyser, isPlaying]);
 
   const handleClose = () => {
     setIsClosing(true);
@@ -88,18 +141,10 @@ const FullScreenPlayer: React.FC<FullScreenPlayerProps> = ({
     }
   };
 
-  const handleMouseMove = (e: React.MouseEvent) => {
-    const { clientX, clientY } = e;
-    const x = (clientX / window.innerWidth - 0.5) * 20; // max 20px offset
-    const y = (clientY / window.innerHeight - 0.5) * 20;
-    setMousePos({ x, y });
-  };
-
   return (
     <div 
       className={`fixed inset-0 z-[100] overflow-hidden flex flex-col ${isClosing ? 'animate-slide-down-full' : 'animate-slide-up-full'}`}
       onAnimationEnd={onAnimationEnd}
-      onMouseMove={handleMouseMove}
     >
       {/* Background Layer */}
       <div className={`absolute inset-0 bg-black/60 ${enableGlass ? 'backdrop-blur-[120px]' : ''} z-0`}></div>
@@ -111,7 +156,7 @@ const FullScreenPlayer: React.FC<FullScreenPlayerProps> = ({
           backgroundImage: `url(${track.coverUrl})`, 
           backgroundSize: 'cover', 
           backgroundPosition: 'center',
-          transform: `translate(${mousePos.x * -2}px, ${mousePos.y * -2}px) scale(1.5)`
+          transform: `scale(1.5)`
         }}
       ></div>
 
@@ -136,11 +181,12 @@ const FullScreenPlayer: React.FC<FullScreenPlayerProps> = ({
         <div className={`transition-all duration-700 ease-[cubic-bezier(0.23,1,0.32,1)] flex flex-col items-center justify-center shrink
             ${showLyrics 
                 ? 'w-full lg:w-1/3 h-[30vh] lg:h-auto lg:aspect-square order-1' 
-                : 'w-full max-w-[40vh] md:max-w-[45vh] aspect-square order-1 mt-auto'
+                : 'w-full max-w-[min(45vh,400px)] aspect-square order-1 mt-auto'
             }`}
-            style={{ transform: `translate(${mousePos.x}px, ${mousePos.y}px)` }}
         >
-             <div className={`rounded-[2.5rem] lg:rounded-[3rem] overflow-hidden shadow-[0_40px_80px_rgba(0,0,0,0.5)] border border-white/10 animate-scale-in transition-all duration-700 relative group flex items-center justify-center bg-black/20
+             <div 
+                 ref={coverRef}
+                 className={`rounded-[2.5rem] lg:rounded-[3rem] overflow-hidden shadow-[0_40px_80px_rgba(0,0,0,0.5)] border border-white/10 animate-scale-in transition-all duration-700 relative group flex items-center justify-center bg-black/20
                  ${showLyrics 
                     ? 'w-auto h-full aspect-square lg:w-full lg:h-auto' 
                     : 'w-full h-full aspect-square'

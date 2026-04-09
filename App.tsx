@@ -33,7 +33,10 @@ const DEFAULT_THEME: ThemeConfig = {
   seasonalTheme: false, 
   playerStyle: 'floating',
   themeMode: 'system',
-  animateBackground: true
+  animateBackground: true,
+  speedUpRate: 1.25,
+  slowedRate: 0.85,
+  pulseToBeat: false
 };
 
 const DEFAULT_PROFILE: UserProfile = {
@@ -60,7 +63,7 @@ const App: React.FC = () => {
   const [fullScreenMode, setFullScreenMode] = useState<'none' | 'cover' | 'lyrics'>('none');
   const [selectedArtist, setSelectedArtist] = useState<string | null>(null);
   const [selectedAlbum, setSelectedAlbum] = useState<string | null>(null);
-  const [previousView, setPreviousView] = useState<ViewType>('songs');
+  const [viewHistory, setViewHistory] = useState<{view: ViewType, artist: string | null, album: string | null}[]>([]);
   const [isLoaded, setIsLoaded] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [theme, setTheme] = useState<ThemeConfig>(DEFAULT_THEME);
@@ -91,8 +94,10 @@ const App: React.FC = () => {
   const tracksRef = useRef<Track[]>([]);
   const queueRef = useRef<Track[]>([]);
   const playerStateRef = useRef(playerState);
+  const themeRef = useRef(theme);
 
   useEffect(() => { tracksRef.current = tracks; }, [tracks]);
+  useEffect(() => { themeRef.current = theme; }, [theme]);
   useEffect(() => { 
     queueRef.current = playerState.queue; 
     playerStateRef.current = playerState;
@@ -217,13 +222,32 @@ const App: React.FC = () => {
     }
   }, [theme.eqBands]);
 
+  useEffect(() => {
+    const audio = audioRef.current;
+    const currentEffect = theme.globalAudioEffect && theme.globalAudioEffect !== 'none' 
+        ? theme.globalAudioEffect 
+        : playerState.audioEffect;
+        
+    if (currentEffect === 'slowed') {
+      audio.playbackRate = theme.slowedRate || 0.85;
+    } else if (currentEffect === 'spedup') {
+      audio.playbackRate = theme.speedUpRate || 1.25;
+    } else {
+      audio.playbackRate = 1.0;
+    }
+  }, [theme.globalAudioEffect, theme.slowedRate, theme.speedUpRate, playerState.audioEffect]);
+
   const translateText = async (text: string): Promise<string> => {
     if (!text) return "";
+    if (!process.env.GEMINI_API_KEY) {
+      console.warn("GEMINI_API_KEY is missing. Translation is disabled.");
+      return "Ошибка: Отсутствует ключ Gemini API. Перевод невозможен.";
+    }
     try {
       const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
       const targetLang = getEffectiveLanguage() === 'ru' ? 'Russian' : 'English';
       const response = await ai.models.generateContent({
-        model: "gemini-3-flash-preview",
+        model: "gemini-2.5-flash",
         contents: `Translate the following text to ${targetLang}. Keep the meaning and tone. Only return the translated text:\n\n${text}`,
       });
       return response.text || text;
@@ -287,7 +311,7 @@ const App: React.FC = () => {
     setTracks(prev => {
         const track = prev.find(t => t.id === id);
         
-        const metadataChanged = ['title', 'artist', 'album', 'year', 'lyrics', 'coverUrl'].some(key => key in data && data[key as keyof Track] !== track?.[key as keyof Track]);
+        const metadataChanged = ['title', 'artist', 'album', 'albumArtist', 'year', 'lyrics', 'coverUrl'].some(key => key in data && data[key as keyof Track] !== track?.[key as keyof Track]);
 
         if (metadataChanged && track && track.path && track.path.toLowerCase().endsWith('.mp3') && (window as any).require) {
             try {
@@ -337,10 +361,6 @@ const App: React.FC = () => {
     // Stop current playback
     audioRef.current.pause();
 
-    // Reset audio effect on new track
-    setPlayerState(prev => ({ ...prev, audioEffect: 'normal' }));
-    audioRef.current.playbackRate = 1.0;
-
     // Increment play count
     handleUpdateTrack(track.id, { playCount: (track.playCount || 0) + 1 });
     
@@ -373,6 +393,19 @@ const App: React.FC = () => {
     audio.currentTime = 0;
     audio.src = src;
     audio.volume = targetVolume;
+    
+    // Re-apply playback rate
+    const currentEffect = themeRef.current.globalAudioEffect && themeRef.current.globalAudioEffect !== 'none' 
+        ? themeRef.current.globalAudioEffect 
+        : playerStateRef.current.audioEffect;
+        
+    if (currentEffect === 'slowed') {
+      audio.playbackRate = themeRef.current.slowedRate || 0.85;
+    } else if (currentEffect === 'spedup') {
+      audio.playbackRate = themeRef.current.speedUpRate || 1.25;
+    } else {
+      audio.playbackRate = 1.0;
+    }
     
     try {
       initAudioContext();
@@ -625,7 +658,7 @@ const App: React.FC = () => {
   };
 
   const handleGoToArtist = async (artist: string) => {
-      setPreviousView(playerState.currentView);
+      setViewHistory(prev => [...prev, { view: playerState.currentView, artist: selectedArtist, album: selectedAlbum }]);
       setSelectedArtist(artist);
       setPlayerState(prev => ({ ...prev, currentView: 'artist_detail' }));
       
@@ -636,6 +669,27 @@ const App: React.FC = () => {
           const meta = await ipcRenderer.invoke('get-artist-metadata', artist);
           if (meta) handleUpdateArtist(artist, meta, false); // Use merge mode
       }
+  };
+
+  const handleGoToAlbum = (album: string) => {
+      setViewHistory(prev => [...prev, { view: playerState.currentView, artist: selectedArtist, album: selectedAlbum }]);
+      setSelectedAlbum(album);
+      setPlayerState(prev => ({ ...prev, currentView: 'album_detail' }));
+  };
+
+  const handleBack = () => {
+      setViewHistory(prev => {
+          if (prev.length === 0) {
+              setPlayerState(p => ({ ...p, currentView: 'songs' }));
+              return prev;
+          }
+          const newHistory = [...prev];
+          const lastState = newHistory.pop()!;
+          setSelectedArtist(lastState.artist);
+          setSelectedAlbum(lastState.album);
+          setPlayerState(p => ({ ...p, currentView: lastState.view }));
+          return newHistory;
+      });
   };
 
   useEffect(() => {
@@ -671,12 +725,6 @@ const App: React.FC = () => {
     fetchAllArtistsMetadata();
   }, [isLoaded, tracks.length]); // Run when tracks are loaded or added
 
-  const handleGoToAlbum = (album: string) => {
-      setPreviousView(playerState.currentView);
-      setSelectedAlbum(album);
-      setPlayerState(prev => ({ ...prev, currentView: 'album_detail' }));
-  };
-
   const handleOnboardingComplete = (profile: Partial<UserProfile>, themeUpdate: Partial<ThemeConfig>) => {
     setUserProfile(prev => ({ ...prev, ...profile, onboardingDone: true }));
     setTheme(prev => ({ ...prev, ...themeUpdate }));
@@ -705,6 +753,11 @@ const App: React.FC = () => {
   };
 
   const toggleAudioEffect = () => {
+    if (themeRef.current.globalAudioEffect && themeRef.current.globalAudioEffect !== 'none') {
+        // Если включен глобальный эффект, локальный переключатель не работает
+        return;
+    }
+    
     setPlayerState(prev => {
       const effects: AudioEffect[] = ['normal', 'slowed', 'spedup'];
       const nextIndex = (effects.indexOf(prev.audioEffect) + 1) % effects.length;
@@ -712,9 +765,9 @@ const App: React.FC = () => {
       
       const audio = audioRef.current;
       if (nextEffect === 'slowed') {
-        audio.playbackRate = 0.85;
+        audio.playbackRate = theme.slowedRate || 0.85;
       } else if (nextEffect === 'spedup') {
-        audio.playbackRate = 1.25;
+        audio.playbackRate = theme.speedUpRate || 1.25;
       } else {
         audio.playbackRate = 1.0;
       }
@@ -785,36 +838,38 @@ const App: React.FC = () => {
   const handleFileSelect = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const files = event.target.files; if (!files) return;
     const newTracks: Track[] = [];
+    
+    // Process files sequentially to avoid memory/audio context limits
     for (const file of Array.from(files)) {
         const isAudioType = file.type.startsWith('audio/');
         const isAudioExt = /\.(mp3|wav|flac|m4a|ogg|aac)$/i.test(file.name);
         if (!isAudioType && !isAudioExt) continue;
-        const metadata = await parseFileMetadata(file);
         
-        const isElectron = () => (window as any).require && (window as any).require('electron');
-        const filePath = (file as any).path;
-        let fileUrl = URL.createObjectURL(file);
-        if (isElectron() && filePath) {
-            const safePath = filePath.replace(/\\/g, '/');
-            const encodedPath = safePath.split('/').map(s => encodeURIComponent(s)).join('/').replace(/%3A/g, ':');
-            fileUrl = `file://${safePath.startsWith('/') ? '' : '/'}${encodedPath}`;
-        }
-        
-        const duration = await getAudioDuration(file);
+        try {
+            const metadata = await parseFileMetadata(file);
+            
+            const isElectron = () => (window as any).require && (window as any).require('electron');
+            const filePath = (file as any).path;
+            let fileUrl = URL.createObjectURL(file);
+            
+            const duration = await getAudioDuration(file);
 
-        newTracks.push({
-          id: Math.random().toString(36).substr(2, 9), title: metadata.title || file.name.replace(/\.[^/.]+$/, ""),
-          artist: metadata.artist || "", album: metadata.album || "",
-          duration: duration || 0, coverUrl: metadata.coverUrl || generateMockCover(file.name),
-          fileUrl: fileUrl, path: filePath, isLiked: false, 
-          year: metadata.year || new Date().getFullYear().toString(), source: 'local', addedAt: Date.now()
-        });
+            newTracks.push({
+              id: Math.random().toString(36).substr(2, 9), title: metadata.title || file.name.replace(/\.[^/.]+$/, ""),
+              artist: metadata.artist || "", album: metadata.album || "", albumArtist: metadata.albumArtist || "",
+              duration: duration || 0, coverUrl: metadata.coverUrl || generateMockCover(file.name),
+              fileUrl: fileUrl, path: filePath, isLiked: false, 
+              year: metadata.year || new Date().getFullYear().toString(), source: 'local', addedAt: Date.now()
+            });
+        } catch (e) {
+            console.error("Error processing file:", file.name, e);
+        }
     }
     setTracks(prev => sortTracks([...prev, ...newTracks]));
   };
 
   return (
-    <div className="relative w-full h-screen flex flex-col overflow-hidden bg-[var(--bg-main)] text-[var(--text-main)] selection:text-[var(--text-main)]">
+    <div className="relative w-full h-[100dvh] flex flex-col overflow-hidden bg-[var(--bg-main)] text-[var(--text-main)] selection:text-[var(--text-main)]">
       {theme.seasonalTheme && <SnowEffect />}
       <Background config={theme} isLight={getEffectiveTheme() === 'light'} analyser={analyser} isPlaying={playerState.playbackState === PlaybackState.PLAYING} profileBannerUrl={userProfile.bannerUrl} />
       <Visualizer analyser={analyser} isPlaying={playerState.playbackState === PlaybackState.PLAYING} accentColor={theme.accentColor} enabled={theme.animateBackground} />
@@ -829,7 +884,11 @@ const App: React.FC = () => {
           onYouTubeImportClick={() => setIsYouTubeModalOpen(true)}
           onSettingsClick={() => setSettingsOpen(true)}
           currentView={playerState.currentView}
-          onChangeView={(view) => { setPlayerState(prev => ({ ...prev, currentView: view })); setSidebarOpen(true); }}
+          onChangeView={(view) => { 
+            setViewHistory([]);
+            setPlayerState(prev => ({ ...prev, currentView: view })); 
+            setSidebarOpen(true); 
+          }}
           isOpen={sidebarOpen} accentColor={theme.accentColor} searchQuery={searchQuery}
           onSearchChange={setSearchQuery} enableGlass={theme.enableGlass} user={userProfile} t={t}
           playlists={playlists}
@@ -847,7 +906,7 @@ const App: React.FC = () => {
             onPlay={handlePlay} onShuffleAll={(q) => { setPlayerState(prev => ({ ...prev, isShuffled: true, queue: q })); if (q[0]) handlePlay(q[0], q); }}
             currentView={playerState.currentView} selectedArtist={selectedArtist} selectedAlbum={selectedAlbum}
             onUpdateTrack={handleUpdateTrack} onDeleteTrack={handleDeleteTrack} onGoToArtist={handleGoToArtist}
-            onGoToAlbum={handleGoToAlbum} onBack={() => setPlayerState(prev => ({ ...prev, currentView: previousView }))}
+            onGoToAlbum={handleGoToAlbum} onBack={handleBack}
             accentColor={theme.accentColor} artistMetadata={artistMetadata} onUpdateArtist={handleUpdateArtist}
             searchQuery={searchQuery} onRequestFileUnlock={() => { audioRef.current.pause(); audioRef.current.src = ""; }}
             onToggleLike={handleToggleLike} enableGlass={theme.enableGlass} t={t} onTranslate={translateText}
@@ -877,25 +936,27 @@ const App: React.FC = () => {
               onToggleFullScreen={() => setFullScreenMode('cover')} onOpenLyrics={() => setFullScreenMode('lyrics')}
               onToggleLike={handleToggleLike} accentColor={theme.accentColor} onGoToArtist={handleGoToArtist}
               onGoToAlbum={handleGoToAlbum} playerStyle={theme.playerStyle} enableGlass={theme.enableGlass} t={t}
-              audioEffect={playerState.audioEffect} onToggleAudioEffect={toggleAudioEffect}
+              audioEffect={theme.globalAudioEffect && theme.globalAudioEffect !== 'none' ? theme.globalAudioEffect : playerState.audioEffect} 
+              onToggleAudioEffect={toggleAudioEffect}
+            />
+          )}
+          {theme.playerStyle === 'classic' && (
+            <PlayerControls 
+              currentTrack={playerState.currentTrack} playbackState={playerState.playbackState}
+              onPlayPause={() => playerState.currentTrack ? handlePlay(playerState.currentTrack) : null}
+              onNext={() => handleNext(false)} onPrev={handlePrev} currentTime={playerState.currentTime} duration={playerState.duration}
+              onSeek={handleSeek} volume={playerState.volume} onVolumeChange={handleVolume} isShuffled={playerState.isShuffled}
+              isRepeating={playerState.isRepeating} onToggleRepeat={toggleRepeat}
+              onToggleShuffle={toggleShuffle} onToggleSidebar={() => setSidebarOpen(!sidebarOpen)}
+              onToggleFullScreen={() => setFullScreenMode('cover')} onOpenLyrics={() => setFullScreenMode('lyrics')}
+              onToggleLike={handleToggleLike} accentColor={theme.accentColor} onGoToArtist={handleGoToArtist}
+              onGoToAlbum={handleGoToAlbum} playerStyle={theme.playerStyle} enableGlass={theme.enableGlass} t={t}
+              audioEffect={theme.globalAudioEffect && theme.globalAudioEffect !== 'none' ? theme.globalAudioEffect : playerState.audioEffect} 
+              onToggleAudioEffect={toggleAudioEffect}
             />
           )}
         </div>
       </div>
-      {theme.playerStyle === 'classic' && (
-        <PlayerControls 
-          currentTrack={playerState.currentTrack} playbackState={playerState.playbackState}
-          onPlayPause={() => playerState.currentTrack ? handlePlay(playerState.currentTrack) : null}
-          onNext={() => handleNext(false)} onPrev={handlePrev} currentTime={playerState.currentTime} duration={playerState.duration}
-          onSeek={handleSeek} volume={playerState.volume} onVolumeChange={handleVolume} isShuffled={playerState.isShuffled}
-          isRepeating={playerState.isRepeating} onToggleRepeat={toggleRepeat}
-          onToggleShuffle={toggleShuffle} onToggleSidebar={() => setSidebarOpen(!sidebarOpen)}
-          onToggleFullScreen={() => setFullScreenMode('cover')} onOpenLyrics={() => setFullScreenMode('lyrics')}
-          onToggleLike={handleToggleLike} accentColor={theme.accentColor} onGoToArtist={handleGoToArtist}
-          onGoToAlbum={handleGoToAlbum} playerStyle={theme.playerStyle} enableGlass={theme.enableGlass} t={t}
-          audioEffect={playerState.audioEffect} onToggleAudioEffect={toggleAudioEffect}
-        />
-      )}
       {fullScreenMode !== 'none' && playerState.currentTrack && (
         <FullScreenPlayer 
             track={playerState.currentTrack} playbackState={playerState.playbackState}
@@ -906,7 +967,9 @@ const App: React.FC = () => {
             onToggleLike={handleToggleLike} onClose={() => setFullScreenMode('none')}
             accentColor={theme.accentColor} initialMode={fullScreenMode === 'lyrics' ? 'lyrics' : 'cover'}
             enableGlass={theme.enableGlass}
-            audioEffect={playerState.audioEffect} onToggleAudioEffect={toggleAudioEffect}
+            audioEffect={theme.globalAudioEffect && theme.globalAudioEffect !== 'none' ? theme.globalAudioEffect : playerState.audioEffect} 
+            onToggleAudioEffect={toggleAudioEffect}
+            analyser={analyser} pulseToBeat={theme.pulseToBeat}
         />
       )}
       <SettingsModal 

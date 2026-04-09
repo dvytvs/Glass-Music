@@ -3,6 +3,7 @@ export interface Track {
   id: string;
   title: string;
   artist: string;
+  albumArtist?: string;
   album: string;
   duration: number;
   coverUrl: string;
@@ -73,6 +74,10 @@ export interface ThemeConfig {
   themeMode: 'dark' | 'light' | 'system';
   animateBackground: boolean;
   eqBands?: number[];
+  speedUpRate?: number;
+  slowedRate?: number;
+  globalAudioEffect?: 'none' | 'slowed' | 'spedup';
+  pulseToBeat?: boolean;
 }
 
 export interface ArtistMetadata {
