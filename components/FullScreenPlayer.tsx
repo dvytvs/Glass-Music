@@ -33,7 +33,6 @@ interface FullScreenPlayerProps {
   audioEffect?: 'normal' | 'slowed' | 'spedup';
   onToggleAudioEffect?: () => void;
   analyser?: AnalyserNode | null;
-  pulseToBeat?: boolean;
 }
 
 const FullScreenPlayer: React.FC<FullScreenPlayerProps> = ({
@@ -58,8 +57,7 @@ const FullScreenPlayer: React.FC<FullScreenPlayerProps> = ({
   enableGlass,
   audioEffect = 'normal',
   onToggleAudioEffect,
-  analyser,
-  pulseToBeat
+  analyser
 }) => {
   const isPlaying = playbackState === PlaybackState.PLAYING;
   const progressPercent = duration ? (currentTime / duration) * 100 : 0;
@@ -67,60 +65,10 @@ const FullScreenPlayer: React.FC<FullScreenPlayerProps> = ({
   const [showLyrics, setShowLyrics] = useState(initialMode === 'lyrics');
   const [isClosing, setIsClosing] = useState(false);
   const prevVolumeRef = useRef<number>(1);
-  const coverRef = useRef<HTMLDivElement>(null);
-  const animationRef = useRef<number>();
 
   useEffect(() => {
      setShowLyrics(initialMode === 'lyrics');
   }, [initialMode]);
-
-  useEffect(() => {
-    if (!pulseToBeat || !analyser || !isPlaying) {
-      if (coverRef.current) {
-        coverRef.current.style.transform = 'scale(1)';
-        coverRef.current.style.transition = 'all 0.7s cubic-bezier(0.23, 1, 0.32, 1)';
-      }
-      if (animationRef.current) {
-        cancelAnimationFrame(animationRef.current);
-      }
-      return;
-    }
-
-    const dataArray = new Uint8Array(analyser.frequencyBinCount);
-    
-    if (coverRef.current) {
-        coverRef.current.style.transition = 'transform 0.05s ease-out';
-    }
-
-    const updatePulse = () => {
-      analyser.getByteFrequencyData(dataArray);
-      
-      // Calculate average bass level (lower frequencies)
-      let sum = 0;
-      const bassRange = Math.floor(dataArray.length * 0.1); // Top 10% of bins (bass)
-      for (let i = 0; i < bassRange; i++) {
-        sum += dataArray[i];
-      }
-      const average = sum / bassRange;
-      
-      // Map average (0-255) to scale (1.0 - 1.15)
-      const scale = 1 + (average / 255) * 0.15;
-      
-      if (coverRef.current) {
-        coverRef.current.style.transform = `scale(${scale})`;
-      }
-      
-      animationRef.current = requestAnimationFrame(updatePulse);
-    };
-
-    updatePulse();
-
-    return () => {
-      if (animationRef.current) {
-        cancelAnimationFrame(animationRef.current);
-      }
-    };
-  }, [pulseToBeat, analyser, isPlaying]);
 
   const handleClose = () => {
     setIsClosing(true);
@@ -185,7 +133,6 @@ const FullScreenPlayer: React.FC<FullScreenPlayerProps> = ({
             }`}
         >
              <div 
-                 ref={coverRef}
                  className={`rounded-[2.5rem] lg:rounded-[3rem] overflow-hidden shadow-[0_40px_80px_rgba(0,0,0,0.5)] border border-white/10 animate-scale-in transition-all duration-700 relative group flex items-center justify-center bg-black/20
                  ${showLyrics 
                     ? 'w-auto h-full aspect-square lg:w-full lg:h-auto' 

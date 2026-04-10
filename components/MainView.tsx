@@ -592,7 +592,7 @@ const MainView: React.FC<MainViewProps> = ({
             {/* Hero Section */}
             <div className="relative h-[60vh] min-h-[500px] -mx-8 -mt-8 mb-8 group overflow-hidden flex flex-col justify-end">
                 <div className="absolute inset-0 z-0">
-                    {metaDetail?.banner ? (
+                    {metaDetail?.banner && !metaDetail.banner.includes('2a96cbd8b46e442fc41c2b86b821562f') ? (
                         <img src={metaDetail.banner} className="w-full h-full object-cover scale-105 group-hover:scale-100 transition-transform duration-[2000ms] ease-out" onError={(e) => (e.currentTarget.style.display = 'none')} />
                     ) : (
                         <div className="w-full h-full bg-gradient-to-br from-[var(--text-main)]/20 to-[var(--bg-main)]" />
@@ -612,7 +612,7 @@ const MainView: React.FC<MainViewProps> = ({
                 
                 <div className="relative z-10 px-8 md:px-12 pb-12 flex flex-col md:flex-row items-center md:items-end gap-8">
                     <div className="w-48 h-48 md:w-64 md:h-64 rounded-full border-4 border-[var(--bg-main)] shadow-2xl overflow-hidden relative group/avatar bg-[var(--card-bg)] cursor-pointer shrink-0" onClick={() => artistAvatarInputRef.current?.click()}>
-                        {metaDetail?.avatar ? (
+                        {metaDetail?.avatar && !metaDetail.avatar.includes('2a96cbd8b46e442fc41c2b86b821562f') ? (
                             <img src={metaDetail.avatar} className="w-full h-full object-cover transition-transform duration-700 group-hover/avatar:scale-110" onError={(e) => (e.currentTarget.style.display = 'none')} />
                         ) : (
                             <div className="w-full h-full flex items-center justify-center bg-[var(--card-bg)]">

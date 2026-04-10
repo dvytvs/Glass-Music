@@ -113,12 +113,34 @@ ipcMain.handle('get-system-info', async () => {
 
 ipcMain.handle('save-local-data', async (e, { key, data }) => {
     try {
+        if (!fs.existsSync(userDataPath)) {
+            fs.mkdirSync(userDataPath, { recursive: true });
+        }
         const filePath = path.join(userDataPath, `${key}.json`);
         const tempPath = path.join(userDataPath, `${key}.json.tmp`);
         await fs.promises.writeFile(tempPath, JSON.stringify(data));
         await fs.promises.rename(tempPath, filePath);
         return { success: true };
-    } catch (err) { return { success: false }; }
+    } catch (err) { 
+        console.error("Failed to save local data:", err);
+        return { success: false }; 
+    }
+});
+
+ipcMain.on('save-local-data-sync', (e, { key, data }) => {
+    try {
+        if (!fs.existsSync(userDataPath)) {
+            fs.mkdirSync(userDataPath, { recursive: true });
+        }
+        const filePath = path.join(userDataPath, `${key}.json`);
+        const tempPath = path.join(userDataPath, `${key}.json.tmp`);
+        fs.writeFileSync(tempPath, JSON.stringify(data));
+        fs.renameSync(tempPath, filePath);
+        e.returnValue = { success: true };
+    } catch (err) { 
+        console.error("Failed to save local data sync:", err);
+        e.returnValue = { success: false }; 
+    }
 });
 
 ipcMain.handle('get-local-data', async (e, { key }) => {
@@ -195,7 +217,7 @@ ipcMain.handle('get-artist-metadata', async (e, artistName) => {
             // Try to find exact match first
             const exactMatch = dzData.data.find(a => a.name.toLowerCase() === cleanName.toLowerCase());
             const artist = exactMatch || dzData.data[0];
-            result.avatar = artist.picture_xl || artist.picture_big;
+            result.avatar = artist.picture_xl || artist.picture_big || artist.picture_medium || artist.picture;
             result.banner = result.avatar; // Deezer doesn't have explicit banners in search
         }
     } catch (err) { console.error("Deezer error:", err); }
@@ -239,8 +261,11 @@ ipcMain.handle('get-artist-metadata', async (e, artistName) => {
             
             // If Deezer failed, try Last.fm for image
             if (!result.avatar && lfData.artist.image) {
-                const img = lfData.artist.image.find(i => i.size === 'mega' || i.size === 'extralarge');
-                if (img) result.avatar = img['#text'];
+                const img = lfData.artist.image.find(i => i.size === 'mega' || i.size === 'extralarge' || i.size === 'large');
+                if (img && img['#text'] && !img['#text'].includes('2a96cbd8b46e442fc41c2b86b821562f')) {
+                    result.avatar = img['#text'];
+                    result.banner = result.avatar;
+                }
             }
         }
     } catch (err) { console.error("Last.fm error:", err); }
@@ -251,7 +276,16 @@ ipcMain.handle('get-artist-metadata', async (e, artistName) => {
 ipcMain.handle('read-id3-tags', async (e, filePath) => {
     try {
         if (!fs.existsSync(filePath)) return null;
-        const tags = NodeID3.read(filePath);
+        
+        const tags = await new Promise((resolve) => {
+            let timeoutId = setTimeout(() => resolve(null), 1500);
+            NodeID3.read(filePath, (err, tags) => {
+                clearTimeout(timeoutId);
+                if (err) resolve(null);
+                else resolve(tags);
+            });
+        });
+
         if (!tags) return null;
 
         let coverUrl = null;

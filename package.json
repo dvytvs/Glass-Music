@@ -1,6 +1,6 @@
 {
   "name": "glass-music",
-  "version": "2.0.3",
+  "version": "2.0.4",
   "description": "A futuristic, liquid-glass aesthetic music player for Linux",
   "main": "main.js",
   "homepage": "https://github.com/glass-music/app",

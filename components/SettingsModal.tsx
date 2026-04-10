@@ -246,22 +246,6 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
                             <div className={`w-4 h-4 rounded-full bg-[var(--bg-main)] shadow-sm transition-all duration-300 ${config.animateBackground ? 'translate-x-6' : 'translate-x-0'}`}></div>
                         </div>
                     </motion.section>
-                    
-                    {/* Pulse to Beat Toggle */}
-                    <motion.section whileTap={{ scale: 0.98 }} className="flex items-center justify-between bg-[var(--card-bg)] p-4 rounded-[2.5rem] border border-[var(--glass-border)] hover:bg-[var(--card-hover)] transition-all cursor-pointer" onClick={() => onUpdate({ pulseToBeat: !config.pulseToBeat })}>
-                        <div className="flex items-center gap-3">
-                            <div className="w-10 h-10 rounded-full bg-[var(--glass-border)] flex items-center justify-center">
-                                <Activity className="w-5 h-5" style={{ color: config.accentColor }}/>
-                            </div>
-                            <div>
-                                <h3 className="text-[var(--text-main)] font-bold text-sm">Пульсация обложки</h3>
-                                <p className="text-xs text-[var(--text-muted)] mt-0.5">Обложка пульсирует под бит в полном экране</p>
-                            </div>
-                        </div>
-                        <div className={`w-12 h-6 rounded-full p-1 transition-all duration-300 relative ${config.pulseToBeat ? 'bg-[var(--text-main)]' : 'bg-[var(--glass-border)]'}`}>
-                            <div className={`w-4 h-4 rounded-full bg-[var(--bg-main)] shadow-sm transition-all duration-300 ${config.pulseToBeat ? 'translate-x-6' : 'translate-x-0'}`}></div>
-                        </div>
-                    </motion.section>
 
                     {/* Speed Up / Slowed Rates */}
                     <section className="bg-[var(--card-bg)] p-4 rounded-[2.5rem] border border-[var(--glass-border)]">
@@ -315,6 +299,45 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
                                     type="range" min="0.5" max="0.95" step="0.05" 
                                     value={config.slowedRate || 0.85}
                                     onChange={(e) => onUpdate({ slowedRate: parseFloat(e.target.value) })}
+                                    className="w-full h-1.5 bg-[var(--glass-border)] rounded-full appearance-none outline-none [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-4 [&::-webkit-slider-thumb]:h-4 [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-[var(--text-main)] [&::-webkit-slider-thumb]:cursor-pointer"
+                                />
+                            </div>
+                            
+                            <div className="pt-4 border-t border-[var(--glass-border)]">
+                                <div className="flex justify-between mb-2">
+                                    <label className="text-xs font-bold text-[var(--text-muted)] uppercase">Реверберация (Reverb)</label>
+                                    <span className="text-xs font-bold text-[var(--text-main)]">{Math.round((config.reverbLevel || 0) * 100)}%</span>
+                                </div>
+                                <input 
+                                    type="range" min="0" max="1" step="0.05" 
+                                    value={config.reverbLevel || 0}
+                                    onChange={(e) => onUpdate({ reverbLevel: parseFloat(e.target.value) })}
+                                    className="w-full h-1.5 bg-[var(--glass-border)] rounded-full appearance-none outline-none [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-4 [&::-webkit-slider-thumb]:h-4 [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-[var(--text-main)] [&::-webkit-slider-thumb]:cursor-pointer"
+                                />
+                            </div>
+                            
+                            <div>
+                                <div className="flex justify-between mb-2">
+                                    <label className="text-xs font-bold text-[var(--text-muted)] uppercase">Низкие частоты (Bass)</label>
+                                    <span className="text-xs font-bold text-[var(--text-main)]">{config.bassLevel || 0} dB</span>
+                                </div>
+                                <input 
+                                    type="range" min="-10" max="15" step="1" 
+                                    value={config.bassLevel || 0}
+                                    onChange={(e) => onUpdate({ bassLevel: parseFloat(e.target.value) })}
+                                    className="w-full h-1.5 bg-[var(--glass-border)] rounded-full appearance-none outline-none [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-4 [&::-webkit-slider-thumb]:h-4 [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-[var(--text-main)] [&::-webkit-slider-thumb]:cursor-pointer"
+                                />
+                            </div>
+                            
+                            <div>
+                                <div className="flex justify-between mb-2">
+                                    <label className="text-xs font-bold text-[var(--text-muted)] uppercase">Высокие частоты (Treble)</label>
+                                    <span className="text-xs font-bold text-[var(--text-main)]">{config.trebleLevel || 0} dB</span>
+                                </div>
+                                <input 
+                                    type="range" min="-10" max="15" step="1" 
+                                    value={config.trebleLevel || 0}
+                                    onChange={(e) => onUpdate({ trebleLevel: parseFloat(e.target.value) })}
                                     className="w-full h-1.5 bg-[var(--glass-border)] rounded-full appearance-none outline-none [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-4 [&::-webkit-slider-thumb]:h-4 [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-[var(--text-main)] [&::-webkit-slider-thumb]:cursor-pointer"
                                 />
                             </div>

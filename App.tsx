@@ -35,8 +35,7 @@ const DEFAULT_THEME: ThemeConfig = {
   themeMode: 'system',
   animateBackground: true,
   speedUpRate: 1.25,
-  slowedRate: 0.85,
-  pulseToBeat: false
+  slowedRate: 0.85
 };
 
 const DEFAULT_PROFILE: UserProfile = {
@@ -81,6 +80,10 @@ const App: React.FC = () => {
   const audioContextRef = useRef<AudioContext | null>(null);
   const sourceNodeRef = useRef<MediaElementAudioSourceNode | null>(null);
   const eqBandsRef = useRef<BiquadFilterNode[]>([]);
+  const reverbNodeRef = useRef<ConvolverNode | null>(null);
+  const reverbGainNodeRef = useRef<GainNode | null>(null);
+  const bassNodeRef = useRef<BiquadFilterNode | null>(null);
+  const trebleNodeRef = useRef<BiquadFilterNode | null>(null);
   const [analyser, setAnalyser] = useState<AnalyserNode | null>(null);
   const analyserRef = useRef<AnalyserNode | null>(null);
   
@@ -192,14 +195,61 @@ const App: React.FC = () => {
       analyserRef.current = analyserNode;
       setAnalyser(analyserNode);
 
-      // Connect source -> bands -> analyser -> destination
+      // Bass and Treble nodes
+      const bassNode = ctx.createBiquadFilter();
+      bassNode.type = 'lowshelf';
+      bassNode.frequency.value = 200;
+      bassNode.gain.value = theme.bassLevel || 0;
+      bassNodeRef.current = bassNode;
+
+      const trebleNode = ctx.createBiquadFilter();
+      trebleNode.type = 'highshelf';
+      trebleNode.frequency.value = 3000;
+      trebleNode.gain.value = theme.trebleLevel || 0;
+      trebleNodeRef.current = trebleNode;
+
+      // Reverb nodes
+      const convolver = ctx.createConvolver();
+      const reverbGain = ctx.createGain();
+      const dryGain = ctx.createGain();
+      
+      // Generate simple impulse response
+      const rate = ctx.sampleRate;
+      const length = rate * 2; // 2 seconds
+      const impulse = ctx.createBuffer(2, length, rate);
+      const left = impulse.getChannelData(0);
+      const right = impulse.getChannelData(1);
+      for (let i = 0; i < length; i++) {
+        const decay = Math.exp(-i / (rate * 0.5)); // Decay factor
+        left[i] = (Math.random() * 2 - 1) * decay;
+        right[i] = (Math.random() * 2 - 1) * decay;
+      }
+      convolver.buffer = impulse;
+      
+      reverbGain.gain.value = theme.reverbLevel || 0;
+      dryGain.gain.value = 1; // Keep dry signal
+      
+      reverbNodeRef.current = convolver;
+      reverbGainNodeRef.current = reverbGain;
+
+      // Connect source -> bands -> bass -> treble -> analyser
       let currentConnection: AudioNode = source;
       bands.forEach(band => {
         currentConnection.connect(band);
         currentConnection = band;
       });
-      currentConnection.connect(analyserNode);
-      analyserNode.connect(ctx.destination);
+      currentConnection.connect(bassNode);
+      bassNode.connect(trebleNode);
+      trebleNode.connect(analyserNode);
+      
+      // Split analyser to dry and wet (reverb)
+      analyserNode.connect(dryGain);
+      analyserNode.connect(convolver);
+      convolver.connect(reverbGain);
+      
+      // Connect both to destination
+      dryGain.connect(ctx.destination);
+      reverbGain.connect(ctx.destination);
       
       // Apply saved EQ
       if (theme.eqBands) {
@@ -221,6 +271,18 @@ const App: React.FC = () => {
       });
     }
   }, [theme.eqBands]);
+
+  useEffect(() => {
+    if (reverbGainNodeRef.current) {
+        reverbGainNodeRef.current.gain.value = theme.reverbLevel || 0;
+    }
+    if (bassNodeRef.current) {
+        bassNodeRef.current.gain.value = theme.bassLevel || 0;
+    }
+    if (trebleNodeRef.current) {
+        trebleNodeRef.current.gain.value = theme.trebleLevel || 0;
+    }
+  }, [theme.reverbLevel, theme.bassLevel, theme.trebleLevel]);
 
   useEffect(() => {
     const audio = audioRef.current;
@@ -394,10 +456,10 @@ const App: React.FC = () => {
     audio.src = src;
     audio.volume = targetVolume;
     
-    // Re-apply playback rate
-    const currentEffect = themeRef.current.globalAudioEffect && themeRef.current.globalAudioEffect !== 'none' 
+    // Reset local audio effect if global is none
+    let currentEffect = themeRef.current.globalAudioEffect && themeRef.current.globalAudioEffect !== 'none' 
         ? themeRef.current.globalAudioEffect 
-        : playerStateRef.current.audioEffect;
+        : 'normal';
         
     if (currentEffect === 'slowed') {
       audio.playbackRate = themeRef.current.slowedRate || 0.85;
@@ -413,10 +475,20 @@ const App: React.FC = () => {
         await audioContextRef.current.resume();
       }
       await audio.play();
-      setPlayerState(prev => ({ ...prev, currentTrack: track, playbackState: PlaybackState.PLAYING }));
+      setPlayerState(prev => ({ 
+          ...prev, 
+          currentTrack: track, 
+          playbackState: PlaybackState.PLAYING,
+          audioEffect: currentEffect === 'normal' ? 'normal' : prev.audioEffect // Reset local effect
+      }));
     } catch (err) { 
         console.error("Playback error:", err);
-        setPlayerState(prev => ({ ...prev, currentTrack: track, playbackState: PlaybackState.PAUSED }));
+        setPlayerState(prev => ({ 
+            ...prev, 
+            currentTrack: track, 
+            playbackState: PlaybackState.PAUSED,
+            audioEffect: currentEffect === 'normal' ? 'normal' : prev.audioEffect
+        }));
     }
 
     // Fetch lyrics if needed
@@ -589,6 +661,28 @@ const App: React.FC = () => {
 
   useEffect(() => {
     if (!isLoaded) return;
+    
+    const saveData = () => {
+        try {
+            const tracksToSave = tracks.map(t => ({ ...t, fileUrl: '' }));
+            if (isElectron()) {
+                const { ipcRenderer } = (window as any).require('electron');
+                // Use sendSync for synchronous save on close
+                ipcRenderer.sendSync('save-local-data-sync', { key: STORAGE_KEY, data: tracksToSave });
+                ipcRenderer.sendSync('save-local-data-sync', { key: THEME_KEY, data: theme });
+                ipcRenderer.sendSync('save-local-data-sync', { key: ARTIST_DATA_KEY, data: artistMetadata });
+                ipcRenderer.sendSync('save-local-data-sync', { key: USER_PROFILE_KEY, data: userProfile });
+                ipcRenderer.sendSync('save-local-data-sync', { key: PLAYLISTS_KEY, data: playlists });
+            } else {
+                localStorage.setItem(STORAGE_KEY, JSON.stringify(tracksToSave));
+                localStorage.setItem(THEME_KEY, JSON.stringify(theme));
+                localStorage.setItem(ARTIST_DATA_KEY, JSON.stringify(artistMetadata));
+                localStorage.setItem(USER_PROFILE_KEY, JSON.stringify(userProfile));
+                localStorage.setItem(PLAYLISTS_KEY, JSON.stringify(playlists));
+            }
+        } catch (e) { console.error("Save error:", e); }
+    };
+
     if (saveTimeoutRef.current) clearTimeout(saveTimeoutRef.current);
     saveTimeoutRef.current = setTimeout(async () => {
         try {
@@ -610,7 +704,10 @@ const App: React.FC = () => {
                 localStorage.setItem(PLAYLISTS_KEY, JSON.stringify(playlists));
             }
         } catch (e) { console.error("Save error:", e); }
-    }, 2000);
+    }, 500);
+
+    window.addEventListener('beforeunload', saveData);
+    return () => window.removeEventListener('beforeunload', saveData);
   }, [tracks, theme, artistMetadata, userProfile, playlists, isLoaded]);
 
   useEffect(() => {
@@ -814,14 +911,22 @@ const App: React.FC = () => {
   const getAudioDuration = (file: File): Promise<number> => {
     return new Promise((resolve) => {
       const audio = new Audio();
-      const objectUrl = URL.createObjectURL(file);
       audio.preload = 'metadata';
+      const objectUrl = URL.createObjectURL(file);
       
+      let timeoutId: any;
+
       const cleanup = () => {
+        clearTimeout(timeoutId);
         URL.revokeObjectURL(objectUrl);
         audio.removeAttribute('src');
         audio.load();
       };
+
+      timeoutId = setTimeout(() => {
+        resolve(0);
+        cleanup();
+      }, 1500); // 1.5 second timeout
 
       audio.addEventListener('loadedmetadata', () => {
         resolve(audio.duration);
@@ -837,35 +942,50 @@ const App: React.FC = () => {
 
   const handleFileSelect = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const files = event.target.files; if (!files) return;
-    const newTracks: Track[] = [];
     
-    // Process files sequentially to avoid memory/audio context limits
-    for (const file of Array.from(files)) {
+    let batch: Track[] = [];
+    const isElectron = () => (window as any).require && (window as any).require('electron');
+    const filesArray = Array.from(files);
+
+    for (let i = 0; i < filesArray.length; i++) {
+        const file = filesArray[i];
         const isAudioType = file.type.startsWith('audio/');
         const isAudioExt = /\.(mp3|wav|flac|m4a|ogg|aac)$/i.test(file.name);
         if (!isAudioType && !isAudioExt) continue;
         
         try {
             const metadata = await parseFileMetadata(file);
-            
-            const isElectron = () => (window as any).require && (window as any).require('electron');
             const filePath = (file as any).path;
-            let fileUrl = URL.createObjectURL(file);
+            
+            let fileUrl = '';
+            if (isElectron() && filePath) {
+                const safePath = filePath.replace(/\\/g, '/');
+                const encodedPath = safePath.split('/').map((s: string) => encodeURIComponent(s)).join('/').replace(/%3A/g, ':');
+                fileUrl = `file://${safePath.startsWith('/') ? '' : '/'}${encodedPath}`;
+            } else {
+                fileUrl = URL.createObjectURL(file);
+            }
             
             const duration = await getAudioDuration(file);
 
-            newTracks.push({
+            batch.push({
               id: Math.random().toString(36).substr(2, 9), title: metadata.title || file.name.replace(/\.[^/.]+$/, ""),
               artist: metadata.artist || "", album: metadata.album || "", albumArtist: metadata.albumArtist || "",
               duration: duration || 0, coverUrl: metadata.coverUrl || generateMockCover(file.name),
               fileUrl: fileUrl, path: filePath, isLiked: false, 
               year: metadata.year || new Date().getFullYear().toString(), source: 'local', addedAt: Date.now()
             });
+
+            // Update state in batches of 10 or at the end
+            if (batch.length >= 10 || i === filesArray.length - 1) {
+                const currentBatch = [...batch];
+                setTracks(prev => sortTracks([...prev, ...currentBatch]));
+                batch = [];
+            }
         } catch (e) {
             console.error("Error processing file:", file.name, e);
         }
     }
-    setTracks(prev => sortTracks([...prev, ...newTracks]));
   };
 
   return (
@@ -969,7 +1089,7 @@ const App: React.FC = () => {
             enableGlass={theme.enableGlass}
             audioEffect={theme.globalAudioEffect && theme.globalAudioEffect !== 'none' ? theme.globalAudioEffect : playerState.audioEffect} 
             onToggleAudioEffect={toggleAudioEffect}
-            analyser={analyser} pulseToBeat={theme.pulseToBeat}
+            analyser={analyser}
         />
       )}
       <SettingsModal 

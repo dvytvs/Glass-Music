@@ -26,7 +26,10 @@ export const parseFileMetadata = async (file: File): Promise<{ title?: string, a
   if (isElectron() && (file as any).path) {
     try {
       const { ipcRenderer } = (window as any).require('electron');
-      const tags = await ipcRenderer.invoke('read-id3-tags', (file as any).path);
+      const tags = await Promise.race([
+        ipcRenderer.invoke('read-id3-tags', (file as any).path),
+        new Promise((_, reject) => setTimeout(() => reject(new Error('IPC timeout')), 1500))
+      ]);
       if (tags) {
         return {
           title: tags.title,
@@ -49,9 +52,14 @@ export const parseFileMetadata = async (file: File): Promise<{ title?: string, a
        return;
     }
 
+    let timeoutId = setTimeout(() => {
+      resolve({});
+    }, 1500);
+
     try {
       jsmediatags.read(file, {
         onSuccess: (tag: any) => {
+          clearTimeout(timeoutId);
           const tags = tag.tags;
           let coverUrl = undefined;
 
@@ -72,10 +80,12 @@ export const parseFileMetadata = async (file: File): Promise<{ title?: string, a
           });
         },
         onError: (error: any) => {
+          clearTimeout(timeoutId);
           resolve({});
         }
       });
     } catch (e) {
+      clearTimeout(timeoutId);
       console.error("jsmediatags sync error:", e);
       resolve({});
     }

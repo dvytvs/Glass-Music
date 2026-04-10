@@ -77,7 +77,9 @@ export interface ThemeConfig {
   speedUpRate?: number;
   slowedRate?: number;
   globalAudioEffect?: 'none' | 'slowed' | 'spedup';
-  pulseToBeat?: boolean;
+  reverbLevel?: number;
+  bassLevel?: number;
+  trebleLevel?: number;
 }
 
 export interface ArtistMetadata {
