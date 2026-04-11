@@ -609,6 +609,31 @@ const App: React.FC = () => {
   }, [playTrackInternal]);
 
   useEffect(() => {
+    if (isElectron()) {
+      const { ipcRenderer } = (window as any).require('electron');
+      
+      const onPlayPause = () => {
+        const currentTrack = playerStateRef.current.currentTrack;
+        if (currentTrack) {
+          handlePlay(currentTrack);
+        }
+      };
+      const onNext = () => handleNext(false);
+      const onPrev = () => handlePrev();
+
+      ipcRenderer.on('media-play-pause', onPlayPause);
+      ipcRenderer.on('media-next-track', onNext);
+      ipcRenderer.on('media-previous-track', onPrev);
+
+      return () => {
+        ipcRenderer.removeListener('media-play-pause', onPlayPause);
+        ipcRenderer.removeListener('media-next-track', onNext);
+        ipcRenderer.removeListener('media-previous-track', onPrev);
+      };
+    }
+  }, [handlePlay, handleNext, handlePrev]);
+
+  useEffect(() => {
     const audio = audioRef.current;
     
     const onEnded = () => {

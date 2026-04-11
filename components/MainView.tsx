@@ -61,6 +61,7 @@ const MainView: React.FC<MainViewProps> = ({
   const [showAllPopularTracks, setShowAllPopularTracks] = useState(false);
   const [showAllAlbums, setShowAllAlbums] = useState(false);
   const [sortOption, setSortOption] = useState<'default' | 'title_asc' | 'title_desc' | 'date_desc' | 'date_asc' | 'duration_desc' | 'duration_asc'>('default');
+  const [sortDropdownOpen, setSortDropdownOpen] = useState(false);
 
   const handleTranslateBio = async (text: string) => {
     if (isTranslatingBio) return;
@@ -1245,22 +1246,55 @@ const MainView: React.FC<MainViewProps> = ({
                 <div><h1 className="text-5xl md:text-6xl font-black text-[var(--text-main)] tracking-tighter">{getTitle()}</h1></div>
                 {currentView === 'songs' && (
                   <div className="relative">
-                    <select
-                      value={sortOption}
-                      onChange={(e) => setSortOption(e.target.value as any)}
-                      className="appearance-none bg-[var(--card-bg)] border border-[var(--glass-border)] text-[var(--text-main)] text-sm font-bold py-2 pl-4 pr-10 rounded-full focus:outline-none focus:ring-2 focus:ring-[var(--accent-color)] cursor-pointer"
+                    <button
+                      onClick={() => setSortDropdownOpen(!sortDropdownOpen)}
+                      className="flex items-center gap-2 bg-[var(--card-bg)] border border-[var(--glass-border)] text-[var(--text-main)] text-sm font-bold py-2 pl-4 pr-3 rounded-full focus:outline-none focus:ring-2 focus:ring-[var(--accent-color)] cursor-pointer"
                     >
-                      <option value="default">{t('sort_default') || 'По умолчанию'}</option>
-                      <option value="title_asc">{t('sort_title_asc') || 'По названию (А-Я)'}</option>
-                      <option value="title_desc">{t('sort_title_desc') || 'По названию (Я-А)'}</option>
-                      <option value="date_desc">{t('sort_date_desc') || 'Сначала новые'}</option>
-                      <option value="date_asc">{t('sort_date_asc') || 'Сначала старые'}</option>
-                      <option value="duration_desc">{t('sort_duration_desc') || 'Сначала длинные'}</option>
-                      <option value="duration_asc">{t('sort_duration_asc') || 'Сначала короткие'}</option>
-                    </select>
-                    <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-3 text-[var(--text-muted)]">
-                      <ChevronDown className="w-4 h-4" />
-                    </div>
+                      {sortOption === 'default' && (t('sort_default') || 'По умолчанию')}
+                      {sortOption === 'title_asc' && (t('sort_title_asc') || 'По названию (А-Я)')}
+                      {sortOption === 'title_desc' && (t('sort_title_desc') || 'По названию (Я-А)')}
+                      {sortOption === 'date_desc' && (t('sort_date_desc') || 'Сначала новые')}
+                      {sortOption === 'date_asc' && (t('sort_date_asc') || 'Сначала старые')}
+                      {sortOption === 'duration_desc' && (t('sort_duration_desc') || 'Сначала длинные')}
+                      {sortOption === 'duration_asc' && (t('sort_duration_asc') || 'Сначала короткие')}
+                      <ChevronDown className="w-4 h-4 text-[var(--text-muted)]" />
+                    </button>
+                    
+                    <AnimatePresence>
+                      {sortDropdownOpen && (
+                        <>
+                          <div className="fixed inset-0 z-40" onClick={() => setSortDropdownOpen(false)} />
+                          <motion.div
+                            initial={{ opacity: 0, y: -10, scale: 0.95 }}
+                            animate={{ opacity: 1, y: 0, scale: 1 }}
+                            exit={{ opacity: 0, y: -10, scale: 0.95 }}
+                            transition={{ duration: 0.15 }}
+                            className="absolute right-0 mt-2 w-48 bg-[var(--card-bg)] border border-[var(--glass-border)] rounded-xl shadow-2xl overflow-hidden z-50 backdrop-blur-xl"
+                          >
+                            {[
+                              { value: 'default', label: t('sort_default') || 'По умолчанию' },
+                              { value: 'title_asc', label: t('sort_title_asc') || 'По названию (А-Я)' },
+                              { value: 'title_desc', label: t('sort_title_desc') || 'По названию (Я-А)' },
+                              { value: 'date_desc', label: t('sort_date_desc') || 'Сначала новые' },
+                              { value: 'date_asc', label: t('sort_date_asc') || 'Сначала старые' },
+                              { value: 'duration_desc', label: t('sort_duration_desc') || 'Сначала длинные' },
+                              { value: 'duration_asc', label: t('sort_duration_asc') || 'Сначала короткие' }
+                            ].map((opt) => (
+                              <button
+                                key={opt.value}
+                                onClick={() => {
+                                  setSortOption(opt.value as any);
+                                  setSortDropdownOpen(false);
+                                }}
+                                className={`w-full text-left px-4 py-2 text-sm font-medium transition-colors ${sortOption === opt.value ? 'bg-[var(--accent-color)] text-white' : 'text-[var(--text-main)] hover:bg-[var(--bg-main-transparent)]'}`}
+                              >
+                                {opt.label}
+                              </button>
+                            ))}
+                          </motion.div>
+                        </>
+                      )}
+                    </AnimatePresence>
                   </div>
                 )}
             </div>

@@ -1,7 +1,10 @@
-const { app, BrowserWindow, ipcMain, nativeTheme, Tray, Menu } = require('electron');
+const { app, BrowserWindow, ipcMain, nativeTheme, Tray, Menu, globalShortcut } = require('electron');
 const path = require('path');
 const fs = require('fs');
 const NodeID3 = require('node-id3');
+
+// Disable Chromium's MPRIS / Media Session integration to prevent playbackRate from syncing to the OS
+app.commandLine.appendSwitch('disable-features', 'MediaSessionService,HardwareMediaKeyHandling');
 
 let mainWindow;
 let tray;
@@ -362,6 +365,23 @@ ipcMain.handle('write-id3-tags', async (e, { filePath, tags }) => {
 });
 
     app.on('before-quit', () => { app.isQuitting = true; });
-    app.whenReady().then(createWindow);
+    app.whenReady().then(() => {
+        createWindow();
+        
+        globalShortcut.register('MediaPlayPause', () => {
+            if (mainWindow) mainWindow.webContents.send('media-play-pause');
+        });
+        globalShortcut.register('MediaNextTrack', () => {
+            if (mainWindow) mainWindow.webContents.send('media-next-track');
+        });
+        globalShortcut.register('MediaPreviousTrack', () => {
+            if (mainWindow) mainWindow.webContents.send('media-previous-track');
+        });
+    });
+    
+    app.on('will-quit', () => {
+        globalShortcut.unregisterAll();
+    });
+    
     app.on('window-all-closed', () => { if (process.platform !== 'darwin') app.quit(); });
 }
