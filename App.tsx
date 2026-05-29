@@ -1014,7 +1014,7 @@ const App: React.FC = () => {
   };
 
   return (
-    <div className="relative w-full h-[100dvh] flex flex-col overflow-hidden bg-[var(--bg-main)] text-[var(--text-main)] selection:text-[var(--text-main)]">
+    <div className="relative w-full h-screen flex flex-col overflow-hidden bg-[var(--bg-main)] text-[var(--text-main)] selection:text-[var(--text-main)]">
       {theme.seasonalTheme && <SnowEffect />}
       <Background config={theme} isLight={getEffectiveTheme() === 'light'} analyser={analyser} isPlaying={playerState.playbackState === PlaybackState.PLAYING} profileBannerUrl={userProfile.bannerUrl} />
       <Visualizer analyser={analyser} isPlaying={playerState.playbackState === PlaybackState.PLAYING} accentColor={theme.accentColor} enabled={theme.animateBackground} />
@@ -1023,7 +1023,8 @@ const App: React.FC = () => {
         <OnboardingModal onComplete={handleOnboardingComplete} accentColor={theme.accentColor} t={t} />
       )}
 
-      <div className="flex-1 flex overflow-hidden relative z-10 p-2 md:p-4 gap-2 md:gap-4">
+      <div className="flex-1 flex overflow-hidden relative z-10 p-2 md:p-4 gap-2 md:gap-4" 
+           style={{ paddingBottom: theme.playerStyle === 'classic' ? '90px' : '130px' }}>
         <Sidebar 
           onImportClick={() => fileInputRef.current?.click()} 
           onYouTubeImportClick={() => setIsYouTubeModalOpen(true)}
