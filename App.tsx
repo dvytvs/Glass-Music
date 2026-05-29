@@ -31,7 +31,7 @@ const DEFAULT_THEME: ThemeConfig = {
   brightness: 0.4,
   enableGlass: true, 
   seasonalTheme: false, 
-  playerStyle: 'floating',
+  playerStyle: 'split',
   themeMode: 'system',
   animateBackground: true,
   speedUpRate: 1.25,
@@ -1023,7 +1023,7 @@ const App: React.FC = () => {
         <OnboardingModal onComplete={handleOnboardingComplete} accentColor={theme.accentColor} t={t} />
       )}
 
-      <div className="flex-1 flex overflow-hidden relative z-10">
+      <div className="flex-1 flex overflow-hidden relative z-10 p-2 md:p-4 gap-2 md:gap-4">
         <Sidebar 
           onImportClick={() => fileInputRef.current?.click()} 
           onYouTubeImportClick={() => setIsYouTubeModalOpen(true)}
@@ -1045,7 +1045,7 @@ const App: React.FC = () => {
           }}
           onCreatePlaylist={() => setIsCreatePlaylistOpen(true)}
         />
-        <div className={`flex-1 flex flex-col relative z-10 ${theme.enableGlass ? 'bg-black/40 backdrop-blur-3xl border-l border-white/5' : 'bg-[var(--panel-bg)] border-l border-[var(--glass-border)]'} rounded-tl-[2.5rem] overflow-hidden shadow-2xl transition-all duration-500 ease-[cubic-bezier(0.32,0.72,0,1)] ${!sidebarOpen ? 'ml-0 rounded-tl-none border-l-0' : 'ml-2'}`}>
+        <div className={`flex-1 flex flex-col relative z-20 ${theme.enableGlass ? 'bg-black/40 backdrop-blur-[60px] border border-white/10' : 'bg-[var(--panel-bg)] border border-[var(--glass-border)]'} rounded-[2rem] md:rounded-[3rem] overflow-hidden shadow-2xl transition-all duration-700 ease-[cubic-bezier(0.32,0.72,0,1)]`}>
           <MainView 
             tracks={tracks} currentTrack={playerState.currentTrack} playbackState={playerState.playbackState}
             onPlay={handlePlay} onShuffleAll={(q) => { setPlayerState(prev => ({ ...prev, isShuffled: true, queue: q })); if (q[0]) handlePlay(q[0], q); }}
@@ -1070,8 +1070,7 @@ const App: React.FC = () => {
             onUpdateProfile={handleUpdateProfile}
             playerStyle={theme.playerStyle}
           />
-          {theme.playerStyle === 'floating' && (
-            <PlayerControls 
+          <PlayerControls 
               currentTrack={playerState.currentTrack} playbackState={playerState.playbackState}
               onPlayPause={() => playerState.currentTrack ? handlePlay(playerState.currentTrack) : null}
               onNext={() => handleNext(false)} onPrev={handlePrev} currentTime={playerState.currentTime} duration={playerState.duration}
@@ -1084,22 +1083,6 @@ const App: React.FC = () => {
               audioEffect={theme.globalAudioEffect && theme.globalAudioEffect !== 'none' ? theme.globalAudioEffect : playerState.audioEffect} 
               onToggleAudioEffect={toggleAudioEffect}
             />
-          )}
-          {theme.playerStyle === 'classic' && (
-            <PlayerControls 
-              currentTrack={playerState.currentTrack} playbackState={playerState.playbackState}
-              onPlayPause={() => playerState.currentTrack ? handlePlay(playerState.currentTrack) : null}
-              onNext={() => handleNext(false)} onPrev={handlePrev} currentTime={playerState.currentTime} duration={playerState.duration}
-              onSeek={handleSeek} volume={playerState.volume} onVolumeChange={handleVolume} isShuffled={playerState.isShuffled}
-              isRepeating={playerState.isRepeating} onToggleRepeat={toggleRepeat}
-              onToggleShuffle={toggleShuffle} onToggleSidebar={() => setSidebarOpen(!sidebarOpen)}
-              onToggleFullScreen={() => setFullScreenMode('cover')} onOpenLyrics={() => setFullScreenMode('lyrics')}
-              onToggleLike={handleToggleLike} accentColor={theme.accentColor} onGoToArtist={handleGoToArtist}
-              onGoToAlbum={handleGoToAlbum} playerStyle={theme.playerStyle} enableGlass={theme.enableGlass} t={t}
-              audioEffect={theme.globalAudioEffect && theme.globalAudioEffect !== 'none' ? theme.globalAudioEffect : playerState.audioEffect} 
-              onToggleAudioEffect={toggleAudioEffect}
-            />
-          )}
         </div>
       </div>
       {fullScreenMode !== 'none' && playerState.currentTrack && (

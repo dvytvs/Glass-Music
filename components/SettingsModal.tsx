@@ -156,18 +156,24 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
                      <h3 className="text-xs font-bold text-[var(--text-muted)] uppercase tracking-wider mb-4 flex items-center gap-2">
                         <LayoutGrid className="w-4 h-4"/> {t('player_style')}
                      </h3>
-                     <div className="grid grid-cols-2 gap-3">
+                     <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
                          <button 
                             onClick={() => onUpdate({ playerStyle: 'floating' })}
                             className={`py-3 rounded-full text-sm font-bold transition-all border ${config.playerStyle === 'floating' ? 'bg-[var(--text-main)] text-[var(--bg-main)] border-[var(--text-main)] shadow-md' : 'bg-[var(--card-bg)] text-[var(--text-muted)] border-[var(--glass-border)] hover:bg-[var(--card-hover)] hover:text-[var(--text-main)]'}`}
                          >
-                             {t('player_style')} (Floating)
+                             Островок
                          </button>
                          <button 
                             onClick={() => onUpdate({ playerStyle: 'classic' })}
                             className={`py-3 rounded-full text-sm font-bold transition-all border ${config.playerStyle === 'classic' ? 'bg-[var(--text-main)] text-[var(--bg-main)] border-[var(--text-main)] shadow-md' : 'bg-[var(--card-bg)] text-[var(--text-muted)] border-[var(--glass-border)] hover:bg-[var(--card-hover)] hover:text-[var(--text-main)]'}`}
                          >
-                             {t('player_style')} (Classic)
+                             Классика
+                         </button>
+                         <button 
+                            onClick={() => onUpdate({ playerStyle: 'split' })}
+                            className={`py-3 rounded-full text-sm font-bold transition-all border md:col-span-1 col-span-2 ${config.playerStyle === 'split' ? 'bg-[var(--text-main)] text-[var(--bg-main)] border-[var(--text-main)] shadow-md' : 'bg-[var(--card-bg)] text-[var(--text-muted)] border-[var(--glass-border)] hover:bg-[var(--card-hover)] hover:text-[var(--text-main)]'}`}
+                         >
+                             Разделенный (Новый)
                          </button>
                      </div>
                 </section>

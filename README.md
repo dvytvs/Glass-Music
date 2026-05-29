@@ -6,7 +6,7 @@
 <h1 align="center">Glass Music</h1>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/Platform-GNU/Linux-orange?style=for-the-badge&logo=linux" />
+  <img src="https://img.shields.io/badge/Platform-Linux%20|%20Windows%20|%20macOS-orange?style=for-the-badge" />
   <img src="https://img.shields.io/badge/UI-Liquid%20Glass-blue?style=for-the-badge" />
   <img src="https://img.shields.io/badge/Privacy-Local--First-green?style=for-the-badge" />
 </p>
@@ -19,7 +19,15 @@
 
 ## RU: О проекте
 
-**Glass Music** — это не просто плеер, это визуальный манифест для пользователей GNU/Linux. Мы объединили эстетику будущего (MacOS 26.2 Concept) с мощными инструментами управления локальной медиатекой. 
+**Glass Music** — это не просто плеер, это визуальный эксперимент. Мы объединили эстетику будущего (MacOS 26.2 Concept) с мощными инструментами управления локальной медиатекой. Плеер доступен для **Linux**, **Windows** и **macOS**.
+
+> **⚠️ Важно для пользователей macOS:** \
+> Так как приложение собирается энтузиастами и не имеет платной подписи разработчика Apple ($99/год), встроенная защита (Gatekeeper) может заблокировать запуск или выдать ошибку "Приложение повреждено". 
+> Чтобы открыть плеер: 
+> 1. Кликните по приложению **правой кнопкой мыши** (или `Control` + клик).
+> 2. В контекстном меню выберите **«Открыть»**.
+> 3. В появившемся окне снова нажмите **«Открыть»**.
+> Либо перейдите в *Системные настройки -> Конфиденциальность и безопасность* и разрешите запуск приложения.
 
 ### 💎 Liquid Glass Engine
 Наша гордость — движок интерфейса, использующий глубокое многослойное размытие (24px+), динамическую сатурацию (180%) и аппаратное ускорение GPU. Интерфейс ощущается живым и "глубоким", подстраиваясь под обложку текущего трека.
@@ -63,7 +71,15 @@
 
 ## EN: About the Project
 
-**Glass Music** is more than just a player; it's a visual manifesto for GNU/Linux users. We've combined futuristic aesthetics (MacOS 26.2 Concept) with powerful local media management tools.
+**Glass Music** is more than just a player; it's a visual experiment. We've combined futuristic aesthetics (MacOS 26.2 Concept) with powerful local media management tools. The player is available on **Linux**, **Windows**, and **macOS**.
+
+> **⚠️ Note for macOS users:** \
+> Because the app is not signed with a paid Apple Developer account ($99/year), Gatekeeper may warn that the app is "damaged" or block it from opening.
+> To run the app:
+> 1. **Right-click** (or `Control`-click) the application.
+> 2. Choose **"Open"** from the context menu.
+> 3. Click **"Open"** again in the dialog.
+> Alternatively, go to *System Settings -> Privacy & Security* and allow the app to launch.
 
 ### 💎 Liquid Glass Engine
 Our pride is the UI engine featuring deep multi-layered blurring (24px+), dynamic saturation (180%), and GPU hardware acceleration. The interface feels alive and "deep," adapting to the current track's artwork.
@@ -89,5 +105,5 @@ We believe your music tastes are your private business.
 ---
 
 <p align="center">
-  <i>Designed with ❤️ for the Linux Community. Keep your music local, keep your UI beautiful.</i>
+  <i>Designed with ❤️. Keep your music local, keep your UI beautiful.</i>
 </p>

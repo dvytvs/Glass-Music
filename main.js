@@ -120,7 +120,7 @@ ipcMain.handle('save-local-data', async (e, { key, data }) => {
             fs.mkdirSync(userDataPath, { recursive: true });
         }
         const filePath = path.join(userDataPath, `${key}.json`);
-        const tempPath = path.join(userDataPath, `${key}.json.tmp`);
+        const tempPath = path.join(userDataPath, `${key}_${Date.now()}_${Math.random().toString(36).slice(2)}.json.tmp`);
         await fs.promises.writeFile(tempPath, JSON.stringify(data));
         await fs.promises.rename(tempPath, filePath);
         return { success: true };
@@ -136,7 +136,7 @@ ipcMain.on('save-local-data-sync', (e, { key, data }) => {
             fs.mkdirSync(userDataPath, { recursive: true });
         }
         const filePath = path.join(userDataPath, `${key}.json`);
-        const tempPath = path.join(userDataPath, `${key}.json.tmp`);
+        const tempPath = path.join(userDataPath, `${key}_${Date.now()}_${Math.random().toString(36).slice(2)}.json.tmp`);
         fs.writeFileSync(tempPath, JSON.stringify(data));
         fs.renameSync(tempPath, filePath);
         e.returnValue = { success: true };
@@ -274,6 +274,34 @@ ipcMain.handle('get-artist-metadata', async (e, artistName) => {
     } catch (err) { console.error("Last.fm error:", err); }
 
     return (result.avatar || result.bio) ? result : null;
+});
+
+ipcMain.handle('save-custom-image', async (e, { folder, filename, base64Data }) => {
+    try {
+        const destDir = path.join(userDataPath, folder);
+        if (!fs.existsSync(destDir)) {
+            fs.mkdirSync(destDir, { recursive: true });
+        }
+        const filePath = path.join(destDir, filename);
+        
+        let buffer;
+        if (base64Data.startsWith('data:image')) {
+            const b64 = base64Data.split(';base64,').pop();
+            buffer = Buffer.from(b64, 'base64');
+        } else if (base64Data.startsWith('http')) {
+            const res = await fetch(base64Data);
+            const arrayBuffer = await res.arrayBuffer();
+            buffer = Buffer.from(arrayBuffer);
+        } else {
+            buffer = Buffer.from(base64Data, 'base64');
+        }
+        
+        fs.writeFileSync(filePath, buffer);
+        return { success: true, url: `file://${filePath.replace(/\\/g, '/')}` };
+    } catch (err) {
+        console.error("Save custom image error:", err);
+        return { success: false, error: err.message };
+    }
 });
 
 ipcMain.handle('read-id3-tags', async (e, filePath) => {

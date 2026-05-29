@@ -70,7 +70,7 @@ export interface ThemeConfig {
   brightness: number;
   enableGlass: boolean;
   seasonalTheme: boolean;
-  playerStyle: 'floating' | 'classic';
+  playerStyle: 'floating' | 'classic' | 'split';
   themeMode: 'dark' | 'light' | 'system';
   animateBackground: boolean;
   eqBands?: number[];

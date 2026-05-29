@@ -42,7 +42,7 @@ interface MainViewProps {
   onOpenSelectTracks?: () => void;
   userProfile?: import('../types').UserProfile;
   onUpdateProfile?: (data: Partial<import('../types').UserProfile>) => void;
-  playerStyle?: 'floating' | 'classic';
+  playerStyle?: 'floating' | 'classic' | 'split';
 }
 
 const ARTIST_SPLIT_REGEX = /\s*(?:,|;|feat\.?|ft\.?|&|\/|featuring)\s+/i;
@@ -94,6 +94,7 @@ const MainView: React.FC<MainViewProps> = ({
   const [isRefreshingArtist, setIsRefreshingArtist] = useState(false);
   const scrollParentRef = useRef<HTMLDivElement>(null);
   const coverInputRef = useRef<HTMLInputElement>(null);
+  const lyricsInputRef = useRef<HTMLInputElement>(null);
   const artistAvatarInputRef = useRef<HTMLInputElement>(null);
   const artistBannerInputRef = useRef<HTMLInputElement>(null);
   const avatarInputRef = useRef<HTMLInputElement>(null);
@@ -129,10 +130,28 @@ const MainView: React.FC<MainViewProps> = ({
     }
   };
 
-  const handleSaveProfileEdit = () => {
+  const handleSaveProfileEdit = async () => {
     if (editingFile && onUpdateProfile) {
+      let finalUrl = editingFile.url;
       const field = editingFile.type === 'avatar' ? 'avatarUrl' : 'bannerUrl';
-      onUpdateProfile({ [field]: editingFile.url });
+      if (typeof window !== 'undefined' && (window as any).require && editingFile.url.startsWith('data:image')) {
+          try {
+              const { ipcRenderer } = (window as any).require('electron');
+              let ext = 'png';
+              if (editingFile.fileType) {
+                  ext = editingFile.fileType.split('/')[1] || 'png';
+              }
+              const res = await ipcRenderer.invoke('save-custom-image', {
+                  folder: 'custom-images/user',
+                  filename: `user_${editingFile.type}_${Date.now()}.${ext}`,
+                  base64Data: editingFile.url
+              });
+              if (res.success) {
+                  finalUrl = res.url;
+              }
+          } catch (err) { console.error("Failed to save user image via IPC", err); }
+      }
+      onUpdateProfile({ [field]: finalUrl });
       setEditingFile(null);
     }
   };
@@ -171,6 +190,22 @@ const MainView: React.FC<MainViewProps> = ({
     const file = e.target.files?.[0];
     if (file && selectedArtist && onUpdateArtist) {
         const url = await fileToDataURL(file);
+        if (typeof window !== 'undefined' && (window as any).require) {
+            try {
+                const { ipcRenderer } = (window as any).require('electron');
+                const safeName = selectedArtist.replace(/[/\\?%*:|"<>]/g, '_');
+                const ext = file.name.split('.').pop() || 'png';
+                const res = await ipcRenderer.invoke('save-custom-image', {
+                    folder: 'custom-images/artists',
+                    filename: `${safeName}_${type}_${Date.now()}.${ext}`,
+                    base64Data: url
+                });
+                if (res.success) {
+                    onUpdateArtist(selectedArtist, { [type]: res.url }, true);
+                    return;
+                }
+            } catch (err) { console.error("Failed to save artist asset via IPC", err); }
+        }
         onUpdateArtist(selectedArtist, { [type]: url }, true);
     }
   };
@@ -414,73 +449,108 @@ const MainView: React.FC<MainViewProps> = ({
         if (hour >= 5 && hour < 12) greeting = t('good_morning');
         else if (hour >= 12 && hour < 18) greeting = t('good_afternoon');
 
-        return (
-          <div className="space-y-12 animate-fade-in px-4 pb-12">
-            <h1 className="text-4xl font-black text-[var(--text-main)] tracking-tight mb-8">
-              {greeting}
-            </h1>
+        const topTrack = favoriteTracks[0] || recentlyAdded[0];
 
-            {/* Favorite Tracks Grid (Spotify-like top section) */}
-            {favoriteTracks.length > 0 && (
-              <section className="mb-12">
-                <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
-                  {favoriteTracks.slice(0, 8).map((track) => {
-                    const isActive = currentTrack?.id === track.id;
-                    return (
-                      <div 
-                        key={track.id} 
-                        onClick={() => onPlay(track, favoriteTracks)}
-                        className={`group cursor-pointer flex items-center bg-[var(--card-bg)] hover:bg-[var(--card-hover)] rounded-full overflow-hidden transition-all shadow-sm hover:shadow-md border border-[var(--glass-border)] ${isActive ? 'bg-[var(--card-hover)] border-[var(--text-main)]/30' : ''}`}
-                      >
-                        <div className="w-16 h-16 shrink-0 relative rounded-full m-2 overflow-hidden shadow-sm">
-                          {track.coverUrl ? (
-                            <img src={track.coverUrl} className="w-full h-full object-cover" />
-                          ) : (
-                            <div className="w-full h-full bg-[var(--glass-border)] flex items-center justify-center">
-                              <Music className="w-6 h-6 text-[var(--text-muted)]" />
-                            </div>
-                          )}
-                          <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity">
-                            {isActive && playbackState === PlaybackState.PLAYING ? (
-                              <Pause className="w-6 h-6 text-white fill-current" />
-                            ) : (
-                              <Play className="w-6 h-6 text-white fill-current ml-1" />
-                            )}
-                          </div>
-                        </div>
-                        <div className="flex-1 min-w-0 px-4 py-2">
-                          <h3 className={`font-bold text-sm truncate ${isActive ? 'text-[var(--text-main)]' : 'text-[var(--text-main)]'}`}>
-                            {track.title}
-                          </h3>
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              </section>
+        return (
+          <div className="space-y-8 animate-fade-in px-4 pb-12">
+            <header className="mb-10">
+              <h1 className="text-5xl font-black text-[var(--text-main)] tracking-tighter mb-2">
+                {greeting}
+              </h1>
+              <p className="text-xl text-[var(--text-muted)] font-medium">Ready to dive in?</p>
+            </header>
+
+            {/* Bento Grid Header */}
+            {topTrack && (
+               <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-12">
+                 
+                 {/* Hero Card */}
+                 <div 
+                    onClick={() => onPlay(topTrack, tracks)}
+                    className="md:col-span-2 relative h-[300px] md:h-[400px] rounded-[3rem] overflow-hidden group cursor-pointer shadow-2xl border border-[var(--glass-border)]"
+                 >
+                    {topTrack.coverUrl ? (
+                      <img src={topTrack.coverUrl} className="absolute inset-0 w-full h-full object-cover transition-transform duration-[10s] group-hover:scale-110" />
+                    ) : (
+                      <div className="absolute inset-0 bg-gradient-to-br from-indigo-500 to-purple-800" />
+                    )}
+                    <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent" />
+                    
+                    <div className="absolute bottom-0 left-0 p-8 w-full flex items-end justify-between">
+                       <div className="flex-1 min-w-0 pr-4">
+                           <div className="uppercase tracking-widest text-xs font-bold text-white/70 mb-2">Featured Track</div>
+                           <h2 className="text-4xl md:text-5xl font-black text-white truncate mb-1 drop-shadow-lg">{topTrack.title}</h2>
+                           <p className="text-xl text-white/80 font-medium truncate drop-shadow">{topTrack.artist}</p>
+                       </div>
+                       <motion.button 
+                          whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}
+                          className="w-16 h-16 rounded-full bg-[var(--accent-color,white)] text-black flex items-center justify-center shadow-[0_10px_30px_rgba(0,0,0,0.5)] shrink-0"
+                          style={{ backgroundColor: accentColor !== '#ffffff' ? accentColor : 'white', color: accentColor !== '#ffffff' ? 'white' : 'black' }}
+                       >
+                          <Play className="w-8 h-8 fill-current ml-1" />
+                       </motion.button>
+                    </div>
+                 </div>
+
+                 {/* Side Cards */}
+                 <div className="flex flex-col gap-6 h-[300px] md:h-[400px]">
+                    {/* Quick Favorites Mini List */}
+                    <div className="flex-1 bg-[var(--card-bg)] rounded-[3rem] p-6 border border-[var(--glass-border)] shadow-xl overflow-hidden flex flex-col hover:bg-[var(--card-hover)] transition-colors">
+                       <h3 className="text-sm font-bold text-[var(--text-muted)] uppercase tracking-wider mb-4 flex items-center gap-2">
+                          <Heart className="w-4 h-4 fill-current text-pink-500" /> Top Liked
+                       </h3>
+                       <div className="flex-1 flex flex-col justify-around">
+                          {favoriteTracks.slice(0, 3).map((t, idx) => (
+                             <div key={t.id} onClick={() => onPlay(t, favoriteTracks)} className="flex items-center gap-3 cursor-pointer group">
+                                <div className="w-12 h-12 rounded-xl overflow-hidden shadow-md shrink-0">
+                                   {t.coverUrl ? <img src={t.coverUrl} className="w-full h-full object-cover group-hover:scale-110 transition-transform" /> : <div className="w-full h-full bg-white/10" />}
+                                </div>
+                                <div className="flex-1 min-w-0">
+                                   <div className="text-sm font-bold truncate text-[var(--text-main)] group-hover:text-[var(--accent-color,white)] transition-colors" style={{ color: currentTrack?.id === t.id ? accentColor : undefined }}>{t.title}</div>
+                                   <div className="text-xs text-[var(--text-muted)] truncate">{t.artist}</div>
+                                </div>
+                             </div>
+                          ))}
+                          {favoriteTracks.length === 0 && <div className="text-sm text-[var(--text-muted)] text-center my-auto">No favorites yet</div>}
+                       </div>
+                    </div>
+
+                    {/* Stats Card */}
+                    <div className="h-[120px] bg-[var(--card-bg)] rounded-[3rem] px-8 py-6 border border-[var(--glass-border)] shadow-xl relative overflow-hidden group">
+                       <div className="absolute -right-4 -bottom-4 opacity-5 group-hover:scale-110 transition-transform duration-500 group-hover:opacity-10">
+                          <Music className="w-32 h-32 text-[var(--text-main)]" />
+                       </div>
+                       <h3 className="text-sm font-bold text-[var(--text-muted)] uppercase tracking-wider mb-1">Library Size</h3>
+                       <div className="text-4xl font-black text-[var(--text-main)]">{tracks.length}</div>
+                       <div className="text-xs text-[var(--text-muted)] mt-1">Tracks available</div>
+                    </div>
+                 </div>
+               </div>
             )}
 
-            {/* Top Artists Section */}
+            {/* Top Artists Row */}
             {topArtists.length > 0 && (
-              <section>
-                <div className="flex items-center justify-between mb-6">
-                  <h2 className="text-2xl font-black text-[var(--text-main)] tracking-tight hover:underline cursor-pointer" onClick={() => onChangeView('artists')}>
-                    {t('artists')}
-                  </h2>
+              <section className="mb-12">
+                <div className="flex items-end justify-between mb-6 px-2">
+                  <div>
+                    <h2 className="text-2xl font-black text-[var(--text-main)] tracking-tight">Top Artists</h2>
+                    <p className="text-sm text-[var(--text-muted)]">Your most played artists</p>
+                  </div>
+                  <button onClick={() => onChangeView && onChangeView('artists')} className="text-sm font-bold hover:underline text-[var(--text-muted)] hover:text-[var(--text-main)]">See All</button>
                 </div>
-                <div className="grid grid-cols-2 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 gap-6">
-                  {topArtists.slice(0, 6).map((artist, i) => {
+                <div className="flex overflow-x-auto gap-6 pb-6 pt-2 px-2 snap-x hide-scrollbar" style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}>
+                  <style dangerouslySetInnerHTML={{__html: `
+                    .hide-scrollbar::-webkit-scrollbar { display: none; }
+                  `}} />
+                  {topArtists.map((artist, i) => {
                     const meta = artistMetadata[artist];
                     return (
-                      <div key={i} className="group cursor-pointer flex flex-col items-center text-center" onClick={() => onGoToArtist(artist)}>
-                        <div className="w-full aspect-square rounded-full overflow-hidden shadow-lg mb-4 relative border border-[var(--glass-border)] transition-all duration-300 group-hover:scale-105 group-hover:shadow-xl bg-[var(--card-bg)]">
-                          {meta?.avatar ? <img src={meta.avatar} className="w-full h-full object-cover" /> : <div className="w-full h-full flex items-center justify-center text-[var(--text-muted)]"><User className="w-1/3 h-1/3" /></div>}
-                          <div className="absolute inset-0 bg-black/20 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
-                            <Play className="w-10 h-10 text-white fill-current translate-y-2 group-hover:translate-y-0 transition-transform duration-300" />
-                          </div>
+                      <div key={i} className="group cursor-pointer flex flex-col items-center text-center shrink-0 w-[140px] snap-center" onClick={() => onGoToArtist(artist)}>
+                        <div className="w-32 h-32 rounded-full overflow-hidden shadow-lg mb-4 relative border-[4px] border-transparent group-hover:border-[var(--glass-border)] transition-all duration-300 bg-[var(--card-bg)]">
+                          {meta?.avatar ? <img src={meta.avatar} className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500" /> : <div className="w-full h-full flex items-center justify-center text-[var(--text-muted)]"><User className="w-10 h-10" /></div>}
                         </div>
-                        <h3 className="text-sm font-bold truncate text-[var(--text-main)] w-full">{artist}</h3>
-                        <p className="text-xs text-[var(--text-muted)] mt-1">{t('artist')}</p>
+                        <h3 className="text-[15px] font-bold truncate text-[var(--text-main)] w-full">{artist}</h3>
+                        <p className="text-[11px] uppercase tracking-widest text-[var(--text-muted)] mt-1 font-semibold">{t('artist')}</p>
                       </div>
                     );
                   })}
@@ -488,43 +558,47 @@ const MainView: React.FC<MainViewProps> = ({
               </section>
             )}
 
-            {/* Recently Added Section */}
+            {/* Fresh Drops (Recently Added) */}
             {recentlyAdded.length > 0 && (
               <section>
-                <div className="flex items-center justify-between mb-6">
-                  <h2 className="text-2xl font-black text-[var(--text-main)] tracking-tight hover:underline cursor-pointer" onClick={() => onChangeView('songs')}>
-                    {t('recently_added')}
-                  </h2>
+                <div className="flex items-end justify-between mb-6 px-2">
+                  <div>
+                    <h2 className="text-2xl font-black text-[var(--text-main)] tracking-tight">Fresh Drops</h2>
+                    <p className="text-sm text-[var(--text-muted)]">Recently added to your library</p>
+                  </div>
+                  <button onClick={() => onChangeView && onChangeView('songs')} className="text-sm font-bold hover:underline text-[var(--text-muted)] hover:text-[var(--text-main)]">See All</button>
                 </div>
                 <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-6">
-                  {recentlyAdded.slice(0, 6).map((track) => {
+                  {recentlyAdded.slice(0, 12).map((track) => {
                     const isActive = currentTrack?.id === track.id;
                     return (
                       <div 
                         key={track.id} 
                         onClick={() => onPlay(track, recentlyAdded)}
-                        className="group cursor-pointer bg-[var(--card-bg)] hover:bg-[var(--card-hover)] p-4 rounded-[2.5rem] transition-all border border-[var(--glass-border)] shadow-sm hover:shadow-md"
+                        className="group cursor-pointer"
                       >
-                        <div className="w-full aspect-square rounded-[2rem] overflow-hidden mb-4 relative shadow-md">
+                        <div className="w-full aspect-square rounded-[2rem] overflow-hidden mb-3 relative shadow-lg group-hover:shadow-2xl transition-all duration-300">
                           {track.coverUrl ? (
-                            <img src={track.coverUrl} className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105" />
+                            <img src={track.coverUrl} className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110" />
                           ) : (
-                            <div className="w-full h-full bg-[var(--glass-border)] flex items-center justify-center">
-                              <Music className="w-1/3 h-1/3 text-[var(--text-muted)]" />
+                            <div className="w-full h-full bg-[var(--card-bg)] flex items-center justify-center">
+                              <Music className="w-12 h-12 text-[var(--text-muted)]/30" />
                             </div>
                           )}
-                          <div className="absolute inset-0 bg-black/30 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity backdrop-blur-[2px]">
-                            {isActive && playbackState === PlaybackState.PLAYING ? (
-                              <Pause className="w-12 h-12 text-white fill-current drop-shadow-lg" />
-                            ) : (
-                              <Play className="w-12 h-12 text-white fill-current drop-shadow-lg translate-x-1" />
-                            )}
+                          <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-all duration-300 backdrop-blur-[2px]">
+                            <div className="w-12 h-12 rounded-full bg-white text-black flex items-center justify-center shadow-2xl translate-y-4 group-hover:translate-y-0 transition-transform duration-300">
+                              {isActive && playbackState === PlaybackState.PLAYING ? (
+                                <Pause className="w-6 h-6 fill-current" />
+                              ) : (
+                                <Play className="w-6 h-6 fill-current ml-1" />
+                              )}
+                            </div>
                           </div>
                         </div>
-                        <h3 className={`font-bold text-sm truncate mb-1 ${isActive ? 'text-[var(--text-main)]' : 'text-[var(--text-main)]'}`}>
+                        <h3 className={`font-bold text-[15px] truncate mb-0.5 transition-colors group-hover:text-[var(--text-main)] ${isActive ? '' : 'text-[var(--text-main)]/90'}`} style={{ color: isActive ? accentColor : undefined }}>
                           {track.title}
                         </h3>
-                        <p className="text-[xs] text-[var(--text-muted)] truncate hover:underline" onClick={(e) => { e.stopPropagation(); onGoToArtist(track.artist.split(ARTIST_SPLIT_REGEX)[0]); }}>
+                        <p className="text-[12px] text-[var(--text-muted)] truncate font-medium group-hover:text-[var(--text-main)]/60 transition-colors">
                           {track.artist}
                         </p>
                       </div>
@@ -1222,13 +1296,33 @@ const MainView: React.FC<MainViewProps> = ({
                                   </div>
                               </div>
                               <div className="space-y-1">
-                                  <label className="text-[10px] text-[var(--text-muted)] font-bold uppercase ml-2 flex items-center gap-1"><Quote className="w-3 h-3" /> {t('lyrics')}</label>
+                                  <div className="flex items-center justify-between ml-2">
+                                      <label className="text-[10px] text-[var(--text-muted)] font-bold uppercase flex items-center gap-1"><Quote className="w-3 h-3" /> {t('lyrics')}</label>
+                                      <button type="button" onClick={() => lyricsInputRef.current?.click()} className="text-[10px] text-[var(--accent-color)] hover:text-white font-bold uppercase flex items-center gap-1 transition-colors">
+                                          <Upload className="w-3 h-3" /> Загрузить из файла
+                                      </button>
+                                  </div>
                                   <textarea 
                                       value={editingTrack.lyrics || ""} 
                                       onChange={e => setEditingTrack({...editingTrack, lyrics: e.target.value})} 
                                       className="w-full glass-input rounded-xl px-4 py-3 h-48 resize-none font-medium text-sm leading-relaxed text-[var(--text-main)]" 
                                       placeholder={t('lyrics')}
                                   />
+                                  <input type="file" ref={lyricsInputRef} className="hidden" accept=".txt,.lrc" onChange={e => {
+                                      const file = e.target.files?.[0];
+                                      if (file) {
+                                          const reader = new FileReader();
+                                          reader.onload = (event) => {
+                                              const result = event.target?.result;
+                                              if (typeof result === 'string') {
+                                                  setEditingTrack({...editingTrack, lyrics: result});
+                                              }
+                                          };
+                                          reader.readAsText(file);
+                                      }
+                                      // Reset input so the same file can be uploaded again if needed
+                                      e.target.value = '';
+                                  }} />
                               </div>
                           </div>
                       </div>

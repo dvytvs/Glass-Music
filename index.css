@@ -1,5 +1,5 @@
 
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=Outfit:wght@300;400;500;600;700;800&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&family=Inter:wght@300;400;500;600;700;800&family=Outfit:wght@300;400;500;600;700;800&display=swap');
 
 @tailwind base;
 @tailwind components;
@@ -39,7 +39,7 @@ body {
   background-color: var(--bg-main);
   color: var(--text-main);
   @apply antialiased;
-  font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+  font-family: 'Space Grotesk', -apple-system, BlinkMacSystemFont, sans-serif;
   overflow: hidden;
   user-select: none;
   transition: background-color 0.5s ease, color 0.5s ease;
@@ -258,6 +258,37 @@ h1, h2, h3, .font-display {
 @keyframes spin {
   from { transform: rotate(0deg); }
   to { transform: rotate(360deg); }
+}
+
+@keyframes pulse-beat {
+  0% { transform: scale(1.0); }
+  40% { transform: scale(1.0); }
+  50% { transform: scale(1.03); }
+  60% { transform: scale(1.0); }
+  100% { transform: scale(1.0); }
+}
+
+.animate-pulse-beat {
+  animation: pulse-beat 1s ease-in-out infinite;
+}
+
+.one-ui-wave-mask {
+  mask-image: url("data:image/svg+xml,%3Csvg width='200' height='40' viewBox='0 0 200 40' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M 0 40 C 50 40, 50 0, 100 0 C 150 0, 150 40, 200 40 Z' fill='black'/%3E%3C/svg%3E");
+  -webkit-mask-image: url("data:image/svg+xml,%3Csvg width='200' height='40' viewBox='0 0 200 40' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M 0 40 C 50 40, 50 0, 100 0 C 150 0, 150 40, 200 40 Z' fill='black'/%3E%3C/svg%3E");
+  mask-repeat: repeat-x;
+  -webkit-mask-repeat: repeat-x;
+  mask-size: 200px 100%;
+  -webkit-mask-size: 200px 100%;
+  animation: one-ui-wave-move 2s linear infinite;
+}
+
+.pause-animation {
+  animation-play-state: paused !important;
+}
+
+@keyframes one-ui-wave-move {
+  from { mask-position: 0 0; -webkit-mask-position: 0 0; }
+  to { mask-position: -200px 0; -webkit-mask-position: -200px 0; }
 }
 
 .liquid-bg {

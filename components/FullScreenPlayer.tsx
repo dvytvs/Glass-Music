@@ -1,11 +1,11 @@
 
 import React, { useState, useEffect, useRef } from 'react';
-import { motion } from 'framer-motion';
+import { motion, AnimatePresence } from 'framer-motion';
 import { Track, PlaybackState } from '../types';
 import { 
   Play, Pause, SkipBack, SkipForward, Volume2, VolumeX,
   Shuffle, Repeat, Minimize2, Heart, MoreHorizontal, 
-  Quote, Rabbit, Turtle
+  Quote, Rabbit, Turtle, X
 } from './Icons';
 import { formatTime } from '../utils';
 import LyricsView from './LyricsView';
@@ -62,12 +62,12 @@ const FullScreenPlayer: React.FC<FullScreenPlayerProps> = ({
   const isPlaying = playbackState === PlaybackState.PLAYING;
   const progressPercent = duration ? (currentTime / duration) * 100 : 0;
   
-  const [showLyrics, setShowLyrics] = useState(initialMode === 'lyrics');
+  const [viewMode, setViewMode] = useState<'cover' | 'lyrics'>(initialMode);
   const [isClosing, setIsClosing] = useState(false);
   const prevVolumeRef = useRef<number>(1);
 
   useEffect(() => {
-     setShowLyrics(initialMode === 'lyrics');
+     setViewMode(initialMode === 'lyrics' ? 'lyrics' : 'cover');
   }, [initialMode]);
 
   const handleClose = () => {
@@ -91,211 +91,184 @@ const FullScreenPlayer: React.FC<FullScreenPlayerProps> = ({
 
   return (
     <div 
-      className={`fixed inset-0 z-[100] overflow-hidden flex flex-col ${isClosing ? 'animate-slide-down-full' : 'animate-slide-up-full'}`}
+      className={`fixed inset-0 z-[100] bg-[#050505] overflow-hidden flex flex-col md:flex-row ${isClosing ? 'animate-slide-down-full' : 'animate-slide-up-full'}`}
       onAnimationEnd={onAnimationEnd}
     >
-      {/* Background Layer */}
-      <div className={`absolute inset-0 bg-black/60 ${enableGlass ? 'backdrop-blur-[120px]' : ''} z-0`}></div>
-      
-      {/* Dynamic Colored Glow */}
+      {/* Dynamic Background */}
       <div 
-        className="absolute inset-0 z-0 opacity-50 scale-150 blur-[140px] transition-all duration-[3s]"
+        className="absolute inset-0 z-0 opacity-40 blur-[120px] transition-all duration-[3s] object-cover mix-blend-screen"
         style={{ 
           backgroundImage: `url(${track.coverUrl})`, 
           backgroundSize: 'cover', 
           backgroundPosition: 'center',
-          transform: `scale(1.5)`
         }}
       ></div>
 
-      {/* Top Bar */}
-      <div className="relative z-10 flex items-center justify-between px-8 py-8 shrink-0">
-        <button onClick={handleClose} className="w-12 h-12 flex items-center justify-center rounded-full bg-white/10 hover:bg-white/20 backdrop-blur-md text-white transition-all active:scale-95 shadow-lg">
-          <Minimize2 className="w-5 h-5" />
-        </button>
-        <div className="flex flex-col items-center">
-            <span className="text-[11px] font-bold text-white/60 uppercase tracking-widest mb-1">Сейчас играет</span>
-            <div className="w-8 h-1 bg-white/30 rounded-full"></div>
-        </div>
-        <button className="w-12 h-12 flex items-center justify-center rounded-full bg-white/10 hover:bg-white/20 backdrop-blur-md text-white transition-all active:scale-95 shadow-lg">
-          <MoreHorizontal className="w-5 h-5" />
-        </button>
-      </div>
+      {/* Close Button Top Right */}
+      <button 
+        onClick={handleClose} 
+        className="absolute top-8 right-8 z-50 w-14 h-14 flex items-center justify-center rounded-full bg-white/10 hover:bg-white text-white hover:text-black transition-all active:scale-95 shadow-lg backdrop-blur-md"
+      >
+        <Minimize2 className="w-6 h-6" />
+      </button>
 
-      {/* Main Content Area */}
-      <div className={`relative z-10 flex-1 flex ${showLyrics ? 'flex-col lg:flex-row' : 'flex-col'} items-center justify-center gap-6 lg:gap-12 px-4 md:px-8 max-w-screen-2xl mx-auto w-full overflow-y-auto pb-8 min-h-0`}>
-        
-        {/* Left Side / Top: Cover Art */}
-        <div className={`transition-all duration-700 ease-[cubic-bezier(0.23,1,0.32,1)] flex flex-col items-center justify-center shrink
-            ${showLyrics 
-                ? 'w-full lg:w-1/3 h-[30vh] lg:h-auto lg:aspect-square order-1' 
-                : 'w-full max-w-[min(45vh,400px)] aspect-square order-1 mt-auto'
-            }`}
-        >
-             <div 
-                 className={`rounded-[2.5rem] lg:rounded-[3rem] overflow-hidden shadow-[0_40px_80px_rgba(0,0,0,0.5)] border border-white/10 animate-scale-in transition-all duration-700 relative group flex items-center justify-center bg-black/20
-                 ${showLyrics 
-                    ? 'w-auto h-full aspect-square lg:w-full lg:h-auto' 
-                    : 'w-full h-full aspect-square'
-                 }`}>
-                <img src={track.coverUrl} alt="Cover" className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-[2s] ease-out" />
-                <div className="absolute inset-0 bg-gradient-to-t from-black/40 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500"></div>
-             </div>
-             
-             {showLyrics && (
-                 <div className="mt-8 text-center lg:text-left w-full space-y-1 hidden lg:block animate-fade-in">
-                     <h2 className="text-3xl font-bold truncate text-white tracking-tight drop-shadow-md">{track.title}</h2>
-                     <p className="text-lg text-white/70 truncate font-medium drop-shadow-sm">{track.artist}</p>
-                 </div>
-             )}
-        </div>
+      {/* Content Container */}
+      <div className="relative z-10 w-full h-full flex flex-col items-center justify-center p-8 max-w-7xl mx-auto mt-8">
+          {/* Main Content Area */}
+          <div className="w-full h-[60vh] md:h-[65vh] flex flex-col items-center justify-center relative">
+              <AnimatePresence mode="wait">
+                  {viewMode === 'lyrics' ? (
+                     <motion.div 
+                         key="lyrics"
+                         initial={{ opacity: 0, y: 20, scale: 0.95 }}
+                         animate={{ opacity: 1, y: 0, scale: 1 }}
+                         exit={{ opacity: 0, y: -20, scale: 0.95 }}
+                         transition={{ duration: 0.4 }}
+                         className="w-full max-w-4xl h-full flex flex-col"
+                     >
+                          <LyricsView lyricsRaw={track.lyrics} currentTime={currentTime} />
+                     </motion.div>
+                  ) : (
+                     <motion.div 
+                         key="cover"
+                         initial={{ opacity: 0, y: 20, scale: 0.95 }}
+                         animate={{ opacity: 1, y: 0, scale: 1 }}
+                         exit={{ opacity: 0, y: -20, scale: 0.95 }}
+                         transition={{ duration: 0.4 }}
+                         className="w-full flex flex-col items-center"
+                     >
+                         <div className={`relative w-[30vh] h-[30vh] md:w-[45vh] md:h-[45vh] lg:w-[50vh] lg:h-[50vh] max-w-[500px] max-h-[500px] rounded-2xl overflow-hidden shadow-2xl mb-12 shrink-0 transition-transform ${isPlaying ? 'animate-pulse-beat' : ''}`}>
+                             <img 
+                                src={track.coverUrl} 
+                                alt="Cover" 
+                                className={`w-full h-full object-cover transition-transform duration-[20s] ease-out ${isPlaying ? 'scale-110' : 'scale-100'}`} 
+                             />
+                         </div>
+                         
+                         <div className="text-center max-w-3xl px-4">
+                             <h1 className="text-4xl md:text-5xl lg:text-6xl font-black font-sans tracking-tight text-white mb-4 line-clamp-2 leading-tight">
+                                 {track.title}
+                             </h1>
+                             <p className="text-xl md:text-2xl text-white/60 font-medium tracking-wide">
+                                 {track.artist}
+                             </p>
+                         </div>
+                     </motion.div>
+                  )}
+              </AnimatePresence>
+          </div>
 
-        {/* Right Side / Bottom: Content */}
-        <div className={`transition-all duration-700 w-full flex flex-col justify-center shrink-0
-            ${showLyrics 
-                ? 'lg:w-2/3 h-full order-2' 
-                : 'max-w-[800px] order-2 items-center mb-auto'
-            }`}
-        >
-            {showLyrics ? (
-                <div className={`h-full w-full rounded-[2.5rem] bg-black/20 border border-white/10 p-6 lg:p-10 relative overflow-hidden shadow-2xl ${enableGlass ? 'backdrop-blur-3xl' : ''}`}>
-                    <LyricsView lyricsRaw={track.lyrics} currentTime={currentTime} />
-                </div>
-            ) : (
-                <div className="flex flex-col items-center w-full gap-8 animate-slide-up">
-                    <div className="space-y-2 text-center w-full">
-                        <h2 className="text-4xl md:text-5xl font-bold truncate text-white tracking-tight drop-shadow-md">{track.title}</h2>
-                        <p className="text-xl md:text-2xl text-white/70 truncate font-medium drop-shadow-sm">{track.artist}</p>
-                    </div>
-
-                    <div className="w-full max-w-2xl group pt-4">
-                        <div 
-                          className="h-2.5 bg-white/20 rounded-full cursor-pointer relative mb-3 overflow-hidden hover:h-3.5 transition-all"
-                          onClick={(e) => {
-                              const rect = e.currentTarget.getBoundingClientRect();
-                              const percent = (e.clientX - rect.left) / rect.width;
-                              onSeek(percent * duration);
-                          }}
-                        >
+          {/* Controls Area */}
+          <div className="w-full max-w-4xl mt-auto pb-12 shrink-0 px-4">
+              {/* Progress */}
+              <div className="w-full relative py-6 group flex items-center h-16">
+                  <input 
+                      type="range" 
+                      min="0" max={duration || 100} step="0.01"
+                      value={currentTime} 
+                      onChange={(e) => onSeek(Number(e.target.value))}
+                      className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-30 touch-none"
+                  />
+                  
+                  {/* Track Container */}
+                  <div className="relative w-full h-1.5 bg-white/20 rounded-full flex items-center">
+                      
+                      {/* Wavy Area (above the track) */}
+                      <div 
+                         className="absolute bottom-0 left-0 h-[40px] pointer-events-none transition-all duration-75 overflow-hidden" 
+                         style={{ width: `${progressPercent}%` }}
+                      >
                           <div 
-                              className="absolute h-full rounded-full transition-all duration-300 shadow-[0_0_15px_rgba(255,255,255,0.5)]" 
-                              style={{ width: `${progressPercent}%`, backgroundColor: 'white' }}
+                             className={`one-ui-wave-mask w-full h-full opacity-90 ${isPlaying ? '' : 'pause-animation'}`}
+                             style={{ 
+                                background: `linear-gradient(90deg, ${accentColor} 0%, ${accentColor} 30%, #eab308 60%, ${accentColor} 100%)`,
+                             }}
                           ></div>
-                        </div>
-                        <div className="flex justify-between text-sm font-medium text-white/60 tracking-wide">
-                          <span>{formatTime(currentTime)}</span>
-                          <span>{formatTime(duration)}</span>
-                        </div>
-                    </div>
+                      </div>
 
-                    <div className="flex items-center justify-center gap-6 md:gap-10 w-full max-w-2xl">
-                        <motion.button 
-                          whileTap={{ scale: 0.9 }}
-                          onClick={onToggleShuffle} 
-                          className={`transition-all p-4 rounded-full hover:bg-white/10 ${isShuffled ? 'text-white bg-white/10' : 'text-white/50 hover:text-white'}`}
-                        >
-                          <Shuffle className="w-6 h-6" />
-                        </motion.button>
-                        
-                        <motion.button whileTap={{ scale: 0.9 }} onClick={onPrev} className="text-white/80 hover:text-white transition-all p-4 hover:bg-white/10 rounded-full">
-                            <SkipBack className="w-10 h-10 fill-current" />
-                        </motion.button>
-                        <motion.button 
-                            whileTap={{ scale: 0.9 }}
-                            onClick={onPlayPause}
-                            className="w-24 h-24 rounded-full bg-white text-black flex items-center justify-center hover:scale-105 transition-all shadow-[0_10px_40px_rgba(255,255,255,0.3)]"
-                        >
-                            {isPlaying ? <Pause className="w-10 h-10 fill-current" /> : <Play className="w-10 h-10 fill-current ml-2" />}
-                        </motion.button>
-                        <motion.button whileTap={{ scale: 0.9 }} onClick={onNext} className="text-white/80 hover:text-white transition-all p-4 hover:bg-white/10 rounded-full">
-                            <SkipForward className="w-10 h-10 fill-current" />
-                        </motion.button>
+                      {/* Filled straight track */}
+                      <div 
+                          className="absolute top-0 left-0 h-full rounded-full transition-all duration-75" 
+                          style={{ width: `${progressPercent}%`, backgroundColor: 'white' }}
+                      ></div>
 
-                        <motion.button 
-                          whileTap={{ scale: 0.9 }}
-                          onClick={onToggleRepeat}
-                          className={`transition-all p-4 rounded-full hover:bg-white/10 ${isRepeating ? 'text-white bg-white/10' : 'text-white/50 hover:text-white'}`}
-                        >
-                          <Repeat className="w-6 h-6" />
-                        </motion.button>
-                    </div>
+                      {/* Hover/Active highlight line if needed */}
+                      <div 
+                          className="absolute top-0 left-0 h-full rounded-full transition-all duration-75 opacity-0 group-hover:opacity-100 group-active:h-2" 
+                          style={{ width: `${progressPercent}%`, backgroundColor: 'white' }}
+                      ></div>
 
-                    <div className="flex items-center justify-between w-full max-w-2xl mt-4">
-                        <div className="flex items-center gap-4 w-1/3 group">
-                          <button onClick={handleVolumeToggle} className="text-white/50 hover:text-white transition-colors">
-                            {volume === 0 ? <VolumeX className="w-5 h-5" /> : <Volume2 className="w-5 h-5" />}
-                          </button>
-                          <div className="relative flex-1 h-2 bg-white/20 rounded-full cursor-pointer overflow-hidden hover:h-3 transition-all flex items-center">
-                            <input 
-                                type="range" 
-                                min="0" 
-                                max="1" 
-                                step="0.01" 
-                                value={volume}
-                                onChange={(e) => onVolumeChange(parseFloat(e.target.value))}
-                                className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10"
-                            />
-                            <div 
-                              className="absolute left-0 top-0 bottom-0 bg-white rounded-full pointer-events-none"
-                              style={{ width: `${volume * 100}%` }}
-                            ></div>
-                          </div>
-                        </div>
-                        
-                        <div className="flex items-center gap-4">
-                            <motion.button 
-                                whileTap={{ scale: 0.9 }}
-                                onClick={onToggleAudioEffect}
-                                className={`p-4 rounded-full transition-all hover:scale-105 ${audioEffect !== 'normal' ? 'bg-white/20 text-white' : 'bg-white/5 text-white/70 hover:bg-white/10 hover:text-white'}`}
-                                title={audioEffect === 'slowed' ? 'Slowed' : audioEffect === 'spedup' ? 'Speed Up' : 'Normal Speed'}
-                            >
-                                {audioEffect === 'slowed' ? <Turtle className="w-6 h-6" /> : <Rabbit className={`w-6 h-6 ${audioEffect === 'normal' ? 'opacity-50' : ''}`} />}
-                            </motion.button>
-                            <motion.button 
-                                whileTap={{ scale: 0.9 }}
-                                onClick={() => setShowLyrics(!showLyrics)}
-                                className={`p-4 rounded-full transition-all hover:scale-105 ${showLyrics ? 'bg-white text-black shadow-lg' : 'bg-white/5 text-white/70 hover:bg-white/10 hover:text-white'}`}
-                                title="Текст песни"
-                            >
-                                <Quote className="w-6 h-6 fill-current" />
-                            </motion.button>
+                      {/* Thumb */}
+                      <div 
+                         className="absolute top-1/2 -translate-y-1/2 w-6 h-6 rounded-full border-[4px] border-white z-20 pointer-events-none flex items-center justify-center transition-all group-hover:scale-110 group-active:scale-125 focus:scale-125 shadow-lg"
+                         style={{ 
+                            left: `${progressPercent}%`, 
+                            marginLeft: '-12px',
+                            backgroundColor: accentColor,
+                            boxShadow: `0 0 20px ${accentColor}, 0 0 40px ${accentColor}`
+                         }}
+                      ></div>
+                  </div>
+              </div>
+              <div className="flex justify-between text-xs font-bold text-white/40 tracking-wider mt-1 font-mono">
+                <span>{formatTime(currentTime)}</span>
+                <span className="uppercase tracking-[0.2em]">{viewMode === 'lyrics' ? 'LYRICS' : 'NOW PLAYING'}</span>
+                <span>{formatTime(duration)}</span>
+              </div>
 
-                            <motion.button 
-                                whileTap={{ scale: 0.9 }}
-                                onClick={() => onToggleLike(track.id)}
-                                className={`p-4 rounded-full transition-all hover:scale-105 ${track.isLiked ? 'bg-white text-black shadow-lg' : 'bg-white/5 text-white/70 hover:bg-white/10 hover:text-white'}`}
-                            >
-                                <Heart className={`w-6 h-6 ${track.isLiked ? 'fill-current' : ''}`} />
-                            </motion.button>
-                        </div>
-                    </div>
-                </div>
-            )}
-        </div>
-      </div>
+              {/* Massive Controls */}
+              <div className="flex items-center justify-between mt-6">
+                  {/* Left Actions */}
+                  <div className="flex items-center gap-4">
+                      <button onClick={handleVolumeToggle} className="text-white/50 hover:text-white transition-colors p-3 hover:bg-white/10 rounded-full hidden md:block">
+                        {volume === 0 ? <VolumeX className="w-6 h-6" /> : <Volume2 className="w-6 h-6" />}
+                      </button>
+                      <button 
+                         onClick={onToggleShuffle} 
+                         className={`transition-all p-3 rounded-full hover:bg-white/10 ${isShuffled ? 'text-white bg-white/10' : 'text-white/50 hover:text-white'}`}
+                      >
+                        <Shuffle className="w-6 h-6" />
+                      </button>
+                  </div>
 
-      {/* Floating Controls Bar for Lyrics Mode */}
-      {showLyrics && (
-          <div className="fixed bottom-0 left-0 right-0 p-8 flex justify-center z-20 pointer-events-none">
-              <div className={`pointer-events-auto bg-white/5 ${enableGlass ? 'backdrop-blur-3xl' : 'bg-black/80'} border border-white/10 rounded-[2.5rem] px-10 py-5 flex items-center gap-10 shadow-[0_20px_60px_rgba(0,0,0,0.5)] animate-slide-up`}>
-                 <motion.button whileTap={{ scale: 0.9 }} onClick={onPrev} className="text-white/50 hover:text-white transition-all"><SkipBack className="w-6 h-6 fill-current" /></motion.button>
-                 <motion.button whileTap={{ scale: 0.9 }} onClick={onPlayPause} className="bg-white text-black rounded-full p-4 hover:scale-110 transition-all shadow-xl">
-                     {isPlaying ? <Pause className="w-6 h-6 fill-current" /> : <Play className="w-6 h-6 fill-current ml-1" />}
-                 </motion.button>
-                 <motion.button whileTap={{ scale: 0.9 }} onClick={onNext} className="text-white/50 hover:text-white transition-all"><SkipForward className="w-6 h-6 fill-current" /></motion.button>
-                 <div className="w-px h-8 bg-white/10 mx-2"></div>
-                 <motion.button 
-                    whileTap={{ scale: 0.9 }}
-                    onClick={() => setShowLyrics(false)} 
-                    className="text-white/70 hover:text-white hover:scale-110 transition-all"
-                    title="Скрыть текст"
-                 >
-                     <Quote className="w-6 h-6 fill-current" />
-                 </motion.button>
+                  {/* Center Playback */}
+                  <div className="flex items-center gap-6">
+                      <motion.button whileTap={{ scale: 0.9 }} onClick={onPrev} className="text-white/70 hover:text-white transition-all p-4 hover:bg-white/10 rounded-full">
+                          <SkipBack className="w-8 h-8 fill-current" />
+                      </motion.button>
+                      <motion.button 
+                          whileTap={{ scale: 0.95 }}
+                          onClick={onPlayPause}
+                          className="w-24 h-24 md:w-28 md:h-28 rounded-full bg-white text-black flex items-center justify-center hover:scale-105 transition-all shadow-[0_10px_50px_rgba(255,255,255,0.4)]"
+                      >
+                          {isPlaying ? <Pause className="w-12 h-12 fill-current" /> : <Play className="w-12 h-12 fill-current ml-2" />}
+                      </motion.button>
+                      <motion.button whileTap={{ scale: 0.9 }} onClick={onNext} className="text-white/70 hover:text-white transition-all p-4 hover:bg-white/10 rounded-full">
+                          <SkipForward className="w-8 h-8 fill-current" />
+                      </motion.button>
+                  </div>
+
+                  {/* Right Actions */}
+                  <div className="flex items-center gap-2">
+                       <motion.button 
+                           whileTap={{ scale: 0.9 }}
+                           onClick={() => setViewMode(viewMode === 'lyrics' ? 'cover' : 'lyrics')}
+                           className={`p-3 rounded-full transition-all flex items-center justify-center ${viewMode === 'lyrics' ? 'bg-white text-black shadow-lg' : 'text-white/50 hover:bg-white/10 hover:text-white'}`}
+                           title="Текст песни"
+                       >
+                           <Quote className="w-6 h-6 fill-current" />
+                       </motion.button>
+                       <motion.button 
+                           whileTap={{ scale: 0.9 }}
+                           onClick={() => onToggleLike(track.id)}
+                           className={`p-3 rounded-full transition-all ${track.isLiked ? 'text-[var(--accent-color)] drop-shadow-[0_0_10px_var(--accent-color)]' : 'text-white/50 hover:bg-white/10 hover:text-white'}`}
+                       >
+                           <Heart className={`w-6 h-6 ${track.isLiked ? 'fill-current' : ''}`} />
+                       </motion.button>
+                  </div>
               </div>
           </div>
-      )}
-
+      </div>
     </div>
   );
 };

@@ -39,11 +39,11 @@ const Sidebar: React.FC<SidebarProps> = ({
 
   return (
     <div 
-      className={`h-full flex flex-col ${enableGlass ? 'bg-black/40 backdrop-blur-3xl border-r border-white/5' : 'bg-[var(--sidebar-bg)] border-r border-[var(--glass-border)]'} z-20 relative transition-all duration-500 ease-[cubic-bezier(0.32,0.72,0,1)] overflow-hidden ${
-        isOpen ? 'w-64 pt-6 pb-4 px-4 opacity-100' : 'w-0 pt-6 pb-4 px-0 opacity-0'
+      className={`h-full flex flex-col ${enableGlass ? 'bg-black/30 backdrop-blur-[60px] border border-white/10 shadow-[0_20px_40px_rgba(0,0,0,0.5)]' : 'bg-[var(--sidebar-bg)] border border-[var(--glass-border)] shadow-2xl'} z-20 relative transition-all duration-700 ease-[cubic-bezier(0.32,0.72,0,1)] overflow-hidden rounded-[2rem] md:rounded-[3rem] ${
+        isOpen ? 'w-64 pt-8 pb-6 px-5 opacity-100' : 'w-0 pt-8 pb-6 px-0 opacity-0'
       }`}
     >
-      <div className="w-56 flex flex-col h-full">
+      <div className="w-56 flex flex-col h-full mx-auto">
         
         {/* Search Bar at Top */}
         <div className="px-1 mb-6">
