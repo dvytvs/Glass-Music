@@ -13,8 +13,7 @@
 
 ---
 
-<img width="2559" height="1364" alt="Снимок экрана от 2026-05-30 19-17-06" src="https://github.com/user-attachments/assets/0f94ac9c-b1c1-4455-8156-4a03f67db4f1" />
-
+<img width="2560" height="1367" alt="Снимок экрана от 2026-03-01 03-45-10" src="https://github.com/user-attachments/assets/1a2676d7-e631-439e-becc-e39319db2014" />
 
 
 
@@ -35,8 +34,7 @@
 
 
 
-<img width="2559" height="1364" alt="Снимок экрана от 2026-05-30 19-16-11" src="https://github.com/user-attachments/assets/2555b365-a1d2-4c61-bfbc-e827c87f7d69" />
-
+<img width="2560" height="1367" alt="Снимок экрана от 2026-03-01 03-45-18" src="https://github.com/user-attachments/assets/4b936c10-bf3d-48cb-be1c-e0f42bfde0dd" />
 
 
 
@@ -48,8 +46,7 @@
 - Текст песен (включая синхронизированный LRC формат).
 
 
-<img width="2559" height="1364" alt="Снимок экрана от 2026-05-30 19-16-29" src="https://github.com/user-attachments/assets/75884700-528e-4278-b436-8b5fd42dcf16" />
-
+<img width="2560" height="1367" alt="Снимок экрана от 2026-03-01 03-45-04" src="https://github.com/user-attachments/assets/459d1a56-bccb-4bf6-b552-ff76605c905f" />
 
 
 ### 🛡️ Манифест приватности
@@ -58,8 +55,7 @@
 - **Offline-First:** Плеер не требует интернета для работы (кроме поиска метаданных).
 - **Локальное хранение:** Ваши лайки, плейлисты и настройки хранятся в зашифрованном виде в `~/.config/glass-music`.
 
-<img width="2559" height="1364" alt="Снимок экрана от 2026-05-30 19-17-23" src="https://github.com/user-attachments/assets/0780ef86-d5ea-4e29-b54d-661b48de9955" />
-
+<img width="2560" height="1367" alt="Снимок экрана от 2026-03-01 03-45-24" src="https://github.com/user-attachments/assets/c5960b6a-2b41-41af-a4b6-e29dcecbb983" />
 
 
 
@@ -68,8 +64,30 @@
 - **Профили:** Настраиваемый баннер и аватар слушателя.
 - **Сезонность:** Автоматический зимний режим (снег и гирлянды), который включается сам в декабре.
 
+### 🚀 Установка
 
+**🐧 Linux**
+- **Arch, Manjaro, CachyOS (AUR):**
+  ```bash
+  yay -S glass-music-bin
+  # или
+  paru -S glass-music-bin
+  ```
+- **Ubuntu, Debian, Linux Mint (.deb):**
+  Скачайте `.deb` пакет со [страницы релизов](https://github.com/dvytvs/Glass-Music/releases). Пользователи Ubuntu также могут установить плеер из [Snap Store](https://snapcraft.io/glass-music-player).
+- **Fedora, ALT Linux, openSUSE, Nobara (.rpm):**
+  Скачайте `.rpm` пакет из [наших релизов](https://github.com/dvytvs/Glass-Music/releases).
+- **AppImage:**
+  Универсальный формат, доступен в [релизах на GitHub](https://github.com/dvytvs/Glass-Music/releases) или на [AppImageHub](https://www.appimagehub.com/p/2358615).
+- **Flatpak:**
+  К сожалению, официальной публикации во Flathub **никогда не будет**. Платформа ввела очень строгие правила, сделав невозможной публикацию приложений, созданных с помощью ИИ. Это совсем не та открытость, о которой так много говорят. Но вы можете совершенно свободно скачать `.flatpak` пакет из наших [релизов](https://github.com/dvytvs/Glass-Music/releases) и установить его локально. Просим отнестись с пониманием.
+- 🚫 **FreeBSD:** Поддержка не планируется вовсе.
 
+**🪟 Windows**
+Перейдите в [раздел релизов](https://github.com/dvytvs/Glass-Music/releases) и скачайте установочный файл `setup.exe` либо обычный `.exe`.
+
+**🍏 macOS**
+Скачайте готовый `.dmg` пакет из [релизов](https://github.com/dvytvs/Glass-Music/releases). *(Важные нюансы первого запуска на macOS описаны в самом начале).*
 
 ---
 
@@ -105,6 +123,31 @@ We believe your music tastes are your private business.
 - **Live Backgrounds:** Support for video (MP4) and images behind the player UI.
 - **Profiles:** Customizable listener banners and avatars.
 - **Seasonality:** An automatic winter mode (snow and lights) that activates itself in December.
+
+### 🚀 Installation
+
+**🐧 Linux**
+- **Arch, Manjaro, CachyOS (AUR):** 
+  ```bash
+  yay -S glass-music-bin
+  # or
+  paru -S glass-music-bin
+  ```
+- **Ubuntu, Debian, Linux Mint (.deb):**
+  Download the `.deb` package from the [releases page](https://github.com/dvytvs/Glass-Music/releases). Ubuntu users can also get it straight from the [Snap Store](https://snapcraft.io/glass-music-player).
+- **Fedora, ALT Linux, openSUSE, Nobara (.rpm):**
+  Download the `.rpm` package from [our releases](https://github.com/dvytvs/Glass-Music/releases).
+- **AppImage:**
+  Grab it from [GitHub Releases](https://github.com/dvytvs/Glass-Music/releases) or [AppImageHub](https://www.appimagehub.com/p/2358615).
+- **Flatpak:**
+  Unfortunately, there will **never** be an official Flathub release. They introduced extreme publishing restrictions—specifically banning apps made with AI. That is not the "openness" they constantly advertise. However, you can still easily download the ready-made `.flatpak` from our [releases](https://github.com/dvytvs/Glass-Music/releases) and manually install it. We hope you understand.
+- 🚫 **FreeBSD:** Support is not planned and will never be provided.
+
+**🪟 Windows**
+Go to the [releases page](https://github.com/dvytvs/Glass-Music/releases) and download either the installer (`setup.exe`) or the portable executable (`.exe`).
+
+**🍏 macOS**
+Download the ready-to-use `.dmg` package from [our releases](https://github.com/dvytvs/Glass-Music/releases). *(Make sure to review the macOS Gatekeeper instructions at the top of this document).*
 
 ---
 
