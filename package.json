@@ -1,6 +1,6 @@
 {
   "name": "glass-music",
-  "version": "2.0.5",
+  "version": "2.0.6",
   "description": "A futuristic, liquid-glass aesthetic music player for Linux",
   "main": "main.js",
   "homepage": "https://github.com/glass-music/app",
@@ -70,11 +70,9 @@
       "target": [
         "AppImage",
         "deb",
-        "rpm",
         "pacman",
         "tar.gz",
-        "flatpak",
-        "snap"
+        "flatpak"
       ],
       "icon": "build/icons/linux/",
       "category": "Audio",
@@ -88,9 +86,9 @@
       "grade": "stable"
     },
     "flatpak": {
-      "runtimeVersion": "23.08",
+      "runtimeVersion": "25.08",
       "base": "org.electronjs.Electron2.BaseApp",
-      "baseVersion": "23.08"
+      "baseVersion": "25.08"
     },
     "win": {
       "target": "nsis",

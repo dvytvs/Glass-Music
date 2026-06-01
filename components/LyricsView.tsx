@@ -13,7 +13,29 @@ const LyricsView: React.FC<LyricsViewProps> = ({ lyricsRaw, currentTime }) => {
   
   const lines = useMemo(() => {
     if (!lyricsRaw) return [];
-    return parseLrc(lyricsRaw);
+    let parsed = parseLrc(lyricsRaw);
+    if (parsed.length === 0 || parsed[0].time === -1) return parsed;
+
+    const firstTextLineIndex = parsed.findIndex(l => l.text.trim().length > 0);
+    if (firstTextLineIndex !== -1) {
+       const firstTime = parsed[firstTextLineIndex].time;
+       const countdownLines: any[] = [];
+       
+       if (firstTime >= 1) countdownLines.push({ time: firstTime - 1, text: '• 1 •', isCountdown: true });
+       if (firstTime >= 2) countdownLines.unshift({ time: firstTime - 2, text: '• 2 •', isCountdown: true });
+       if (firstTime >= 3) countdownLines.unshift({ time: firstTime - 3, text: '• 3 •', isCountdown: true });
+       
+       if (countdownLines.length > 0) {
+          const before = parsed.slice(0, firstTextLineIndex);
+          const minCountdownTime = countdownLines[0].time;
+          const filteredBefore = before.filter(l => l.time < minCountdownTime || l.time > firstTime);
+          const after = parsed.slice(firstTextLineIndex);
+          parsed = [...filteredBefore, ...countdownLines, ...after];
+          parsed.sort((a, b) => a.time - b.time);
+       }
+    }
+
+    return parsed;
   }, [lyricsRaw]);
 
   // Check if it's plain text mode (time is -1)
@@ -89,8 +111,10 @@ const LyricsView: React.FC<LyricsViewProps> = ({ lyricsRaw, currentTime }) => {
           let scale = 1;
           let opacity = 1;
           
+          const isCountdown = (line as any).isCountdown;
+
           if (isActive) {
-            scale = 1.15;
+            scale = isCountdown ? 1.4 : 1.15;
             opacity = 1;
             blur = 0;
           } else if (isPast) {
@@ -114,7 +138,13 @@ const LyricsView: React.FC<LyricsViewProps> = ({ lyricsRaw, currentTime }) => {
                 filter: `blur(${blur}px)`,
               }}
             >
-              <p className={`text-4xl md:text-6xl lg:text-7xl leading-tight cursor-pointer tracking-tighter font-black transition-colors duration-700 ${isActive ? 'text-white drop-shadow-[0_0_40px_rgba(255,255,255,0.6)]' : 'text-white/40'}`}>
+              <p 
+                className={`text-4xl md:text-6xl lg:text-7xl leading-tight cursor-pointer font-black transition-colors duration-700 
+                ${isCountdown ? 'tracking-[0.5em] font-mono' : 'tracking-tighter'} 
+                ${isActive 
+                    ? (isCountdown ? 'text-[var(--accent-color)] drop-shadow-[0_0_40px_var(--accent-color)]' : 'text-white drop-shadow-[0_0_40px_rgba(255,255,255,0.6)]') 
+                    : (isCountdown ? 'text-[var(--accent-color)] opacity-50' : 'text-white/40')}
+              `}>
                 {line.text}
               </p>
             </div>

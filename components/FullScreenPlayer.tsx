@@ -64,6 +64,7 @@ const FullScreenPlayer: React.FC<FullScreenPlayerProps> = ({
   
   const [viewMode, setViewMode] = useState<'cover' | 'lyrics'>(initialMode);
   const [isClosing, setIsClosing] = useState(false);
+  const [showVolumeSlider, setShowVolumeSlider] = useState(false);
   const prevVolumeRef = useRef<number>(1);
 
   useEffect(() => {
@@ -220,9 +221,28 @@ const FullScreenPlayer: React.FC<FullScreenPlayerProps> = ({
               <div className="flex items-center justify-between mt-6">
                   {/* Left Actions */}
                   <div className="flex items-center gap-4">
-                      <button onClick={handleVolumeToggle} className="text-white/50 hover:text-white transition-colors p-3 hover:bg-white/10 rounded-full hidden md:block">
-                        {volume === 0 ? <VolumeX className="w-6 h-6" /> : <Volume2 className="w-6 h-6" />}
-                      </button>
+                      <div className="hidden md:flex items-center h-12 rounded-full transition-all relative">
+                          <button 
+                             onClick={() => setShowVolumeSlider(!showVolumeSlider)} 
+                             className="text-white/50 hover:text-white transition-colors p-3 hover:bg-white/10 rounded-full shrink-0"
+                          >
+                            {volume === 0 ? <VolumeX className="w-6 h-6" /> : <Volume2 className="w-6 h-6" />}
+                          </button>
+                          
+                          {showVolumeSlider && (
+                              <div className="absolute left-full top-1/2 -translate-y-1/2 ml-2 w-32 h-10 bg-black/80 backdrop-blur-xl border border-white/10 rounded-full flex items-center justify-center px-4 shadow-2xl animate-fade-in origin-left pointer-events-auto z-50">
+                                  <input 
+                                     type="range" 
+                                     min="0" 
+                                     max="1" 
+                                     step="0.01" 
+                                     value={volume} 
+                                     onChange={(e) => onVolumeChange(parseFloat(e.target.value))}
+                                     className="w-full h-1 accent-white appearance-none bg-white/20 rounded-full outline-none [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-3 [&::-webkit-slider-thumb]:h-3 [&::-webkit-slider-thumb]:bg-white [&::-webkit-slider-thumb]:rounded-full cursor-pointer"
+                                   />
+                              </div>
+                          )}
+                      </div>
                       <button 
                          onClick={onToggleShuffle} 
                          className={`transition-all p-3 rounded-full hover:bg-white/10 ${isShuffled ? 'text-white bg-white/10' : 'text-white/50 hover:text-white'}`}

@@ -44,6 +44,7 @@ export interface UserProfile {
     listeningTime: number; // in seconds
     topArtists: Record<string, number>;
   };
+  syncFolders?: string[];
 }
 
 export type AudioEffect = 'normal' | 'slowed' | 'spedup';
@@ -73,6 +74,8 @@ export interface ThemeConfig {
   playerStyle: 'floating' | 'classic' | 'split';
   themeMode: 'dark' | 'light' | 'system';
   animateBackground: boolean;
+  sidebarPosition?: 'left' | 'right' | 'top' | 'bottom';
+  playerDock?: 'bottom' | 'top' | 'left' | 'right';
   eqBands?: number[];
   speedUpRate?: number;
   slowedRate?: number;

@@ -43,6 +43,7 @@ interface MainViewProps {
   userProfile?: import('../types').UserProfile;
   onUpdateProfile?: (data: Partial<import('../types').UserProfile>) => void;
   playerStyle?: 'floating' | 'classic' | 'split';
+  playerDock?: 'bottom' | 'top' | 'left' | 'right';
 }
 
 const ARTIST_SPLIT_REGEX = /\s*(?:,|;|feat\.?|ft\.?|&|\/|featuring)\s+/i;
@@ -51,7 +52,7 @@ const MainView: React.FC<MainViewProps> = ({
   tracks, currentTrack, playbackState, onPlay, onShuffleAll, currentView, 
   selectedArtist, selectedAlbum, onUpdateTrack, onDeleteTrack, onGoToArtist, onGoToAlbum, onBack, accentColor,
   artistMetadata = {}, onUpdateArtist, searchQuery = "", onRequestFileUnlock,
-  onToggleLike, enableGlass = true, t, onTranslate, playlists = [], selectedPlaylist, onUpdatePlaylist, onDeletePlaylist, onCreatePlaylist, onChangeView, onOpenSelectTracks, userProfile, onUpdateProfile, playerStyle = 'classic'
+  onToggleLike, enableGlass = true, t, onTranslate, playlists = [], selectedPlaylist, onUpdatePlaylist, onDeletePlaylist, onCreatePlaylist, onChangeView, onOpenSelectTracks, userProfile, onUpdateProfile, playerStyle = 'classic', playerDock = 'bottom'
 }) => {
   const [editingTrack, setEditingTrack] = useState<Track | null>(null);
   const [translatedBio, setTranslatedBio] = useState<string | null>(null);
@@ -100,13 +101,34 @@ const MainView: React.FC<MainViewProps> = ({
   const avatarInputRef = useRef<HTMLInputElement>(null);
   const bannerInputRef = useRef<HTMLInputElement>(null);
 
+  const scrollPositions = useRef<Record<string, number>>({});
+  
+  const isListView = !['artist_detail', 'album_detail', 'playlist_detail', 'profile'].includes(currentView);
+
+  const handleScroll = (e: React.UIEvent<HTMLDivElement>) => {
+    if (isListView) {
+      scrollPositions.current[currentView] = e.currentTarget.scrollTop;
+    }
+  };
+
   useEffect(() => {
     if (scrollParentRef.current) {
-      setTimeout(() => {
-          if (scrollParentRef.current) {
-              scrollParentRef.current.scrollTo({ top: 0, behavior: 'smooth' });
-          }
-      }, 10);
+      const saved = isListView ? (scrollPositions.current[currentView] || 0) : 0;
+      
+      let attempts = 0;
+      const tryScroll = () => {
+        if (!scrollParentRef.current) return;
+        
+        scrollParentRef.current.scrollTo({ top: saved, behavior: 'instant' });
+        
+        // If we requested a scroll but the element hasn't expanded enough to allow it yet, retry
+        if (saved > 0 && scrollParentRef.current.scrollTop < saved && attempts < 15) {
+          attempts++;
+          setTimeout(tryScroll, 20);
+        }
+      };
+      
+      tryScroll();
     }
   }, [currentView, selectedArtist, selectedAlbum, selectedPlaylist]);
 
@@ -295,7 +317,7 @@ const MainView: React.FC<MainViewProps> = ({
     return result;
   }, [tracks, currentView, selectedArtist, selectedAlbum, searchQuery, selectedPlaylist, playlists, sortOption]);
 
-  const renderTrackList = (tracksToRender: Track[]) => (
+  const renderTrackList = (tracksToRender: Track[], contextTracks: Track[] = tracksToRender) => (
     <div className="w-full">
       {/* Header Row */}
       <div className="flex items-center gap-4 px-4 py-2 text-xs font-bold text-[var(--text-muted)] uppercase tracking-wider border-b border-[var(--glass-border)] mb-2">
@@ -318,7 +340,7 @@ const MainView: React.FC<MainViewProps> = ({
               <div 
                 key={track.id} 
                 className={`group flex items-center gap-4 px-4 py-3 rounded-full transition-colors hover:bg-[var(--card-hover)] cursor-pointer ${isActive ? 'bg-[var(--card-bg)] shadow-sm' : ''} mb-1`} 
-                onClick={() => onPlay(track, tracksToRender)}
+                onClick={() => onPlay(track, contextTracks)}
               >
                  <div className="w-8 text-sm font-medium text-[var(--text-muted)] group-hover:text-[var(--text-main)] transition-colors text-center shrink-0">
                     {isActive ? (
@@ -791,7 +813,7 @@ const MainView: React.FC<MainViewProps> = ({
                           )}
                         </div>
                         <div className="mt-4">
-                            {renderTrackList(displayedTracks)}
+                            {renderTrackList(displayedTracks, popularTracks)}
                         </div>
                       </div>
 
@@ -1001,7 +1023,7 @@ const MainView: React.FC<MainViewProps> = ({
         const isAvatarVideo = userProfile?.avatarUrl?.includes('video') || userProfile?.avatarUrl?.endsWith('.mp4') || userProfile?.avatarUrl?.endsWith('.webm');
 
         return (
-            <div className="animate-fade-in space-y-12 max-w-5xl mx-auto pb-48">
+            <div className="animate-fade-in space-y-12 max-w-5xl mx-auto pb-8">
                 {/* Profile Header */}
                 <div className="relative rounded-[40px] overflow-hidden border border-[var(--glass-border)] bg-[var(--card-bg)] shadow-2xl group">
                     <div className="h-64 w-full relative bg-gradient-to-br from-[var(--accent-color)]/20 to-transparent">
@@ -1235,8 +1257,23 @@ const MainView: React.FC<MainViewProps> = ({
     }
   };
 
+  let paddingClass = 'pb-12 pt-0';
+  if (currentTrack) {
+     if (playerDock === 'top') {
+         paddingClass = 'pt-[120px] pb-12';
+     } else if (playerDock === 'bottom') {
+         paddingClass = 'pb-[120px] pt-0';
+     } else if (playerDock === 'left') {
+         if (playerStyle === 'classic' || playerStyle === 'split') paddingClass = 'pl-[380px] pb-12';
+         else paddingClass = 'pb-[120px] pt-0'; // floating is still at bottom conceptually usually
+     } else if (playerDock === 'right') {
+         if (playerStyle === 'classic' || playerStyle === 'split') paddingClass = 'pr-[380px] pb-12';
+         else paddingClass = 'pb-[120px] pt-0';
+     }
+  }
+
   return (
-    <div className="flex-1 h-full overflow-y-auto pb-48 custom-scrollbar relative" ref={scrollParentRef}>
+    <div className={`flex-1 h-full overflow-y-auto custom-scrollbar relative ${paddingClass}`} ref={scrollParentRef} onScroll={handleScroll}>
       <div key={currentView} className="animate-fade-in">
         {/* Dynamic Top Gradient */}
         <div 

@@ -1,7 +1,7 @@
 
 import React, { useRef, useMemo, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { X, Image, Video, Droplet, Upload, Check, Sliders, Snowflake, Trash2, ArrowLeft, LayoutGrid } from './Icons';
+import { X, Image, Video, Droplet, Upload, Check, Sliders, Snowflake, Trash2, ArrowLeft, LayoutGrid, Pencil } from './Icons';
 // Import AlertCircle directly from lucide if possible, or add it to Icons.tsx. Assuming standard set.
 import { AlertCircle, Music, Activity } from 'lucide-react'; 
 import { ThemeConfig, UserProfile } from '../types';
@@ -16,11 +16,12 @@ interface SettingsModalProps {
   onClearLibrary: () => void;
   userProfile: UserProfile;
   onUpdateProfile: (data: Partial<UserProfile>) => void;
+  onEditLayout: () => void;
   t: (key: TranslationKey) => string;
 }
 
 const SettingsModal: React.FC<SettingsModalProps> = ({ 
-  isOpen, onClose, config, onUpdate, onClearLibrary, userProfile, onUpdateProfile, t 
+  isOpen, onClose, config, onUpdate, onClearLibrary, userProfile, onUpdateProfile, onEditLayout, t 
 }) => {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [view, setView] = useState<'settings' | 'about'>('settings');
@@ -77,6 +78,18 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
               </h2>
           </div>
           <div className="flex items-center gap-2">
+              {view === 'settings' && (
+                  <button 
+                      onClick={() => {
+                          onEditLayout();
+                          onClose();
+                      }}
+                      className="p-2 hover:bg-[var(--card-hover)] rounded-full transition-all text-blue-400 hover:text-blue-300 shadow-[0_0_15px_rgba(59,130,246,0.3)] hover:scale-110 active:scale-95"
+                      title="Редактировать интерфейс"
+                  >
+                      <Pencil className="w-5 h-5 drop-shadow-[0_0_8px_rgba(59,130,246,0.8)]" />
+                  </button>
+              )}
               {view === 'settings' && (
                 <button 
                     onClick={() => setView('about')} 

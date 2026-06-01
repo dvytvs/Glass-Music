@@ -7,6 +7,7 @@ import FullScreenPlayer from './components/FullScreenPlayer';
 import SettingsModal from './components/SettingsModal';
 import OnboardingModal from './components/OnboardingModal';
 import CreatePlaylistModal from './components/CreatePlaylistModal';
+import LayoutEditorOverlay from './components/LayoutEditorOverlay';
 import SelectTracksModal from './components/SelectTracksModal';
 import YouTubeModal from './components/YouTubeModal';
 import Background from './components/Background';
@@ -34,6 +35,8 @@ const DEFAULT_THEME: ThemeConfig = {
   playerStyle: 'split',
   themeMode: 'system',
   animateBackground: true,
+  sidebarPosition: 'left',
+  playerDock: 'bottom',
   speedUpRate: 1.25,
   slowedRate: 0.85
 };
@@ -58,6 +61,7 @@ const App: React.FC = () => {
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [isYouTubeModalOpen, setIsYouTubeModalOpen] = useState(false);
   const [isCreatePlaylistOpen, setIsCreatePlaylistOpen] = useState(false);
+  const [isEditingLayout, setIsEditingLayout] = useState(false);
   const [isSelectTracksOpen, setIsSelectTracksOpen] = useState(false);
   const [fullScreenMode, setFullScreenMode] = useState<'none' | 'cover' | 'lyrics'>('none');
   const [selectedArtist, setSelectedArtist] = useState<string | null>(null);
@@ -352,7 +356,12 @@ const App: React.FC = () => {
           }
           if (savedTheme) setTheme({ ...DEFAULT_THEME, ...savedTheme });
           if (savedArtists) setArtistMetadata(savedArtists);
-          if (savedProfile) setUserProfile({ ...DEFAULT_PROFILE, ...savedProfile });
+          if (savedProfile) {
+              setUserProfile({ ...DEFAULT_PROFILE, ...savedProfile });
+              if (savedProfile.syncFolders && savedProfile.syncFolders.length > 0) {
+                  scanFolders(savedProfile.syncFolders);
+              }
+          }
           if (savedPlaylists) setPlaylists(savedPlaylists);
           
           const savedVolume = localStorage.getItem('glass_music_volume');
@@ -933,17 +942,18 @@ const App: React.FC = () => {
     }
   };
 
-  const getAudioDuration = (file: File): Promise<number> => {
+  const getAudioDuration = (file: File | string): Promise<number> => {
     return new Promise((resolve) => {
       const audio = new Audio();
       audio.preload = 'metadata';
-      const objectUrl = URL.createObjectURL(file);
+      const isFile = typeof file !== 'string';
+      const objectUrl = isFile ? URL.createObjectURL(file as File) : (file as string);
       
       let timeoutId: any;
 
       const cleanup = () => {
         clearTimeout(timeoutId);
-        URL.revokeObjectURL(objectUrl);
+        if (isFile) URL.revokeObjectURL(objectUrl);
         audio.removeAttribute('src');
         audio.load();
       };
@@ -1004,13 +1014,103 @@ const App: React.FC = () => {
             // Update state in batches of 10 or at the end
             if (batch.length >= 10 || i === filesArray.length - 1) {
                 const currentBatch = [...batch];
-                setTracks(prev => sortTracks([...prev, ...currentBatch]));
+                setTracks(prev => {
+                    const normalizePath = (p?: string) => p ? p.toLowerCase().replace(/\\/g, '/') : '';
+                    const existingPaths = new Set(prev.filter(t => t.path).map(t => normalizePath(t.path)));
+                    const existingSignatures = new Set(prev.filter(t => !t.path).map(t => `${t.title}-${t.artist}-${t.duration}`));
+                    
+                    const uniqueBatch = currentBatch.filter(t => {
+                        if (t.path) return !existingPaths.has(normalizePath(t.path));
+                        return !existingSignatures.has(`${t.title}-${t.artist}-${t.duration}`);
+                    });
+                    
+                    if (uniqueBatch.length === 0) return prev;
+                    return sortTracks([...prev, ...uniqueBatch]);
+                });
                 batch = [];
             }
         } catch (e) {
             console.error("Error processing file:", file.name, e);
         }
     }
+  };
+
+  const scanFolders = async (folders: string[]) => {
+    if (!folders || folders.length === 0) return;
+    const isElectron = () => (window as any).require && (window as any).require('electron');
+    if (!isElectron()) return;
+
+    try {
+        const { ipcRenderer } = (window as any).require('electron');
+        const files: { path: string, name: string, size: number, lastModified: number }[] = await ipcRenderer.invoke('scan-folders', folders);
+        
+        if (files && files.length > 0) {
+            const normalizePath = (p?: string) => p ? p.toLowerCase().replace(/\\/g, '/') : '';
+            const existingPaths = new Set(tracksRef.current.filter(t => t.path).map(t => normalizePath(t.path)));
+            const newFiles = files.filter(f => !existingPaths.has(normalizePath(f.path)));
+            
+            if (newFiles.length === 0) return;
+            
+            let batch: Track[] = [];
+            for (let i = 0; i < newFiles.length; i++) {
+                const file = newFiles[i];
+                try {
+                    const mockFile = { path: file.path, name: file.name } as any as File;
+                    const metadata = await parseFileMetadata(mockFile);
+                    
+                    const safePath = file.path.replace(/\\/g, '/');
+                    const encodedPath = safePath.split('/').map((s: string) => encodeURIComponent(s)).join('/').replace(/%3A/g, ':');
+                    const fileUrl = `file://${safePath.startsWith('/') ? '' : '/'}${encodedPath}`;
+                    
+                    const duration = await getAudioDuration(fileUrl);
+                    
+                    batch.push({
+                        id: Math.random().toString(36).substr(2, 9),
+                        title: metadata.title || file.name.replace(/\.[^/.]+$/, ""),
+                        artist: metadata.artist || "",
+                        album: metadata.album || "",
+                        albumArtist: metadata.albumArtist || "",
+                        duration: duration || 0,
+                        coverUrl: metadata.coverUrl || generateMockCover(file.name),
+                        fileUrl: fileUrl,
+                        path: file.path,
+                        isLiked: false,
+                        year: metadata.year || new Date().getFullYear().toString(),
+                        source: 'local',
+                        addedAt: Date.now()
+                    });
+
+                    if (batch.length >= 20 || i === newFiles.length - 1) {
+                        const currentBatch = [...batch];
+                        setTracks(tPrev => {
+                            const currentPaths = new Set(tPrev.filter(t => t.path).map(t => normalizePath(t.path)));
+                            const uniqueBatch = currentBatch.filter(t => !currentPaths.has(normalizePath(t.path)));
+                            if (uniqueBatch.length === 0) return tPrev;
+                            return sortTracks([...tPrev, ...uniqueBatch]);
+                        });
+                        batch = [];
+                    }
+                } catch (e) {
+                    console.error("Error processing scanned file:", file.name, e);
+                }
+            }
+        }
+    } catch (e) {
+        console.error("Error scanning folders:", e);
+    }
+  };
+
+  const handleImportFolderClick = async () => {
+      const isElectron = () => (window as any).require && (window as any).require('electron');
+      if (isElectron()) {
+          const { ipcRenderer } = (window as any).require('electron');
+          const folders = await ipcRenderer.invoke('select-folders');
+          if (folders && folders.length > 0) {
+              const newSyncFolders = Array.from(new Set([...(userProfile.syncFolders || []), ...folders]));
+              handleUpdateProfile({ syncFolders: newSyncFolders });
+              scanFolders(folders);
+          }
+      }
   };
 
   return (
@@ -1023,10 +1123,10 @@ const App: React.FC = () => {
         <OnboardingModal onComplete={handleOnboardingComplete} accentColor={theme.accentColor} t={t} />
       )}
 
-      <div className="flex-1 flex overflow-hidden relative z-10 p-2 md:p-4 gap-2 md:gap-4" 
-           style={{ paddingBottom: theme.playerStyle === 'classic' ? '90px' : '130px' }}>
+      <div className={`flex-1 flex ${theme.sidebarPosition === 'right' ? 'flex-row-reverse' : 'flex-row'} overflow-hidden relative z-10 p-2 md:p-4 gap-2 md:gap-4`}>
         <Sidebar 
           onImportClick={() => fileInputRef.current?.click()} 
+          onImportFolderClick={handleImportFolderClick}
           onYouTubeImportClick={() => setIsYouTubeModalOpen(true)}
           onSettingsClick={() => setSettingsOpen(true)}
           currentView={playerState.currentView}
@@ -1070,6 +1170,7 @@ const App: React.FC = () => {
             userProfile={userProfile}
             onUpdateProfile={handleUpdateProfile}
             playerStyle={theme.playerStyle}
+            playerDock={theme.playerDock}
           />
           <PlayerControls 
               currentTrack={playerState.currentTrack} playbackState={playerState.playbackState}
@@ -1080,7 +1181,7 @@ const App: React.FC = () => {
               onToggleShuffle={toggleShuffle} onToggleSidebar={() => setSidebarOpen(!sidebarOpen)}
               onToggleFullScreen={() => setFullScreenMode('cover')} onOpenLyrics={() => setFullScreenMode('lyrics')}
               onToggleLike={handleToggleLike} accentColor={theme.accentColor} onGoToArtist={handleGoToArtist}
-              onGoToAlbum={handleGoToAlbum} playerStyle={theme.playerStyle} enableGlass={theme.enableGlass} t={t}
+              onGoToAlbum={handleGoToAlbum} playerStyle={theme.playerStyle} playerDock={theme.playerDock} enableGlass={theme.enableGlass} t={t}
               audioEffect={theme.globalAudioEffect && theme.globalAudioEffect !== 'none' ? theme.globalAudioEffect : playerState.audioEffect} 
               onToggleAudioEffect={toggleAudioEffect}
             />
@@ -1101,10 +1202,18 @@ const App: React.FC = () => {
             analyser={analyser}
         />
       )}
+      {isEditingLayout && (
+        <LayoutEditorOverlay 
+          config={theme}
+          onUpdate={handleUpdateTheme}
+          onClose={() => setIsEditingLayout(false)}
+        />
+      )}
       <SettingsModal 
         isOpen={settingsOpen} onClose={() => setSettingsOpen(false)} config={theme} 
         onUpdate={handleUpdateTheme} onClearLibrary={handleClearLibrary} 
-        userProfile={userProfile} onUpdateProfile={handleUpdateProfile} t={t}
+        userProfile={userProfile} onUpdateProfile={handleUpdateProfile}
+        onEditLayout={() => setIsEditingLayout(true)} t={t}
       />
       <CreatePlaylistModal
         isOpen={isCreatePlaylistOpen}

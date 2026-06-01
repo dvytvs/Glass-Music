@@ -30,6 +30,7 @@ interface PlayerControlsProps {
   onGoToArtist: (artist: string) => void;
   onGoToAlbum: (album: string) => void;
   playerStyle?: 'floating' | 'classic' | 'split';
+  playerDock?: 'bottom' | 'top' | 'left' | 'right';
   enableGlass?: boolean;
   audioEffect?: 'normal' | 'slowed' | 'spedup';
   onToggleAudioEffect?: () => void;
@@ -42,7 +43,7 @@ const PlayerControls: React.FC<PlayerControlsProps> = ({
   currentTrack, playbackState, onPlayPause, onNext, onPrev, currentTime, duration,
   onSeek, volume, onVolumeChange, isShuffled, isRepeating, onToggleRepeat,
   onToggleShuffle, onToggleSidebar, onToggleFullScreen, onOpenLyrics, onToggleLike,
-  accentColor, onGoToArtist, onGoToAlbum, playerStyle = 'floating', enableGlass = true,
+  accentColor, onGoToArtist, onGoToAlbum, playerStyle = 'floating', playerDock = 'bottom', enableGlass = true,
   audioEffect = 'normal', onToggleAudioEffect, t
 }) => {
   const isPlaying = playbackState === PlaybackState.PLAYING;
@@ -57,6 +58,8 @@ const PlayerControls: React.FC<PlayerControlsProps> = ({
     if (volume === 0) onVolumeChange(1);
     else onVolumeChange(0);
   };
+
+  const isVertical = playerStyle !== 'floating' && (playerDock === 'left' || playerDock === 'right');
 
   const renderTrackInfo = (className: string = "flex items-center w-[30%] min-w-[200px] max-w-[350px] group") => (
         <div className={className}>
@@ -211,37 +214,58 @@ const PlayerControls: React.FC<PlayerControlsProps> = ({
         </div>
   );
 
-  const transitionClasses = `transition-transform duration-700 ${!currentTrack ? 'translate-y-[150%] opacity-0' : 'translate-y-0 opacity-100'}`;
+  let transClassSuffix = !currentTrack ? 'opacity-0 scale-95' : 'opacity-100 scale-100';
+  if (playerDock === 'top') transClassSuffix = !currentTrack ? '-translate-y-[150%] opacity-0' : 'translate-y-0 opacity-100';
+  else if (playerDock === 'bottom') transClassSuffix = !currentTrack ? 'translate-y-[150%] opacity-0' : 'translate-y-0 opacity-100';
+  else if (playerDock === 'left') transClassSuffix = !currentTrack ? '-translate-x-[150%] opacity-0' : 'translate-x-0 opacity-100';
+  else if (playerDock === 'right') transClassSuffix = !currentTrack ? 'translate-x-[150%] opacity-0' : 'translate-x-0 opacity-100';
+  
+  const transitionClasses = `transition-all duration-700 ${transClassSuffix}`;
   const glassClasses = enableGlass ? 'bg-black/60 backdrop-blur-[60px] border border-white/20' : 'bg-[#18181b] border border-white/10';
 
   if (playerStyle === 'split') {
+    let splitDock = 'bottom-6 left-0 right-0 px-6 flex-row';
+    if (playerDock === 'top') splitDock = 'top-6 left-0 right-0 px-6 flex-row';
+    else if (playerDock === 'left') splitDock = 'top-6 bottom-6 left-6 py-6 flex-col w-[350px]';
+    else if (playerDock === 'right') splitDock = 'top-6 bottom-6 right-6 py-6 flex-col w-[350px]';
+    
     return (
-      <div className={`fixed bottom-6 left-0 right-0 z-50 flex items-center justify-between px-6 pointer-events-none`}>
-         <div className={`pointer-events-auto h-[90px] px-4 rounded-[2.5rem] shadow-[0_20px_50px_rgba(0,0,0,0.5)] ${transitionClasses} ${glassClasses} flex items-center justify-center min-w-[300px]`}>
+      <div className={`absolute ${splitDock} z-50 flex items-center justify-between pointer-events-none gap-6`}>
+         <div className={`pointer-events-auto flex items-center justify-center rounded-[2.5rem] shadow-[0_20px_50px_rgba(0,0,0,0.5)] ${transitionClasses} ${glassClasses} ${isVertical ? 'w-full py-6 px-6' : 'h-[90px] px-4 min-w-[300px]'}`}>
             {renderTrackInfo("flex items-center group w-full")}
          </div>
-         <div className={`pointer-events-auto h-[90px] px-8 rounded-[2.5rem] shadow-[0_20px_50px_rgba(0,0,0,0.5)] ${transitionClasses} ${glassClasses} flex items-center justify-center min-w-[450px]`}>
+         <div className={`pointer-events-auto flex items-center justify-center rounded-[2.5rem] shadow-[0_20px_50px_rgba(0,0,0,0.5)] ${transitionClasses} ${glassClasses} ${isVertical ? 'w-full py-8 px-6 flex-1' : 'h-[90px] px-8 min-w-[450px]'}`}>
             {renderControls("flex flex-col items-center justify-center w-full")}
          </div>
-         <div className={`pointer-events-auto h-[90px] px-6 rounded-[2.5rem] shadow-[0_20px_50px_rgba(0,0,0,0.5)] ${transitionClasses} ${glassClasses} flex items-center justify-center min-w-[250px]`}>
-            {renderTools("flex items-center justify-end gap-2 lg:gap-4 w-full")}
+         <div className={`pointer-events-auto flex items-center justify-center rounded-[2.5rem] shadow-[0_20px_50px_rgba(0,0,0,0.5)] ${transitionClasses} ${glassClasses} ${isVertical ? 'w-full py-6 px-6' : 'h-[90px] px-6 min-w-[250px]'}`}>
+            {renderTools("flex items-center justify-center gap-2 lg:gap-4 w-full")}
          </div>
       </div>
     );
   }
 
   if (playerStyle === 'classic') {
+    let classicDock = 'bottom-0 left-0 right-0 w-full h-[90px] flex-row px-6';
+    if (playerDock === 'top') classicDock = 'top-0 left-0 right-0 w-full h-[90px] flex-row px-6';
+    else if (playerDock === 'left') classicDock = 'top-0 bottom-0 left-0 w-[350px] h-full flex-col py-6 border-r border-[var(--glass-border)]';
+    else if (playerDock === 'right') classicDock = 'top-0 bottom-0 right-0 w-[350px] h-full flex-col py-6 border-l border-[var(--glass-border)]';
+    
     return (
-      <div className={`fixed bottom-0 left-0 right-0 z-50 flex items-center justify-between w-full h-[90px] px-6 pointer-events-auto rounded-none ${transitionClasses} ${glassClasses}`}>
-        {renderTrackInfo()}
-        {renderControls()}
-        {renderTools()}
+      <div className={`absolute ${classicDock} z-50 flex items-center justify-between pointer-events-auto ${isVertical ? 'rounded-none' : 'rounded-none'} ${transitionClasses} ${glassClasses}`}>
+        {renderTrackInfo(isVertical ? "flex items-center w-full group mb-auto px-4" : "flex items-center w-[30%] min-w-[200px] max-w-[350px] group")}
+        {renderControls(isVertical ? "flex flex-col items-center justify-center w-full my-auto px-4" : "flex-1 flex flex-col items-center justify-center px-4 md:px-8 max-w-[600px] w-full")}
+        {renderTools(isVertical ? "flex items-center justify-center w-full gap-2 lg:gap-4 mt-auto px-4" : "flex items-center justify-end w-[30%] min-w-[200px] max-w-[350px] gap-2 lg:gap-4")}
       </div>
     );
   }
 
+  let floatDock = 'bottom-6 left-1/2 -translate-x-1/2';
+  if (playerDock === 'top') floatDock = 'top-6 left-1/2 -translate-x-1/2';
+  else if (playerDock === 'left') floatDock = 'bottom-6 left-8';
+  else if (playerDock === 'right') floatDock = 'bottom-6 right-8';
+
   return (
-    <div className={`fixed bottom-6 left-1/2 -translate-x-1/2 z-50 flex items-center justify-between xl:justify-center w-[98%] md:w-auto md:min-w-[900px] max-w-[1400px] h-[90px] rounded-[3rem] px-6 pointer-events-auto shadow-[0_20px_50px_rgba(0,0,0,0.5)] ${transitionClasses} ${glassClasses}`}>
+    <div className={`absolute ${floatDock} z-50 flex items-center justify-between xl:justify-center w-[98%] md:w-auto md:min-w-[700px] max-w-[1200px] h-[90px] rounded-[3rem] px-6 pointer-events-auto shadow-[0_20px_50px_rgba(0,0,0,0.5)] ${transitionClasses} ${glassClasses}`}>
        {renderTrackInfo()}
        {renderControls()}
        {renderTools()}

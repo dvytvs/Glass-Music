@@ -1,4 +1,4 @@
-const { app, BrowserWindow, ipcMain, nativeTheme, Tray, Menu, globalShortcut } = require('electron');
+const { app, BrowserWindow, ipcMain, nativeTheme, Tray, Menu, globalShortcut, dialog } = require('electron');
 const path = require('path');
 const fs = require('fs');
 const NodeID3 = require('node-id3');
@@ -106,6 +106,47 @@ if (!gotTheLock) {
 
 app.setPath('userData', path.join(app.getPath('appData'), 'glass-music'));
 const userDataPath = app.getPath('userData');
+
+ipcMain.handle('select-folders', async () => {
+    const result = await dialog.showOpenDialog(mainWindow, {
+        properties: ['openDirectory', 'multiSelections']
+    });
+    return result.filePaths;
+});
+
+ipcMain.handle('scan-folders', async (e, folders) => {
+    const audioExts = ['.mp3', '.flac', '.wav', '.ogg', '.m4a', '.aac'];
+    const files = [];
+
+    async function scanDir(dir) {
+        try {
+            const entries = await fs.promises.readdir(dir, { withFileTypes: true });
+            for (const entry of entries) {
+                const fullPath = path.join(dir, entry.name);
+                if (entry.isDirectory()) {
+                    await scanDir(fullPath);
+                } else if (entry.isFile() && audioExts.includes(path.extname(entry.name).toLowerCase())) {
+                    const stat = await fs.promises.stat(fullPath);
+                    files.push({
+                        path: fullPath,
+                        name: entry.name,
+                        size: stat.size,
+                        lastModified: stat.mtimeMs
+                    });
+                }
+            }
+        } catch (err) {
+            console.error(`Failed to scan dir ${dir}:`, err);
+        }
+    }
+
+    for (const folder of folders) {
+        if (fs.existsSync(folder)) {
+            await scanDir(folder);
+        }
+    }
+    return files;
+});
 
 ipcMain.handle('get-system-info', async () => {
     return {

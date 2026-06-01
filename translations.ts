@@ -1,7 +1,7 @@
 
 export type TranslationKey = 
   | 'listen_now' | 'albums' | 'artists' | 'songs' | 'favorites' | 'search' | 'settings' | 'profile'
-  | 'search_placeholder' | 'no_tracks' | 'add_tracks' | 'import_tracks' | 'theme' | 'language' | 'accent_color'
+  | 'search_placeholder' | 'no_tracks' | 'add_tracks' | 'import_tracks' | 'import_folder' | 'theme' | 'language' | 'accent_color'
   | 'background' | 'blur' | 'brightness' | 'glass_effect' | 'seasonal_theme' | 'player_style'
   | 'dark' | 'light' | 'system' | 'save' | 'cancel' | 'edit' | 'delete' | 'play_all' | 'shuffle_all'
   | 'animate_background'
@@ -29,6 +29,7 @@ export const translations: Record<string, Record<TranslationKey, string>> = {
     no_tracks: 'Нет треков',
     add_tracks: 'Добавить треки',
     import_tracks: 'Импортировать музыку',
+    import_folder: 'Импортировать папку',
     theme: 'Тема',
     language: 'Язык',
     accent_color: 'Акцентный цвет',
@@ -127,6 +128,7 @@ export const translations: Record<string, Record<TranslationKey, string>> = {
     no_tracks: 'No tracks',
     add_tracks: 'Add tracks',
     import_tracks: 'Import music',
+    import_folder: 'Import folder',
     theme: 'Theme',
     language: 'Language',
     accent_color: 'Accent Color',

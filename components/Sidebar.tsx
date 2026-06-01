@@ -6,6 +6,7 @@ import { TranslationKey } from '../translations';
 
 interface SidebarProps {
   onImportClick: () => void;
+  onImportFolderClick?: () => void;
   onYouTubeImportClick?: () => void;
   onSettingsClick: () => void;
   currentView: ViewType;
@@ -24,7 +25,7 @@ interface SidebarProps {
 }
 
 const Sidebar: React.FC<SidebarProps> = ({ 
-  onImportClick, onYouTubeImportClick, onSettingsClick, currentView, onChangeView, isOpen, accentColor,
+  onImportClick, onImportFolderClick, onYouTubeImportClick, onSettingsClick, currentView, onChangeView, isOpen, accentColor,
   searchQuery, onSearchChange, enableGlass, user, t, playlists, onSelectPlaylist, onCreatePlaylist, selectedPlaylist
 }) => {
   const [playlistsExpanded, setPlaylistsExpanded] = useState(true);
@@ -59,7 +60,7 @@ const Sidebar: React.FC<SidebarProps> = ({
           </div>
         </div>
 
-        <nav className="flex-1 space-y-6 overflow-y-auto custom-scrollbar pr-2">
+        <nav className="flex-1 space-y-6 overflow-y-auto custom-scrollbar pr-2 pb-6">
           {/* Main Navigation */}
           <div className="space-y-1">
             <NavItem 
@@ -146,7 +147,7 @@ const Sidebar: React.FC<SidebarProps> = ({
         </nav>
 
         {/* Bottom Actions & Profile */}
-        <div className="mt-auto pt-4 border-t border-[var(--glass-border)]">
+        <div className="mt-auto pt-4 border-t border-[var(--glass-border)] transition-all duration-300">
           <button 
             onClick={onImportClick}
             className="w-full py-2.5 px-4 mb-2 rounded-full text-white font-bold text-sm flex items-center justify-center gap-2 transition-all hover:opacity-90 shadow-md"
@@ -155,6 +156,16 @@ const Sidebar: React.FC<SidebarProps> = ({
             <Plus className="w-4 h-4" />
             <span>{t('import_tracks')}</span>
           </button>
+
+          {onImportFolderClick && (
+            <button 
+              onClick={onImportFolderClick}
+              className="w-full py-2.5 px-4 mb-2 rounded-full border border-[var(--glass-border)] text-[var(--text-main)] font-bold text-sm flex items-center justify-center gap-2 transition-all hover:bg-[var(--card-hover)] shadow-sm"
+            >
+              <Plus className="w-4 h-4" />
+              <span>{t('import_folder')}</span>
+            </button>
+          )}
 
           {onYouTubeImportClick && (
             <button 
