@@ -1,6 +1,7 @@
 
 <p align="center">
-  <img width="256" height="256" alt="icon" src="https://github.com/user-attachments/assets/931a74fd-4177-4a0a-b962-53baebacb415" />
+  <img width="512" height="512" alt="icon" src="https://github.com/user-attachments/assets/c4a4f64c-d11c-4669-a5bd-1aa5902c20ee" />
+
 </p>
 
 <h1 align="center">Glass Music</h1>
