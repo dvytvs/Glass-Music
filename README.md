@@ -81,7 +81,7 @@
 - **AppImage:**
   Универсальный формат, доступен в [релизах на GitHub](https://github.com/dvytvs/Glass-Music/releases) или на [AppImageHub](https://www.appimagehub.com/p/2358615).
 - **Flatpak:**
-  К сожалению, официальной публикации во Flathub **никогда не будет**. Платформа ввела очень строгие правила, сделав невозможной публикацию приложений, созданных с помощью ИИ. Это совсем не та открытость, о которой так много говорят. Но вы можете совершенно свободно скачать `.flatpak` пакет из наших [релизов](https://github.com/dvytvs/Glass-Music/releases) и установить его локально. Просим отнестись с пониманием.
+  К сожалению, официальной публикации во Flathub **никогда не будет**. Платформа ввела очень строгие правила, сделав невозможной публикацию приложений, созданных с помощью ИИ. Это совсем не та открытость, о которой так много говорят. Но вы можете совершенно свободно скачать `.flatpak` пакет из наших [релизов](https://github.com/dvytvs/Glass-Music/releases) и установить его локально. Просим отнестись с пониманием. Я не хочу использовать эту ужасную платформу из своих принципов. Она ужасна своей политикой. Запрещать ИИ и прочее во Flathub - это самое тупое решение к которому они пришли. Администрация даже не соизволила лично проверить код, проверить приложение и удостовериться в его нормальной работоспособности. Она выдали мне вечный бан на платформе обозвав проект "AI Slop" даже не пытаясь разобраться в ситуации. Это просто нытики, которых сейчас байкотируют и я присоединяюсь к ним. Давать столько власти Flathub в линукс сообщество - ошибка. От них будут уходить люди на другие платформы и в этом они виноваты сами.
 - 🚫 **FreeBSD:** Поддержка не планируется вовсе.
 
 **🪟 Windows**
@@ -141,7 +141,7 @@ We believe your music tastes are your private business.
 - **AppImage:**
   Grab it from [GitHub Releases](https://github.com/dvytvs/Glass-Music/releases) or [AppImageHub](https://www.appimagehub.com/p/2358615).
 - **Flatpak:**
-  Unfortunately, there will **never** be an official Flathub release. They introduced extreme publishing restrictions—specifically banning apps made with AI. That is not the "openness" they constantly advertise. However, you can still easily download the ready-made `.flatpak` from our [releases](https://github.com/dvytvs/Glass-Music/releases) and manually install it. We hope you understand.
+  Unfortunately, there will **never** be an official Flathub release. They introduced extreme publishing restrictions—specifically banning apps made with AI. That is not the "openness" they constantly advertise. However, you can still easily download the ready-made `.flatpak` from our [releases](https://github.com/dvytvs/Glass-Music/releases) and manually install it. We hope you understand. don't want to use this terrible platform based on my principles. Its policies are terrible. Banning AI and other features from Flathub is the dumbest decision they've ever made. The administration didn't even deign to personally review the code, test the app, and ensure it worked properly. They gave me a permanent ban from the platform, calling the project "AI Slop," without even trying to understand the situation. These are just whiners who are now being boycotted, and I'm joining them. Giving Flathub so much power in the Linux community is a mistake. People will leave them for other platforms, and they have only themselves to blame.
 - 🚫 **FreeBSD:** Support is not planned and will never be provided.
 
 **🪟 Windows**
