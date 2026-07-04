@@ -13,7 +13,8 @@ export type TranslationKey =
   | 'shuffle' | 'popular_tracks' | 'magic_api' | 'click_to_change' | 'about' | 'delete_warning'
   | 'philosophy' | 'philosophy_text' | 'privacy' | 'privacy_text' | 'opensource_text' | 'create_playlist' | 'playlists' | 'no_playlists' | 'add_to_playlist' | 'playlist' | 'cover_image' | 'playlist_name' | 'my_playlist' | 'create' | 'enter_new_playlist_name' | 'delete_playlist_confirm' | 'your_library' | 'repeat'
   | 'good_evening' | 'good_morning' | 'good_afternoon' | 'artist' | 'recently_added'
-  | 'sort_default' | 'sort_title_asc' | 'sort_title_desc' | 'sort_date_desc' | 'sort_date_asc' | 'sort_duration_desc' | 'sort_duration_asc';
+  | 'sort_default' | 'sort_title_asc' | 'sort_title_desc' | 'sort_date_desc' | 'sort_date_asc' | 'sort_duration_desc'  | 'sort_duration_asc' 
+  | 'current' | 'new' | 'version' | 'changelog_207_1' | 'changelog_207_2' | 'changelog_207_3' | 'changelog_207_4' | 'changelog_207_5';
 
 export const translations: Record<string, Record<TranslationKey, string>> = {
   ru: {
@@ -86,7 +87,7 @@ export const translations: Record<string, Record<TranslationKey, string>> = {
     about: 'О приложении',
     delete_warning: 'Это действие удалит все треки из твоей библиотеки. Это нельзя отменить.',
     philosophy: 'Философия',
-    philosophy_text: 'Glass Music — это манифест против сложности. Мы верим в чистую эстетику, плавные линии и музыку, которая не отвлекает. Вдохновлен концептами "Liquid Metal" и "Glassmorphism".',
+    philosophy_text: 'Glass Music — это манифест против сложности. Мы верим в чистую эстетику, плавные линии и музыку, которая не отвлекает. Вдохновлен концептами "Liquid Metal" and "Glassmorphism".',
     privacy: 'Приватность',
     privacy_text: 'Твои данные — это твоя жизнь. Мы не собираем статистику, не отслеживаем прослушивания и не передаем информацию третьим лицам. Всё остается только на твоем устройстве.',
     opensource_text: 'Проект полностью открыт. Вы можете проверить каждую строчку кода и убедиться в нашей честности.',
@@ -114,6 +115,14 @@ export const translations: Record<string, Record<TranslationKey, string>> = {
     sort_date_asc: 'Сначала старые',
     sort_duration_desc: 'Сначала длинные',
     sort_duration_asc: 'Сначала короткие',
+    current: 'Текущая',
+    new: 'Новое',
+    version: 'Версия',
+    changelog_207_1: 'Immersive Mode: Полностью переработан полноэкранный плеер с динамическими фонами.',
+    changelog_207_2: 'Linux MPRIS: Интеграция с системными виджетами управления (Niri/Hyprland).',
+    changelog_207_3: 'Исправлено сохранение аудио-эффектов (Slowed/Speed Up) после перезагрузки.',
+    changelog_207_4: 'Улучшено фоновое воспроизведение и сворачивание в трей.',
+    changelog_207_5: 'Починена запись метаданных (ID3) напрямую в mp3 файлы.',
   },
   en: {
     listen_now: 'Listen Now',
@@ -213,5 +222,13 @@ export const translations: Record<string, Record<TranslationKey, string>> = {
     sort_date_asc: 'Oldest First',
     sort_duration_desc: 'Longest First',
     sort_duration_asc: 'Shortest First',
+    current: 'Current',
+    new: 'New',
+    version: 'Version',
+    changelog_207_1: 'Immersive Mode: Completely redesigned full-screen player with dynamic backgrounds.',
+    changelog_207_2: 'Linux MPRIS: Integration with system media widgets (Niri/Hyprland support).',
+    changelog_207_3: 'Fixed Audio Effects (Slowed/Speed Up) persistence after restart.',
+    changelog_207_4: 'Improved background playback and minimize-to-tray behavior.',
+    changelog_207_5: 'Fixed ID3 tag writing directly to mp3 files.',
   }
 };

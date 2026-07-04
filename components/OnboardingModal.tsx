@@ -1,6 +1,6 @@
 
 import React, { useState } from 'react';
-import { X, ArrowRight, User, Palette, Droplet, Check } from './Icons';
+import { ArrowRight, User, Palette, Droplet } from './Icons';
 import { ThemeConfig, UserProfile } from '../types';
 import { TranslationKey } from '../translations';
 
@@ -25,117 +25,121 @@ const OnboardingModal: React.FC<OnboardingModalProps> = ({ onComplete, accentCol
     onComplete({ ...tempProfile, onboardingDone: true }, tempTheme);
   };
 
-  const renderRemAvatar = () => (
-    <div className="w-32 h-32 rounded-full bg-gradient-to-br from-blue-400 to-blue-600 shadow-2xl flex items-center justify-center relative overflow-hidden animate-bounce-slow border-4 border-white/20">
-        <svg viewBox="0 0 100 100" className="w-full h-full">
-            <circle cx="50" cy="50" r="48" fill="#60a5fa" />
-            <path d="M20 40 Q 50 10 80 40" stroke="#1e40af" strokeWidth="4" fill="none" />
-            <circle cx="35" cy="45" r="5" fill="white" />
-            <circle cx="65" cy="45" r="5" fill="white" />
-            <circle cx="35" cy="45" r="2" fill="black" />
-            <circle cx="65" cy="45" r="2" fill="black" />
-            <path d="M40 65 Q 50 75 60 65" stroke="white" strokeWidth="3" fill="none" />
-            <path d="M10 50 Q 0 30 20 20 Q 50 0 80 20 Q 100 30 90 50" fill="#2563eb" opacity="0.8" />
-        </svg>
-    </div>
-  );
-
   return (
-    <div className="fixed inset-0 z-[300] flex items-center justify-center bg-black/40 backdrop-blur-md p-4">
-      <div className="w-full max-w-xl bg-[var(--bg-main)] border border-[var(--glass-border)] rounded-[40px] shadow-2xl overflow-hidden flex flex-col items-center p-12 text-center animate-zoom-in">
-        
-        <div className="mb-8">{renderRemAvatar()}</div>
+    <div className="fixed inset-0 z-[300] flex bg-[var(--bg-main)]">
+      {/* Left side: GIF / Image Cover */}
+      <div className="hidden md:flex w-1/2 h-full relative overflow-hidden bg-black">
+        <div className="absolute inset-0 z-10 bg-gradient-to-r from-transparent to-[var(--bg-main)]"></div>
+        <img 
+          src="/gif/rem.gif" 
+          alt="Rem Background" 
+          className="w-full h-full object-cover opacity-80"
+        />
+        {step === 1 && (
+            <div className="absolute bottom-12 left-12 z-20 animate-fade-in-view">
+                <h1 className="text-6xl font-black text-white drop-shadow-lg mb-4">Glass<br/>Music.</h1>
+                <p className="text-white/80 text-xl max-w-sm drop-shadow-md">Новый уровень твоего музыкального опыта.</p>
+            </div>
+        )}
+      </div>
 
-        <div className="w-full space-y-6">
-            {step === 1 && (
-                <div className="animate-fade-in-view">
-                    <h2 className="text-3xl font-black text-[var(--text-main)] mb-4">{t('onboarding_welcome')}! Я Рэм.</h2>
-                    <p className="text-[var(--text-muted)] text-lg leading-relaxed">
-                        Я помогу тебе настроить твой новый музыкальный плеер Glass Music. <br/> Это займет всего пару минут!
-                    </p>
-                </div>
-            )}
+      {/* Right side: Onboarding Form */}
+      <div className="w-full md:w-1/2 h-full flex flex-col justify-center items-center p-8 lg:p-24 relative overflow-y-auto">
+        <div className="w-full max-w-md flex flex-col items-center text-center animate-zoom-in">
+          
+          <div className="w-full space-y-8">
+              {step === 1 && (
+                  <div className="animate-fade-in-view space-y-4">
+                      <h2 className="text-4xl font-black text-[var(--text-main)]">{t('onboarding_welcome')}!</h2>
+                      <p className="text-[var(--text-muted)] text-lg leading-relaxed">
+                          Давай настроим твой новый музыкальный плеер Glass Music. Это займет всего пару минут!
+                      </p>
+                  </div>
+              )}
 
-            {step === 2 && (
-                <div className="animate-fade-in-view space-y-6">
-                    <h2 className="text-2xl font-bold text-[var(--text-main)] flex items-center justify-center gap-2"><User className="w-6 h-6"/> Как тебя зовут?</h2>
-                    <input 
-                        type="text" 
-                        value={tempProfile.name}
-                        onChange={e => setTempProfile({ ...tempProfile, name: e.target.value })}
-                        className="w-full bg-[var(--card-bg)] border border-[var(--glass-border)] rounded-2xl px-6 py-4 text-center text-xl font-bold text-[var(--text-main)] outline-none focus:border-[var(--text-main)]/50 transition-all"
-                        placeholder={t('nickname') + "..."}
-                    />
-                </div>
-            )}
+              {step === 2 && (
+                  <div className="animate-fade-in-view space-y-6">
+                      <h2 className="text-3xl font-bold text-[var(--text-main)] flex items-center justify-center gap-3"><User className="w-8 h-8"/> Как тебя зовут?</h2>
+                      <input 
+                          type="text" 
+                          value={tempProfile.name}
+                          onChange={e => setTempProfile({ ...tempProfile, name: e.target.value })}
+                          className="w-full bg-[var(--card-bg)] border-2 border-[var(--glass-border)] rounded-2xl px-6 py-4 text-center text-2xl font-bold text-[var(--text-main)] outline-none focus:border-[var(--text-main)]/50 transition-all shadow-inner"
+                          placeholder={t('nickname') + "..."}
+                      />
+                  </div>
+              )}
 
-            {step === 3 && (
-                <div className="animate-fade-in-view space-y-6">
-                    <h2 className="text-2xl font-bold text-[var(--text-main)] flex items-center justify-center gap-2"><Palette className="w-6 h-6"/> Выбери свой стиль</h2>
-                    <div className="flex justify-center gap-4">
-                        {['#db2777', '#2563eb', '#10b981', '#f59e0b', '#8b5cf6'].map(color => (
-                            <button 
-                                key={color}
-                                onClick={() => setTempTheme({ ...tempTheme, accentColor: color })}
-                                className={`w-12 h-12 rounded-full border-4 transition-all ${tempTheme.accentColor === color ? 'border-[var(--text-main)] scale-125' : 'border-transparent'}`}
-                                style={{ backgroundColor: color }}
-                            />
-                        ))}
-                    </div>
-                </div>
-            )}
+              {step === 3 && (
+                  <div className="animate-fade-in-view space-y-8">
+                      <h2 className="text-3xl font-bold text-[var(--text-main)] flex items-center justify-center gap-3"><Palette className="w-8 h-8"/> Выбери свой стиль</h2>
+                      <div className="flex justify-center gap-4 flex-wrap">
+                          {['#db2777', '#2563eb', '#10b981', '#f59e0b', '#8b5cf6', '#ef4444', '#14b8a6'].map(color => (
+                              <button 
+                                  key={color}
+                                  onClick={() => setTempTheme({ ...tempTheme, accentColor: color })}
+                                  className={`w-14 h-14 rounded-full transition-all shadow-md ${tempTheme.accentColor === color ? 'ring-4 ring-offset-4 ring-offset-[var(--bg-main)] scale-110' : 'hover:scale-110'}`}
+                                  style={{ backgroundColor: color, '--tw-ring-color': color } as React.CSSProperties}
+                              />
+                          ))}
+                      </div>
+                  </div>
+              )}
 
-            {step === 4 && (
-                <div className="animate-fade-in-view space-y-6">
-                    <h2 className="text-2xl font-bold text-[var(--text-main)] flex items-center justify-center gap-2"><Droplet className="w-6 h-6"/> Тип фона</h2>
-                    <div className="grid grid-cols-2 gap-4">
-                        <button 
-                            onClick={() => setTempTheme({ ...tempTheme, backgroundType: 'liquid' })}
-                            className={`p-6 rounded-3xl border transition-all ${tempTheme.backgroundType === 'liquid' ? 'bg-[var(--card-bg)] border-[var(--text-main)]' : 'bg-[var(--card-bg)]/50 border-[var(--glass-border)]'}`}
-                        >
-                            <span className="font-bold text-[var(--text-main)]">Liquid</span>
-                            <p className="text-xs text-[var(--text-muted)] mt-1">Живой градиент</p>
-                        </button>
-                        <button 
-                            onClick={() => setTempTheme({ ...tempTheme, backgroundType: 'image' })}
-                            className={`p-6 rounded-3xl border transition-all ${tempTheme.backgroundType === 'image' ? 'bg-[var(--card-bg)] border-[var(--text-main)]' : 'bg-[var(--card-bg)]/50 border-[var(--glass-border)]'}`}
-                        >
-                            <span className="font-bold text-[var(--text-main)]">Static</span>
-                            <p className="text-xs text-[var(--text-muted)] mt-1">Обычный фон</p>
-                        </button>
-                    </div>
-                </div>
-            )}
+              {step === 4 && (
+                  <div className="animate-fade-in-view space-y-8">
+                      <h2 className="text-3xl font-bold text-[var(--text-main)] flex items-center justify-center gap-3"><Droplet className="w-8 h-8"/> Тип фона</h2>
+                      <div className="grid grid-cols-2 gap-6">
+                          <button 
+                              onClick={() => setTempTheme({ ...tempTheme, backgroundType: 'liquid' })}
+                              className={`p-8 rounded-3xl border-2 transition-all shadow-lg ${tempTheme.backgroundType === 'liquid' ? 'bg-[var(--card-bg)] border-[var(--text-main)]' : 'bg-[var(--card-bg)]/50 border-[var(--glass-border)]'}`}
+                          >
+                              <span className="font-bold text-xl text-[var(--text-main)]">Liquid</span>
+                              <p className="text-sm text-[var(--text-muted)] mt-2">Живой градиент</p>
+                          </button>
+                          <button 
+                              onClick={() => setTempTheme({ ...tempTheme, backgroundType: 'image' })}
+                              className={`p-8 rounded-3xl border-2 transition-all shadow-lg ${tempTheme.backgroundType === 'image' ? 'bg-[var(--card-bg)] border-[var(--text-main)]' : 'bg-[var(--card-bg)]/50 border-[var(--glass-border)]'}`}
+                          >
+                              <span className="font-bold text-xl text-[var(--text-main)]">Static</span>
+                              <p className="text-sm text-[var(--text-muted)] mt-2">Обычный фон</p>
+                          </button>
+                      </div>
+                  </div>
+              )}
 
-            {step === 5 && (
-                <div className="animate-fade-in-view space-y-6">
-                    <h2 className="text-3xl font-black text-[var(--text-main)]">{t('done')}!</h2>
-                    <p className="text-[var(--text-muted)] text-lg">
-                        Приятного прослушивания, {tempProfile.name || t('nickname')}! <br/> Помни: твоя музыка — твои правила.
-                    </p>
-                </div>
-            )}
+              {step === 5 && (
+                  <div className="animate-fade-in-view space-y-6">
+                      <h2 className="text-4xl font-black text-[var(--text-main)]">{t('done')}!</h2>
+                      <p className="text-[var(--text-muted)] text-xl leading-relaxed">
+                          Приятного прослушивания, {tempProfile.name || t('nickname')}! <br/> Помни: твоя музыка — твои правила.
+                      </p>
+                  </div>
+              )}
+          </div>
+
+          <div className="mt-16 flex gap-4 w-full">
+              {step > 1 && (
+                  <button onClick={prevStep} className="flex-1 py-4 rounded-2xl bg-[var(--card-bg)] border border-[var(--glass-border)] font-bold text-lg text-[var(--text-muted)] hover:text-[var(--text-main)] hover:bg-[var(--card-bg-hover)] transition-all">
+                      {t('back')}
+                  </button>
+              )}
+              <button 
+                  onClick={step === 5 ? handleFinish : nextStep}
+                  className="flex-[2] py-4 rounded-2xl font-bold text-white text-lg shadow-xl hover:scale-[1.02] active:scale-[0.98] transition-all flex items-center justify-center gap-3"
+                  style={{ backgroundColor: tempTheme.accentColor }}
+              >
+                  {step === 5 ? t('onboarding_start') : 'Далее'} <ArrowRight className="w-6 h-6" />
+              </button>
+          </div>
+
+          <div className="mt-12 flex gap-3">
+              {[1,2,3,4,5].map(s => (
+                  <div key={s} className={`h-2 rounded-full transition-all duration-300 ${s === step ? 'w-10' : 'w-2 bg-[var(--text-muted)]/20'}`} style={s === step ? {backgroundColor: tempTheme.accentColor} : {}} />
+              ))}
+          </div>
+
         </div>
-
-        <div className="mt-12 flex gap-4 w-full">
-            {step > 1 && (
-                <button onClick={prevStep} className="flex-1 py-4 rounded-2xl bg-[var(--card-bg)] border border-[var(--glass-border)] font-bold text-[var(--text-muted)] hover:text-[var(--text-main)] transition-all">{t('back')}</button>
-            )}
-            <button 
-                onClick={step === 5 ? handleFinish : nextStep}
-                className="flex-1 py-4 rounded-2xl font-bold text-white shadow-xl hover:scale-105 active:scale-95 transition-all flex items-center justify-center gap-2"
-                style={{ backgroundColor: tempTheme.accentColor }}
-            >
-                {step === 5 ? t('onboarding_start') : t('onboarding_start')} <ArrowRight className="w-5 h-5" />
-            </button>
-        </div>
-
-        <div className="mt-8 flex gap-2">
-            {[1,2,3,4,5].map(s => (
-                <div key={s} className={`h-1.5 rounded-full transition-all ${s === step ? 'w-8 bg-[var(--text-main)]' : 'w-2 bg-[var(--text-muted)]/10'}`} />
-            ))}
-        </div>
-
       </div>
     </div>
   );

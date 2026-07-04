@@ -83,13 +83,27 @@ if (!gotTheLock) {
         });
 
         mainWindow.on('close', (e) => {
-            if (!app.isQuitting && isPlaying) {
+            if (app.isQuitting) {
+                return;
+            }
+            
+            if (isPlaying) {
                 e.preventDefault();
                 mainWindow.hide();
-            } else {
-                app.isQuitting = true;
-                app.quit();
             }
+        });
+
+        ipcMain.on('window-minimize', () => {
+            if (mainWindow) mainWindow.minimize();
+        });
+        ipcMain.on('window-maximize', () => {
+            if (mainWindow) {
+                if (mainWindow.isMaximized()) mainWindow.unmaximize();
+                else mainWindow.maximize();
+            }
+        });
+        ipcMain.on('window-close', () => {
+             if (mainWindow) mainWindow.close();
         });
 
         // Notify renderer about theme changes
@@ -204,12 +218,25 @@ ipcMain.handle('get-local-data', async (e, { key }) => {
     } catch (err) { return null; }
 });
 
-ipcMain.handle('get-metadata', async (e, query) => {
+ipcMain.handle('get-metadata', async (e, { query }) => {
     try {
-        const res = await fetch(`https://api.deezer.com/search?q=${encodeURIComponent(query)}&limit=5`);
+        const res = await fetch(`https://api.deezer.com/search?q=${encodeURIComponent(query)}&limit=10`);
         const data = await res.json();
         if (data.data && data.data.length > 0) {
-            const trackShort = data.data[0];
+            // Attempt to find a better match by checking if both artist and title are present in query
+            let trackShort = data.data[0];
+            const queryLower = query.toLowerCase();
+            
+            for (const item of data.data) {
+                const titleLower = item.title.toLowerCase();
+                const artistLower = item.artist.name.toLowerCase();
+                
+                // If query contains both artist and title, this is likely our match
+                if (queryLower.includes(titleLower) && queryLower.includes(artistLower)) {
+                    trackShort = item;
+                    break;
+                }
+            }
             
             // Fetch full track details for contributors and album details for year
             const [trackRes, albumRes] = await Promise.all([
@@ -248,9 +275,9 @@ ipcMain.handle('get-metadata', async (e, query) => {
     }
 });
 
-ipcMain.handle('get-artist-metadata', async (e, artistName) => {
+ipcMain.handle('get-artist-metadata', async (e, { artist, lastfmKey }) => {
     let result = { avatar: null, banner: null, bio: "" };
-    const cleanName = artistName.trim();
+    const cleanName = artist.trim();
     if (!cleanName || cleanName.toLowerCase() === 'неизвестный артист') return null;
 
     // 1. Fetch from Deezer (Images)
@@ -345,12 +372,12 @@ ipcMain.handle('save-custom-image', async (e, { folder, filename, base64Data }) 
     }
 });
 
-ipcMain.handle('read-id3-tags', async (e, filePath) => {
+ipcMain.handle('read-id3-tags', async (e, { filePath }) => {
     try {
         if (!fs.existsSync(filePath)) return null;
         
         const tags = await new Promise((resolve) => {
-            let timeoutId = setTimeout(() => resolve(null), 1500);
+            let timeoutId = setTimeout(() => resolve(null), 10000);
             NodeID3.read(filePath, (err, tags) => {
                 clearTimeout(timeoutId);
                 if (err) resolve(null);
@@ -399,22 +426,27 @@ ipcMain.handle('write-id3-tags', async (e, { filePath, tags }) => {
             const base64Data = tags.coverUrl.split(';base64,').pop();
             coverBuffer = Buffer.from(base64Data, 'base64');
         } else if (tags.coverUrl && tags.coverUrl.startsWith('http')) {
-            const res = await fetch(tags.coverUrl);
-            const arrayBuffer = await res.arrayBuffer();
-            coverBuffer = Buffer.from(arrayBuffer);
+            try {
+                const res = await fetch(tags.coverUrl);
+                const arrayBuffer = await res.arrayBuffer();
+                coverBuffer = Buffer.from(arrayBuffer);
+            } catch (e) {
+                console.error("Failed to fetch cover image:", e);
+            }
         }
 
-        const id3Tags = {
-            title: tags.title,
-            artist: tags.artist,
-            album: tags.album,
-            performerInfo: tags.albumArtist,
-            year: tags.year,
-            unsynchronisedLyrics: {
+        const id3Tags = {};
+        if (tags.title) id3Tags.title = tags.title;
+        if (tags.artist) id3Tags.artist = tags.artist;
+        if (tags.album) id3Tags.album = tags.album;
+        if (tags.albumArtist) id3Tags.performerInfo = tags.albumArtist;
+        if (tags.year) id3Tags.year = tags.year;
+        if (tags.lyrics !== undefined) {
+            id3Tags.unsynchronisedLyrics = {
                 language: 'eng',
-                text: tags.lyrics || ''
-            }
-        };
+                text: tags.lyrics
+            };
+        }
 
         if (coverBuffer) {
             id3Tags.image = {
@@ -435,6 +467,7 @@ ipcMain.handle('write-id3-tags', async (e, { filePath, tags }) => {
 
     app.on('before-quit', () => { app.isQuitting = true; });
     app.whenReady().then(() => {
+        createTray();
         createWindow();
         
         globalShortcut.register('MediaPlayPause', () => {

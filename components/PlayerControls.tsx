@@ -64,7 +64,7 @@ const PlayerControls: React.FC<PlayerControlsProps> = ({
   const renderTrackInfo = (className: string = "flex items-center w-[30%] min-w-[200px] max-w-[350px] group") => (
         <div className={className}>
             <div 
-              className={`w-16 h-16 overflow-hidden shrink-0 cursor-pointer relative shadow-lg mr-4 border border-white/10 ${playerStyle === 'classic' ? 'rounded-md' : 'rounded-2xl'}`}
+              className={`${isVertical ? 'w-full aspect-square mb-6 mx-auto max-w-[280px]' : 'w-16 h-16 mr-4'} overflow-hidden shrink-0 cursor-pointer relative shadow-lg border border-white/10 ${playerStyle === 'classic' && !isVertical ? 'rounded-md' : 'rounded-2xl'}`}
               onClick={onToggleFullScreen}
             >
                 {currentTrack ? <img src={currentTrack.coverUrl} className={`w-full h-full object-cover transition-transform duration-700 ${isPlaying ? 'scale-110' : 'scale-100'}`} /> : <div className="w-full h-full bg-white/5" />}
@@ -72,14 +72,14 @@ const PlayerControls: React.FC<PlayerControlsProps> = ({
                     <Maximize2 className="w-6 h-6 text-white" />
                 </div>
             </div>
-            <div className="flex-1 min-w-0 flex flex-col justify-center">
+            <div className={`flex-1 min-w-0 flex flex-col ${isVertical ? 'items-center text-center w-full' : 'justify-center'}`}>
                 <p 
-                  className="text-[15px] font-bold text-white truncate cursor-pointer hover:underline"
+                  className={`${isVertical ? 'text-2xl mb-1' : 'text-[15px]'} font-bold text-white truncate cursor-pointer hover:underline max-w-full`}
                   onClick={() => currentTrack && onGoToAlbum(currentTrack.album)}
                 >
                   {currentTrack?.title || 'No Track'}
                 </p>
-                <p className="text-[13px] font-semibold text-white/50 truncate mt-0.5">
+                <p className={`${isVertical ? 'text-base mb-2' : 'text-[13px]'} font-semibold text-white/50 truncate mt-0.5 max-w-full`}>
                   {currentTrack ? formatArtists(currentTrack.artist).map((artist, i, arr) => (
                     <React.Fragment key={i}>
                       <span className="hover:text-white cursor-pointer transition-colors" onClick={() => onGoToArtist(artist)}>{artist}</span>
@@ -88,14 +88,28 @@ const PlayerControls: React.FC<PlayerControlsProps> = ({
                   )) : 'Unknown Artist'}
                 </p>
             </div>
-            <motion.button 
-                whileTap={{ scale: 0.8 }}
-                onClick={() => currentTrack && onToggleLike(currentTrack.id)}
-                className={`ml-2 p-2.5 rounded-full transition-all ${currentTrack?.isLiked ? 'scale-110 drop-shadow-[0_0_8px_currentColor]' : 'text-white/30 hover:text-white hover:bg-white/10'}`}
-                style={{ color: currentTrack?.isLiked ? accentColor : undefined }}
-            >
-                <Heart className={`w-5 h-5 ${currentTrack?.isLiked ? 'fill-current' : ''}`} />
-            </motion.button>
+            {!isVertical && (
+               <motion.button 
+                   whileTap={{ scale: 0.8 }}
+                   onClick={() => currentTrack && onToggleLike(currentTrack.id)}
+                   className={`ml-2 p-2.5 rounded-full transition-all ${currentTrack?.isLiked ? 'scale-110 drop-shadow-[0_0_8px_currentColor]' : 'text-white/30 hover:text-white hover:bg-white/10'}`}
+                   style={{ color: currentTrack?.isLiked ? accentColor : undefined }}
+               >
+                   <Heart className={`w-5 h-5 ${currentTrack?.isLiked ? 'fill-current' : ''}`} />
+               </motion.button>
+            )}
+            {isVertical && (
+               <div className="flex items-center gap-4 py-2 justify-center w-full">
+                 <motion.button 
+                     whileTap={{ scale: 0.8 }}
+                     onClick={() => currentTrack && onToggleLike(currentTrack.id)}
+                     className={`p-3 rounded-full transition-all ${currentTrack?.isLiked ? 'scale-110 drop-shadow-[0_0_8px_currentColor]' : 'bg-white/5 text-white/50 hover:text-white hover:bg-white/10'}`}
+                     style={{ color: currentTrack?.isLiked ? accentColor : undefined }}
+                 >
+                     <Heart className={`w-6 h-6 ${currentTrack?.isLiked ? 'fill-current' : ''}`} />
+                 </motion.button>
+               </div>
+            )}
         </div>
   );
 
@@ -224,37 +238,75 @@ const PlayerControls: React.FC<PlayerControlsProps> = ({
   const glassClasses = enableGlass ? 'bg-black/60 backdrop-blur-[60px] border border-white/20' : 'bg-[#18181b] border border-white/10';
 
   if (playerStyle === 'split') {
-    let splitDock = 'bottom-6 left-0 right-0 px-6 flex-row';
-    if (playerDock === 'top') splitDock = 'top-6 left-0 right-0 px-6 flex-row';
-    else if (playerDock === 'left') splitDock = 'top-6 bottom-6 left-6 py-6 flex-col w-[350px]';
-    else if (playerDock === 'right') splitDock = 'top-6 bottom-6 right-6 py-6 flex-col w-[350px]';
+    let splitDock = 'bottom-6 left-0 right-0 px-6';
+    if (playerDock === 'top') splitDock = 'top-6 left-0 right-0 px-6';
+    else if (playerDock === 'left') splitDock = 'top-6 bottom-6 left-6 py-2 w-[350px] overflow-y-auto rounded-[3rem] no-scrollbar hide-scrollbar';
+    else if (playerDock === 'right') splitDock = 'top-6 bottom-6 right-6 py-2 w-[350px] overflow-y-auto rounded-[3rem] no-scrollbar hide-scrollbar';
     
     return (
-      <div className={`absolute ${splitDock} z-50 flex items-center justify-between pointer-events-none gap-6`}>
-         <div className={`pointer-events-auto flex items-center justify-center rounded-[2.5rem] shadow-[0_20px_50px_rgba(0,0,0,0.5)] ${transitionClasses} ${glassClasses} ${isVertical ? 'w-full py-6 px-6' : 'h-[90px] px-4 min-w-[300px]'}`}>
-            {renderTrackInfo("flex items-center group w-full")}
-         </div>
-         <div className={`pointer-events-auto flex items-center justify-center rounded-[2.5rem] shadow-[0_20px_50px_rgba(0,0,0,0.5)] ${transitionClasses} ${glassClasses} ${isVertical ? 'w-full py-8 px-6 flex-1' : 'h-[90px] px-8 min-w-[450px]'}`}>
-            {renderControls("flex flex-col items-center justify-center w-full")}
-         </div>
-         <div className={`pointer-events-auto flex items-center justify-center rounded-[2.5rem] shadow-[0_20px_50px_rgba(0,0,0,0.5)] ${transitionClasses} ${glassClasses} ${isVertical ? 'w-full py-6 px-6' : 'h-[90px] px-6 min-w-[250px]'}`}>
-            {renderTools("flex items-center justify-center gap-2 lg:gap-4 w-full")}
-         </div>
+      <div className={`absolute ${splitDock} z-50 flex ${isVertical ? '!flex-col' : '!flex-row'} items-center ${isVertical ? 'justify-start' : 'justify-between'} pointer-events-none ${isVertical ? 'gap-0' : 'gap-6'}`}>
+         {isVertical ? (
+           <>
+             {/* Center track info */}
+             <div className="flex-1 pointer-events-none" />
+             <div className={`pointer-events-auto flex items-center justify-center rounded-[2.5rem] shadow-[0_20px_50px_rgba(0,0,0,0.5)] ${transitionClasses} ${glassClasses} w-full py-8 px-6 shrink-0`}>
+                {renderTrackInfo("flex flex-col items-center w-full group my-auto")}
+             </div>
+             <div className="flex-1 pointer-events-none" />
+             
+             {/* Buttons at the bottom */}
+             <div className="w-full flex flex-col gap-6 shrink-0 mt-auto">
+               <div className={`pointer-events-auto flex items-center justify-center rounded-[2.5rem] shadow-[0_20px_50px_rgba(0,0,0,0.5)] ${transitionClasses} ${glassClasses} w-full py-8 px-6 mb-6`}>
+                  {renderControls("flex flex-col items-center justify-center w-full")}
+               </div>
+               <div className={`pointer-events-auto flex items-center justify-center rounded-[2.5rem] shadow-[0_20px_50px_rgba(0,0,0,0.5)] ${transitionClasses} ${glassClasses} w-full py-6 px-6 mb-8`}>
+                  {renderTools("flex items-center justify-center gap-2 lg:gap-4 w-full")}
+               </div>
+             </div>
+           </>
+         ) : (
+           <>
+             <div className={`pointer-events-auto flex items-center justify-center rounded-[2.5rem] shadow-[0_20px_50px_rgba(0,0,0,0.5)] ${transitionClasses} ${glassClasses} h-[90px] px-4 min-w-[300px]`}>
+                {renderTrackInfo("flex items-center group w-full")}
+             </div>
+             <div className={`pointer-events-auto flex items-center justify-center rounded-[2.5rem] shadow-[0_20px_50px_rgba(0,0,0,0.5)] ${transitionClasses} ${glassClasses} h-[90px] px-8 min-w-[450px]`}>
+                {renderControls("flex flex-col items-center justify-center w-full")}
+             </div>
+             <div className={`pointer-events-auto flex items-center justify-center rounded-[2.5rem] shadow-[0_20px_50px_rgba(0,0,0,0.5)] ${transitionClasses} ${glassClasses} h-[90px] px-6 min-w-[250px]`}>
+                {renderTools("flex items-center justify-center gap-2 lg:gap-4 w-full")}
+             </div>
+           </>
+         )}
       </div>
     );
   }
 
   if (playerStyle === 'classic') {
-    let classicDock = 'bottom-0 left-0 right-0 w-full h-[90px] flex-row px-6';
-    if (playerDock === 'top') classicDock = 'top-0 left-0 right-0 w-full h-[90px] flex-row px-6';
-    else if (playerDock === 'left') classicDock = 'top-0 bottom-0 left-0 w-[350px] h-full flex-col py-6 border-r border-[var(--glass-border)]';
-    else if (playerDock === 'right') classicDock = 'top-0 bottom-0 right-0 w-[350px] h-full flex-col py-6 border-l border-[var(--glass-border)]';
+    let classicDock = 'bottom-0 left-0 right-0 w-full h-[90px] px-6';
+    if (playerDock === 'top') classicDock = 'top-0 left-0 right-0 w-full h-[90px] px-6';
+    else if (playerDock === 'left') classicDock = 'top-0 bottom-0 left-0 w-[350px] h-full py-[8vh] border-r border-[var(--glass-border)] no-scrollbar hover:overflow-y-auto overflow-hidden';
+    else if (playerDock === 'right') classicDock = 'top-0 bottom-0 right-0 w-[350px] h-full py-[8vh] border-l border-[var(--glass-border)] no-scrollbar hover:overflow-y-auto overflow-hidden';
     
     return (
-      <div className={`absolute ${classicDock} z-50 flex items-center justify-between pointer-events-auto ${isVertical ? 'rounded-none' : 'rounded-none'} ${transitionClasses} ${glassClasses}`}>
-        {renderTrackInfo(isVertical ? "flex items-center w-full group mb-auto px-4" : "flex items-center w-[30%] min-w-[200px] max-w-[350px] group")}
-        {renderControls(isVertical ? "flex flex-col items-center justify-center w-full my-auto px-4" : "flex-1 flex flex-col items-center justify-center px-4 md:px-8 max-w-[600px] w-full")}
-        {renderTools(isVertical ? "flex items-center justify-center w-full gap-2 lg:gap-4 mt-auto px-4" : "flex items-center justify-end w-[30%] min-w-[200px] max-w-[350px] gap-2 lg:gap-4")}
+      <div className={`absolute ${classicDock} z-50 flex ${isVertical ? '!flex-col' : '!flex-row'} items-center ${isVertical ? 'justify-start py-8' : 'justify-between'} pointer-events-auto rounded-none ${transitionClasses} ${glassClasses}`}>
+        {isVertical ? (
+           <>
+             {/* Push content down to center Track Info vertically, but keeping buttons at bottom */}
+             <div className="flex-1 pointer-events-none" />
+             {renderTrackInfo("flex flex-col items-center w-full group px-6 shrink-0")}
+             <div className="flex-1 pointer-events-none" />
+             <div className="w-full flex flex-col gap-[6vh] shrink-0 px-2 mt-auto">
+                {renderControls("flex flex-col items-center justify-center w-full px-6")}
+                {renderTools("flex items-center justify-center w-full gap-4 px-6")}
+             </div>
+           </>
+        ) : (
+           <>
+             {renderTrackInfo("flex items-center w-[30%] min-w-[200px] max-w-[350px] group")}
+             {renderControls("flex-1 flex flex-col items-center justify-center px-4 md:px-8 max-w-[600px] w-full")}
+             {renderTools("flex items-center justify-end w-[30%] min-w-[200px] max-w-[350px] gap-2 lg:gap-4")}
+           </>
+        )}
       </div>
     );
   }

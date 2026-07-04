@@ -74,6 +74,8 @@ export interface ThemeConfig {
   playerStyle: 'floating' | 'classic' | 'split';
   themeMode: 'dark' | 'light' | 'system';
   animateBackground: boolean;
+  isShuffled?: boolean;
+  isRepeating?: boolean;
   sidebarPosition?: 'left' | 'right' | 'top' | 'bottom';
   playerDock?: 'bottom' | 'top' | 'left' | 'right';
   eqBands?: number[];

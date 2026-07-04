@@ -3,7 +3,7 @@ import React, { useRef, useMemo, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { X, Image, Video, Droplet, Upload, Check, Sliders, Snowflake, Trash2, ArrowLeft, LayoutGrid, Pencil } from './Icons';
 // Import AlertCircle directly from lucide if possible, or add it to Icons.tsx. Assuming standard set.
-import { AlertCircle, Music, Activity } from 'lucide-react'; 
+import { AlertCircle, Music, Activity, History } from 'lucide-react'; 
 import { ThemeConfig, UserProfile } from '../types';
 import { TranslationKey } from '../translations';
 import { fileToDataURL } from '../utils';
@@ -18,13 +18,22 @@ interface SettingsModalProps {
   onUpdateProfile: (data: Partial<UserProfile>) => void;
   onEditLayout: () => void;
   t: (key: TranslationKey) => string;
+  initialView?: 'settings' | 'about' | 'changelog';
 }
 
 const SettingsModal: React.FC<SettingsModalProps> = ({ 
-  isOpen, onClose, config, onUpdate, onClearLibrary, userProfile, onUpdateProfile, onEditLayout, t 
+  isOpen, onClose, config, onUpdate, onClearLibrary, userProfile, onUpdateProfile, onEditLayout, t,
+  initialView = 'settings'
 }) => {
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const [view, setView] = useState<'settings' | 'about'>('settings');
+  const [view, setView] = useState<'settings' | 'about' | 'changelog'>(initialView);
+
+  // Sync view with initialView when modal opens
+  React.useEffect(() => {
+    if (isOpen) {
+      setView(initialView);
+    }
+  }, [isOpen, initialView]);
 
   const isWinterSeason = useMemo(() => {
       const now = new Date();
@@ -68,13 +77,13 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
         {/* Header */}
         <div className="flex items-center justify-between px-8 py-6 border-b border-[var(--glass-border)] shrink-0 bg-[var(--panel-bg)]/80 backdrop-blur-md sticky top-0 z-10">
           <div className="flex items-center gap-4">
-              {view === 'about' && (
+              {(view === 'about' || view === 'changelog') && (
                   <button onClick={() => setView('settings')} className="p-2 hover:bg-[var(--card-hover)] rounded-full transition-all active:scale-95">
                       <ArrowLeft className="w-5 h-5 text-[var(--text-main)]" />
                   </button>
               )}
               <h2 className="text-2xl font-black text-[var(--text-main)] tracking-tight">
-                {view === 'about' ? t('original') : t('settings')}
+                {view === 'about' ? t('original') : view === 'changelog' ? 'История обновлений' : t('settings')}
               </h2>
           </div>
           <div className="flex items-center gap-2">
@@ -89,6 +98,15 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
                   >
                       <Pencil className="w-5 h-5 drop-shadow-[0_0_8px_rgba(59,130,246,0.8)]" />
                   </button>
+              )}
+              {view === 'settings' && (
+                <button 
+                    onClick={() => setView('changelog')} 
+                    className="p-2 hover:bg-[var(--card-hover)] rounded-full transition-all text-[var(--text-muted)] hover:text-[var(--text-main)]"
+                    title="История обновлений"
+                >
+                    <History className="w-5 h-5" />
+                </button>
               )}
               {view === 'settings' && (
                 <button 
@@ -547,11 +565,12 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
                               {t('opensource_text')}
                           </p>
                           <button 
-                             onClick={() => {
+                             onClick={async () => {
                                  const url = "https://github.com/dvytvs/Glass-Music.git";
-                                 if ((window as any).require) {
-                                     const { shell } = (window as any).require('electron');
-                                     shell.openExternal(url);
+                                 const isDesktop = () => (window as any).require !== undefined;
+                                 if (isDesktop()) {
+                                     const ipcRenderer = (window as any).require('electron').ipcRenderer;
+                                     ipcRenderer.invoke('open-external', url);
                                  } else {
                                      window.open(url, '_blank');
                                  }
@@ -565,6 +584,64 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
                       <div className="text-center pt-8 pb-4">
                           <p className="text-[10px] font-black text-[var(--text-muted)]/10 uppercase tracking-[0.4em]">Designed with ❤️ by Glass Music Team</p>
                       </div>
+                  </div>
+              </div>
+          )}
+
+          {view === 'changelog' && (
+              <div className="space-y-6 animate-fade-in pb-12">
+                  <div className="bg-[var(--card-bg)] p-8 rounded-[30px] border border-[var(--glass-border)] space-y-6">
+                      
+                      <div className="border-b border-[var(--glass-border)] pb-6">
+                          <h3 className="text-xl font-bold text-[var(--text-main)] flex items-center gap-2 mb-2">
+                              {t('version')} 2.0.7 ({t('current')}) <span className="text-xs bg-green-500/20 text-green-500 px-2 py-1 rounded-full ml-2">{t('new')}</span>
+                          </h3>
+                          <ul className="list-disc list-inside text-[var(--text-muted)] space-y-2 text-sm leading-relaxed">
+                              <li>{t('changelog_207_1')}</li>
+                              <li>{t('changelog_207_2')}</li>
+                              <li>{t('changelog_207_3')}</li>
+                              <li>{t('changelog_207_4')}</li>
+                              <li>{t('changelog_207_5')}</li>
+                          </ul>
+                      </div>
+
+                      <div className="border-b border-[var(--glass-border)] pb-6">
+                          <h3 className="text-xl font-bold text-[var(--text-main)] mb-2">Версия 2.0.6</h3>
+                          <ul className="list-disc list-inside text-[var(--text-muted)] space-y-2 text-sm leading-relaxed">
+                              <li>Полностью переработан стартовый экран. Добавлена живая анимация с Рэм! 💙</li>
+                              <li>Исправлена ошибка, из-за которой TitleBar был скрыт за окном приветствия.</li>
+                              <li>Исправлена функция добавления папок (сканирование файлов работает без зависаний).</li>
+                              <li>Добавлена история изменений (эта страница).</li>
+                              <li>Добавлено управление музыки через панель задач Windows.</li>
+                          </ul>
+                      </div>
+
+                      <div className="border-b border-[var(--glass-border)] pb-6">
+                          <h3 className="text-xl font-bold text-[var(--text-main)] mb-2">Версия 2.0.0</h3>
+                          <ul className="list-disc list-inside text-[var(--text-muted)] space-y-2 text-sm leading-relaxed">
+                              <li>Глобальное обновление архитектуры.</li>
+                              <li>Переход на новую систему рендеринга для улучшения плавности интерфейса.</li>
+                              <li>Интеграция с Deezer API для автоматического поиска обложек.</li>
+                              <li>Добавлен эквалайзер и аудио-эффекты.</li>
+                          </ul>
+                      </div>
+
+                      <div className="border-b border-[var(--glass-border)] pb-6">
+                          <h3 className="text-xl font-bold text-[var(--text-main)] mb-2">Версия 1.0.0</h3>
+                          <ul className="list-disc list-inside text-[var(--text-muted)] space-y-2 text-sm leading-relaxed">
+                              <li>Первый релиз Glass Music.</li>
+                              <li>Базовый функционал воспроизведения локальных файлов.</li>
+                              <li>Футуристичный дизайн с эффектом матового стекла.</li>
+                          </ul>
+                      </div>
+
+                      <div>
+                          <h3 className="text-xl font-bold text-[var(--text-main)] mb-2">Ранние разработки</h3>
+                          <p className="text-[var(--text-muted)] text-sm">
+                              Различные доработки интерфейса и создание концепции "жидкого стекла".
+                          </p>
+                      </div>
+
                   </div>
               </div>
           )}

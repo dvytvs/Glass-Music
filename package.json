@@ -1,6 +1,6 @@
 {
   "name": "glass-music",
-  "version": "2.0.6",
+  "version": "2.0.7",
   "description": "A futuristic, liquid-glass aesthetic music player for Linux",
   "main": "main.js",
   "homepage": "https://github.com/glass-music/app",
@@ -95,7 +95,10 @@
       "icon": "build/icons/windows/icon.ico"
     },
     "mac": {
-      "target": ["dmg", "zip"],
+      "target": [
+        "dmg",
+        "zip"
+      ],
       "icon": "build/icons/mac/icon.icns",
       "category": "public.app-category.music"
     }

@@ -21,27 +21,30 @@ export const generateMockCover = (id: string) => {
 };
 
 export const parseFileMetadata = async (file: File): Promise<{ title?: string, artist?: string, album?: string, coverUrl?: string, year?: string, albumArtist?: string }> => {
-  const isElectron = () => (window as any).require && (window as any).require('electron');
+  const isDesktop = () => (window as any).require !== undefined;
   
-  if (isElectron() && (file as any).path) {
+  if (isDesktop() && ((file as any).path || (file as any).webkitRelativePath || file.name)) {
     try {
-      const { ipcRenderer } = (window as any).require('electron');
-      const tags = await Promise.race([
-        ipcRenderer.invoke('read-id3-tags', (file as any).path),
-        new Promise((_, reject) => setTimeout(() => reject(new Error('IPC timeout')), 1500))
-      ]);
-      if (tags) {
-        return {
-          title: tags.title,
-          artist: tags.artist,
-          album: tags.album,
-          albumArtist: tags.albumArtist,
-          coverUrl: tags.coverUrl,
-          year: tags.year
-        };
+      const ipcRenderer = (window as any).require('electron').ipcRenderer;
+      const path = (file as any).path;
+      if (path) {
+        const tags: any = await Promise.race([
+          ipcRenderer.invoke('read-id3-tags', { filePath: path }),
+          new Promise((_, reject) => setTimeout(() => reject(new Error('Electron IPC timeout')), 10000))
+        ]);
+        if (tags) {
+          return {
+            title: tags.title,
+            artist: tags.artist,
+            album: tags.album,
+            albumArtist: tags.albumArtist,
+            coverUrl: tags.coverUrl, // Already has file:// from main.js
+            year: tags.year
+          };
+        }
       }
     } catch (e) {
-      console.error("Error reading ID3 tags via IPC:", e);
+      console.error("Error reading ID3 tags via Electron IPC:", e);
     }
   }
 

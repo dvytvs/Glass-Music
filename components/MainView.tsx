@@ -76,15 +76,19 @@ const MainView: React.FC<MainViewProps> = ({
     setTranslatedBio(null);
     
     // Auto-fetch artist metadata if missing
-    if (selectedArtist && currentView === 'artist_detail' && isElectron() && onUpdateArtist) {
+    const isDesktop = () => (window as any).require !== undefined;
+    if (selectedArtist && currentView === 'artist_detail' && isDesktop() && onUpdateArtist) {
       const meta = artistMetadata[selectedArtist];
-      if (!meta || (!meta.avatar && !meta.banner && !meta.bio)) {
+      
+      const isBadLastFmImage = (url: string | undefined) => url && (url.includes('last.fm') || url.includes('2a96cbd8b46e442fc41c2b86b821562f'));
+      
+      if (!meta || (!meta.avatar && !meta.banner && !meta.bio) || isBadLastFmImage(meta.avatar) || isBadLastFmImage(meta.banner)) {
         const fetchMeta = async () => {
           setIsRefreshingArtist(true);
           try {
-            const { ipcRenderer } = (window as any).require('electron');
-            const newMeta = await ipcRenderer.invoke('get-artist-metadata', selectedArtist);
-            if (newMeta) onUpdateArtist(selectedArtist, newMeta);
+            const ipcRenderer = (window as any).require('electron').ipcRenderer;
+            const newMeta = await ipcRenderer.invoke('get-artist-metadata', { artist: selectedArtist, lastfmKey: import.meta.env.VITE_LASTFM_API_KEY });
+            if (newMeta) onUpdateArtist(selectedArtist, newMeta as any);
           } catch (e) { console.error(e); } finally { setIsRefreshingArtist(false); }
         };
         fetchMeta();
@@ -102,6 +106,7 @@ const MainView: React.FC<MainViewProps> = ({
   const bannerInputRef = useRef<HTMLInputElement>(null);
 
   const scrollPositions = useRef<Record<string, number>>({});
+  const virtuosoIndices = useRef<Record<string, number>>({});
   
   const isListView = !['artist_detail', 'album_detail', 'playlist_detail', 'profile'].includes(currentView);
 
@@ -122,7 +127,7 @@ const MainView: React.FC<MainViewProps> = ({
         scrollParentRef.current.scrollTo({ top: saved, behavior: 'instant' });
         
         // If we requested a scroll but the element hasn't expanded enough to allow it yet, retry
-        if (saved > 0 && scrollParentRef.current.scrollTop < saved && attempts < 15) {
+        if (saved > 0 && scrollParentRef.current.scrollTop < saved && attempts < 50) {
           attempts++;
           setTimeout(tryScroll, 20);
         }
@@ -131,8 +136,6 @@ const MainView: React.FC<MainViewProps> = ({
       tryScroll();
     }
   }, [currentView, selectedArtist, selectedAlbum, selectedPlaylist]);
-
-  const isElectron = () => (window as any).require && (window as any).require('electron');
 
   const [editingFile, setEditingFile] = useState<{ url: string, type: 'avatar' | 'banner', fileType: string } | null>(null);
   const [position, setPosition] = useState(50);
@@ -156,22 +159,23 @@ const MainView: React.FC<MainViewProps> = ({
     if (editingFile && onUpdateProfile) {
       let finalUrl = editingFile.url;
       const field = editingFile.type === 'avatar' ? 'avatarUrl' : 'bannerUrl';
-      if (typeof window !== 'undefined' && (window as any).require && editingFile.url.startsWith('data:image')) {
+      const isDesktop = () => (window as any).require !== undefined;
+      if (typeof window !== 'undefined' && isDesktop() && editingFile.url.startsWith('data:image')) {
           try {
-              const { ipcRenderer } = (window as any).require('electron');
+              const ipcRenderer = (window as any).require('electron').ipcRenderer;
               let ext = 'png';
               if (editingFile.fileType) {
                   ext = editingFile.fileType.split('/')[1] || 'png';
               }
-              const res = await ipcRenderer.invoke('save-custom-image', {
+              const res: any = await ipcRenderer.invoke('save-custom-image', {
                   folder: 'custom-images/user',
                   filename: `user_${editingFile.type}_${Date.now()}.${ext}`,
                   base64Data: editingFile.url
               });
-              if (res.success) {
-                  finalUrl = res.url;
+              if (res && res.success) {
+                  finalUrl = `file://${res.url.replace(/\\/g, '/')}`;
               }
-          } catch (err) { console.error("Failed to save user image via IPC", err); }
+          } catch (err) { console.error("Failed to save user image via Electron IPC", err); }
       }
       onUpdateProfile({ [field]: finalUrl });
       setEditingFile(null);
@@ -179,12 +183,13 @@ const MainView: React.FC<MainViewProps> = ({
   };
 
   const handleFetchMetadata = async () => {
-    if (!editingTrack || !isElectron()) return;
+    const isDesktop = () => (window as any).require !== undefined;
+    if (!editingTrack || !isDesktop()) return;
     setIsSearchingMetadata(true);
     try {
-        const { ipcRenderer } = (window as any).require('electron');
+        const ipcRenderer = (window as any).require('electron').ipcRenderer;
         const query = `${editingTrack.title} ${editingTrack.artist}`;
-        const result = await ipcRenderer.invoke('get-metadata', query);
+        const result: any = await ipcRenderer.invoke('get-metadata', { query });
         if (result) {
             setEditingTrack({
                 ...editingTrack,
@@ -200,33 +205,36 @@ const MainView: React.FC<MainViewProps> = ({
   };
 
   const handleRefreshArtistMetadata = async () => {
-    if (!selectedArtist || !isElectron() || !onUpdateArtist) return;
+    const isDesktop = () => (window as any).require !== undefined;
+    if (!selectedArtist || !isDesktop() || !onUpdateArtist) return;
     setIsRefreshingArtist(true);
     try {
-        const { ipcRenderer } = (window as any).require('electron');
-        const meta = await ipcRenderer.invoke('get-artist-metadata', selectedArtist);
-        if (meta) onUpdateArtist(selectedArtist, meta);
+        const ipcRenderer = (window as any).require('electron').ipcRenderer;
+        const meta = await ipcRenderer.invoke('get-artist-metadata', { artist: selectedArtist, lastfmKey: import.meta.env.VITE_LASTFM_API_KEY });
+        if (meta) onUpdateArtist(selectedArtist, meta as Partial<ArtistMetadata>);
     } catch (e) { console.error(e); } finally { setIsRefreshingArtist(false); }
   };
   const handleArtistAssetChange = async (e: React.ChangeEvent<HTMLInputElement>, type: 'avatar' | 'banner') => {
     const file = e.target.files?.[0];
     if (file && selectedArtist && onUpdateArtist) {
         const url = await fileToDataURL(file);
-        if (typeof window !== 'undefined' && (window as any).require) {
+        const isDesktop = () => (window as any).require !== undefined;
+        if (typeof window !== 'undefined' && isDesktop()) {
             try {
-                const { ipcRenderer } = (window as any).require('electron');
+                const ipcRenderer = (window as any).require('electron').ipcRenderer;
                 const safeName = selectedArtist.replace(/[/\\?%*:|"<>]/g, '_');
                 const ext = file.name.split('.').pop() || 'png';
-                const res = await ipcRenderer.invoke('save-custom-image', {
+                const res: any = await ipcRenderer.invoke('save-custom-image', {
                     folder: 'custom-images/artists',
                     filename: `${safeName}_${type}_${Date.now()}.${ext}`,
                     base64Data: url
                 });
-                if (res.success) {
-                    onUpdateArtist(selectedArtist, { [type]: res.url }, true);
+                if (res && res.success) {
+                    const convertedUrl = `file://${res.url.replace(/\\/g, '/')}`;
+                    onUpdateArtist(selectedArtist, { [type]: convertedUrl }, true);
                     return;
                 }
-            } catch (err) { console.error("Failed to save artist asset via IPC", err); }
+            } catch (err) { console.error("Failed to save artist asset via Electron IPC", err); }
         }
         onUpdateArtist(selectedArtist, { [type]: url }, true);
     }
@@ -333,6 +341,10 @@ const MainView: React.FC<MainViewProps> = ({
         <Virtuoso
           useWindowScroll={false}
           customScrollParent={scrollParentRef.current || undefined}
+          initialTopMostItemIndex={virtuosoIndices.current[currentView] || 0}
+          rangeChanged={(range) => {
+            virtuosoIndices.current[currentView] = range.startIndex;
+          }}
           data={tracksToRender}
           itemContent={(index, track) => {
             const isActive = currentTrack?.id === track.id;
@@ -689,8 +701,8 @@ const MainView: React.FC<MainViewProps> = ({
             {/* Hero Section */}
             <div className="relative h-[60vh] min-h-[500px] -mx-8 -mt-8 mb-8 group overflow-hidden flex flex-col justify-end">
                 <div className="absolute inset-0 z-0">
-                    {metaDetail?.banner && !metaDetail.banner.includes('2a96cbd8b46e442fc41c2b86b821562f') ? (
-                        <img src={metaDetail.banner} className="w-full h-full object-cover scale-105 group-hover:scale-100 transition-transform duration-[2000ms] ease-out" onError={(e) => (e.currentTarget.style.display = 'none')} />
+                    {metaDetail?.banner ? (
+                        <img src={metaDetail.banner} referrerPolicy="no-referrer" className="w-full h-full object-cover scale-105 group-hover:scale-100 transition-transform duration-[2000ms] ease-out" onError={(e) => (e.currentTarget.style.display = 'none')} />
                     ) : (
                         <div className="w-full h-full bg-gradient-to-br from-[var(--text-main)]/20 to-[var(--bg-main)]" />
                     )}
@@ -710,7 +722,7 @@ const MainView: React.FC<MainViewProps> = ({
                 <div className="relative z-10 px-8 md:px-12 pb-12 flex flex-col md:flex-row items-center md:items-end gap-8">
                     <div className="w-48 h-48 md:w-64 md:h-64 rounded-full border-4 border-[var(--bg-main)] shadow-2xl overflow-hidden relative group/avatar bg-[var(--card-bg)] cursor-pointer shrink-0" onClick={() => artistAvatarInputRef.current?.click()}>
                         {metaDetail?.avatar && !metaDetail.avatar.includes('2a96cbd8b46e442fc41c2b86b821562f') ? (
-                            <img src={metaDetail.avatar} className="w-full h-full object-cover transition-transform duration-700 group-hover/avatar:scale-110" onError={(e) => (e.currentTarget.style.display = 'none')} />
+                            <img src={metaDetail.avatar} referrerPolicy="no-referrer" className="w-full h-full object-cover transition-transform duration-700 group-hover/avatar:scale-110" onError={(e) => (e.currentTarget.style.display = 'none')} />
                         ) : (
                             <div className="w-full h-full flex items-center justify-center bg-[var(--card-bg)]">
                                 <User className="w-1/2 h-1/2 text-[var(--text-muted)] opacity-50" />

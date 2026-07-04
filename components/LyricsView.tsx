@@ -6,9 +6,10 @@ import { parseLrc } from '../utils';
 interface LyricsViewProps {
   lyricsRaw?: string;
   currentTime: number;
+  onSeek?: (time: number) => void;
 }
 
-const LyricsView: React.FC<LyricsViewProps> = ({ lyricsRaw, currentTime }) => {
+const LyricsView: React.FC<LyricsViewProps> = ({ lyricsRaw, currentTime, onSeek }) => {
   const containerRef = useRef<HTMLDivElement>(null);
   
   const lines = useMemo(() => {
@@ -98,7 +99,7 @@ const LyricsView: React.FC<LyricsViewProps> = ({ lyricsRaw, currentTime }) => {
     <div className="w-full h-full overflow-hidden relative">
       <div 
         ref={containerRef}
-        className="w-full h-full overflow-y-auto px-8 py-[45vh] text-center space-y-12 scroll-smooth"
+        className="w-full h-full overflow-y-auto px-4 lg:px-0 py-[50vh] space-y-10 scroll-smooth no-scrollbar"
         style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}
       >
         {lines.map((line, index) => {
@@ -114,24 +115,25 @@ const LyricsView: React.FC<LyricsViewProps> = ({ lyricsRaw, currentTime }) => {
           const isCountdown = (line as any).isCountdown;
 
           if (isActive) {
-            scale = isCountdown ? 1.4 : 1.15;
+            scale = isCountdown ? 1.4 : 1.05;
             opacity = 1;
             blur = 0;
           } else if (isPast) {
-            scale = 0.95;
-            opacity = Math.max(0.1, 0.5 - distance * 0.1);
-            blur = Math.min(distance * 1.5, 8);
+            scale = 0.98;
+            opacity = Math.max(0.1, 0.4 - distance * 0.08);
+            blur = Math.min(distance * 1.2, 10);
           } else {
-            scale = 0.95;
-            opacity = Math.max(0.1, 0.7 - distance * 0.15);
-            blur = Math.min(distance * 1, 4);
+            scale = 0.98;
+            opacity = Math.max(0.1, 0.6 - distance * 0.1);
+            blur = Math.min(distance * 0.8, 6);
           }
 
           return (
             <div
               key={index}
               ref={isActive ? activeLineRef : null}
-              className="transition-all duration-700 ease-[cubic-bezier(0.23,1,0.32,1)] origin-center"
+              onClick={() => !isPlainText && onSeek && onSeek(line.time)}
+              className="transition-all duration-1000 ease-[cubic-bezier(0.23,1,0.32,1)] origin-left cursor-pointer group"
               style={{
                 transform: `scale(${scale})`,
                 opacity: opacity,
@@ -139,11 +141,11 @@ const LyricsView: React.FC<LyricsViewProps> = ({ lyricsRaw, currentTime }) => {
               }}
             >
               <p 
-                className={`text-4xl md:text-6xl lg:text-7xl leading-tight cursor-pointer font-black transition-colors duration-700 
-                ${isCountdown ? 'tracking-[0.5em] font-mono' : 'tracking-tighter'} 
+                className={`text-3xl md:text-5xl lg:text-6xl leading-[1.2] font-black transition-all duration-1000 
+                ${isCountdown ? 'tracking-[0.5em] font-mono' : 'tracking-tight'} 
                 ${isActive 
-                    ? (isCountdown ? 'text-[var(--accent-color)] drop-shadow-[0_0_40px_var(--accent-color)]' : 'text-white drop-shadow-[0_0_40px_rgba(255,255,255,0.6)]') 
-                    : (isCountdown ? 'text-[var(--accent-color)] opacity-50' : 'text-white/40')}
+                    ? (isCountdown ? 'text-[var(--accent-color)] drop-shadow-[0_0_30px_var(--accent-color)]' : 'text-white drop-shadow-[0_0_40px_rgba(255,255,255,0.4)]') 
+                    : 'text-white/30 group-hover:text-white/60'}
               `}>
                 {line.text}
               </p>
