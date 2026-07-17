@@ -14,7 +14,8 @@
 
 ---
 
-<img width="2560" height="1367" alt="Снимок экрана от 2026-03-01 03-45-10" src="https://github.com/user-attachments/assets/1a2676d7-e631-439e-becc-e39319db2014" />
+<img width="2553" height="1314" alt="Screenshot from 2026-07-17 15-39-14" src="https://github.com/user-attachments/assets/011eadc4-7f65-41ff-abbd-d0f59db99aff" />
+
 
 
 
@@ -35,7 +36,8 @@
 
 
 
-<img width="2560" height="1367" alt="Снимок экрана от 2026-03-01 03-45-18" src="https://github.com/user-attachments/assets/4b936c10-bf3d-48cb-be1c-e0f42bfde0dd" />
+<img width="2553" height="1314" alt="Screenshot from 2026-07-17 15-39-52" src="https://github.com/user-attachments/assets/3d6ecd09-caad-4d5d-a894-0697b60a634b" />
+
 
 
 
@@ -47,7 +49,8 @@
 - Текст песен (включая синхронизированный LRC формат).
 
 
-<img width="2560" height="1367" alt="Снимок экрана от 2026-03-01 03-45-04" src="https://github.com/user-attachments/assets/459d1a56-bccb-4bf6-b552-ff76605c905f" />
+<img width="2553" height="1314" alt="Screenshot from 2026-07-17 15-39-27" src="https://github.com/user-attachments/assets/8e0e96e9-38af-4d7a-82f8-fc7240558571" />
+
 
 
 ### 🛡️ Манифест приватности
@@ -56,7 +59,9 @@
 - **Offline-First:** Плеер не требует интернета для работы (кроме поиска метаданных).
 - **Локальное хранение:** Ваши лайки, плейлисты и настройки хранятся в зашифрованном виде в `~/.config/glass-music`.
 
-<img width="2560" height="1367" alt="Снимок экрана от 2026-03-01 03-45-24" src="https://github.com/user-attachments/assets/c5960b6a-2b41-41af-a4b6-e29dcecbb983" />
+<img width="2553" height="1314" alt="Screenshot from 2026-07-17 15-41-54" src="https://github.com/user-attachments/assets/30accd66-c68a-43cf-9cfa-2940603509ef" />
+
+<img width="2553" height="1314" alt="Screenshot from 2026-07-17 15-39-00" src="https://github.com/user-attachments/assets/df8936ce-9d2c-4e0a-a5a4-c795ecb739d5" />
 
 
 
@@ -64,6 +69,10 @@
 - **Живые обои:** Поддержка видео (MP4) и изображений на фоне плеера.
 - **Профили:** Настраиваемый баннер и аватар слушателя.
 - **Сезонность:** Автоматический зимний режим (снег и гирлянды), который включается сам в декабре.
+
+
+
+
 
 ### 🚀 Установка
 
