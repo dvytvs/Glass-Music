@@ -6,18 +6,25 @@ const TitleBar: React.FC = () => {
   const [isMac, setIsMac] = useState(false);
 
   useEffect(() => {
-    const checkDesktop = () => (window as any).require !== undefined;
-    setIsDesktop(checkDesktop());
+    // In Vite dev, window.require might be absent in some setups until the main process is ready,
+    // or the user agent could be checked. Since we know we are in Electron:
+    const isElectron = navigator.userAgent.toLowerCase().includes('electron') || (window as any).require !== undefined;
+    setIsDesktop(isElectron);
     
-    // Check if macOS (to hide titlebar buttons since mac has native traffic lights when transparent=true combined with titleBarStyle)
-    setIsMac(navigator.platform.toUpperCase().indexOf('MAC') >= 0);
+    // Check if macOS (to hide titlebar buttons)
+    // macOS has native traffic lights when transparent=true combined with titleBarStyle
+    const platform = navigator.platform.toUpperCase();
+    setIsMac(platform.indexOf('MAC') >= 0);
   }, []);
 
   if (!isDesktop || isMac) return null;
 
   const getIpc = () => {
     try {
-      return (window as any).require('electron').ipcRenderer;
+      if ((window as any).require) {
+         return (window as any).require('electron').ipcRenderer;
+      }
+      return null;
     } catch(e) {
       return null;
     }

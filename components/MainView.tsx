@@ -173,7 +173,7 @@ const MainView: React.FC<MainViewProps> = ({
                   base64Data: editingFile.url
               });
               if (res && res.success) {
-                  finalUrl = `file://${res.url.replace(/\\/g, '/')}`;
+                  finalUrl = res.url;
               }
           } catch (err) { console.error("Failed to save user image via Electron IPC", err); }
       }
@@ -230,7 +230,7 @@ const MainView: React.FC<MainViewProps> = ({
                     base64Data: url
                 });
                 if (res && res.success) {
-                    const convertedUrl = `file://${res.url.replace(/\\/g, '/')}`;
+                    const convertedUrl = res.url;
                     onUpdateArtist(selectedArtist, { [type]: convertedUrl }, true);
                     return;
                 }

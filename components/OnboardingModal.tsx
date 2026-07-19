@@ -31,7 +31,7 @@ const OnboardingModal: React.FC<OnboardingModalProps> = ({ onComplete, accentCol
       <div className="hidden md:flex w-1/2 h-full relative overflow-hidden bg-black">
         <div className="absolute inset-0 z-10 bg-gradient-to-r from-transparent to-[var(--bg-main)]"></div>
         <img 
-          src="/gif/rem.gif" 
+          src="./gif/rem.gif" 
           alt="Rem Background" 
           className="w-full h-full object-cover opacity-80"
         />

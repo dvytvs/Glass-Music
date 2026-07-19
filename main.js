@@ -2,6 +2,8 @@ const { app, BrowserWindow, ipcMain, nativeTheme, Tray, Menu, globalShortcut, di
 const path = require('path');
 const fs = require('fs');
 const NodeID3 = require('node-id3');
+const { downloadTrack } = require('./downloader.js');
+
 
 // Disable Chromium's MPRIS / Media Session integration to prevent playbackRate from syncing to the OS
 app.commandLine.appendSwitch('disable-features', 'MediaSessionService,HardwareMediaKeyHandling');
@@ -62,6 +64,13 @@ if (!gotTheLock) {
     });
 
     mainWindow.setMenuBarVisibility(false);
+    mainWindow.webContents.setWindowOpenHandler(({ url }) => {
+        if (url.startsWith("http")) {
+            require("electron").shell.openExternal(url);
+            return { action: "deny" };
+        }
+        return { action: "allow" };
+    });
     
     if (process.env.npm_lifecycle_event === 'electron:dev') {
         mainWindow.loadURL('http://127.0.0.1:3000');
@@ -98,8 +107,16 @@ if (!gotTheLock) {
         });
         ipcMain.on('window-maximize', () => {
             if (mainWindow) {
-                if (mainWindow.isMaximized()) mainWindow.unmaximize();
-                else mainWindow.maximize();
+                if (mainWindow.isMinimized()) {
+                    mainWindow.restore();
+                }
+                if (mainWindow.isFullScreen()) {
+                    mainWindow.setFullScreen(false);
+                } else if (mainWindow.isMaximized()) {
+                    mainWindow.unmaximize();
+                } else {
+                    mainWindow.maximize();
+                }
             }
         });
         ipcMain.on('window-close', () => {
@@ -365,7 +382,7 @@ ipcMain.handle('save-custom-image', async (e, { folder, filename, base64Data }) 
         }
         
         fs.writeFileSync(filePath, buffer);
-        return { success: true, url: `file://${filePath.replace(/\\/g, '/')}` };
+        return { success: true, url: 'file://' + encodeURI(filePath.replace(/\\/g, '/')) };
     } catch (err) {
         console.error("Save custom image error:", err);
         return { success: false, error: err.message };
@@ -461,6 +478,40 @@ ipcMain.handle('write-id3-tags', async (e, { filePath, tags }) => {
         return { success: success !== false };
     } catch (err) {
         console.error("ID3 write error:", err);
+        return { success: false, error: err.message };
+    }
+});
+
+ipcMain.handle('select-folder', async () => {
+    const { dialog } = require('electron');
+    const result = await dialog.showOpenDialog({
+        properties: ['openDirectory']
+    });
+    if (result.canceled) {
+        return null;
+    } else {
+        return result.filePaths[0];
+    }
+});
+
+ipcMain.handle('spotiflac-search', async (e, { query }) => {
+    try {
+        const { searchTracks } = require('./downloader');
+        return await searchTracks(query);
+    } catch (err) {
+        return { success: false, error: err.message };
+    }
+});
+
+ipcMain.handle('spotiflac-download', async (e, { urlOrQuery, customPath }) => {
+    try {
+        const downloadsPath = customPath || path.join(userDataPath, 'Downloads');
+        const res = await downloadTrack(urlOrQuery, e.sender, downloadsPath);
+        if (res && res.success) {
+            res.folder = downloadsPath;
+        }
+        return res;
+    } catch (err) {
         return { success: false, error: err.message };
     }
 });

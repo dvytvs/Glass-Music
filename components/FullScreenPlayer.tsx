@@ -65,7 +65,36 @@ const FullScreenPlayer: React.FC<FullScreenPlayerProps> = ({
   const [viewMode, setViewMode] = useState<'cover' | 'lyrics'>(initialMode);
   const [isClosing, setIsClosing] = useState(false);
   const [showVolumeSlider, setShowVolumeSlider] = useState(false);
+  const volumeRef = useRef<HTMLDivElement>(null);
+  const volumeTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const prevVolumeRef = useRef<number>(1);
+
+  // Click outside volume slider to close
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (volumeRef.current && !volumeRef.current.contains(event.target as Node)) {
+        setShowVolumeSlider(false);
+      }
+    };
+
+    if (showVolumeSlider) {
+      document.addEventListener('mousedown', handleClickOutside);
+      // Auto-hide after 3 seconds
+      volumeTimeoutRef.current = setTimeout(() => setShowVolumeSlider(false), 3000);
+    }
+    
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+      if (volumeTimeoutRef.current) clearTimeout(volumeTimeoutRef.current);
+    };
+  }, [showVolumeSlider]);
+
+  const handleVolumeInteraction = () => {
+    if (volumeTimeoutRef.current) {
+      clearTimeout(volumeTimeoutRef.current);
+      volumeTimeoutRef.current = setTimeout(() => setShowVolumeSlider(false), 3000);
+    }
+  };
 
   useEffect(() => {
      setViewMode(initialMode === 'lyrics' ? 'lyrics' : 'cover');
@@ -130,20 +159,23 @@ const FullScreenPlayer: React.FC<FullScreenPlayerProps> = ({
       </button>
 
       {/* Content Container */}
-      <div className="relative z-10 w-full h-full flex flex-col p-6 md:p-12 lg:p-20 max-w-[1600px] mx-auto">
+      <div key={track.id} className="relative z-10 w-full h-full flex flex-col p-6 md:p-12 lg:p-20 max-w-[1600px] mx-auto animate-fade-in">
           {/* Main Content Area: Side by Side on large screens */}
           <div className="flex-1 flex flex-col lg:flex-row items-center lg:items-stretch gap-12 lg:gap-24 overflow-hidden">
               
               {/* Left Side: Cover Art */}
               <motion.div 
                 layout
-                className={`flex flex-col items-center justify-center transition-all duration-700 ${viewMode === 'lyrics' ? 'lg:w-1/2 lg:items-start' : 'w-full items-center'}`}
+                className={`flex flex-col transition-all duration-700 ${viewMode === 'lyrics' ? 'lg:w-1/2 lg:items-start items-center justify-center' : 'w-full items-center justify-center'}`}
               >
-                  <div className={`relative group transition-all duration-700 ease-out ${viewMode === 'lyrics' ? 'w-[30vh] h-[30vh] md:w-[40vh] md:h-[40vh] lg:w-[45vh] lg:h-[45vh]' : 'w-[40vh] h-[40vh] md:w-[55vh] md:h-[55vh] lg:w-[60vh] lg:h-[60vh]'} max-w-[600px] max-h-[600px] rounded-[40px] overflow-hidden shadow-[0_20px_80px_rgba(0,0,0,0.8)] ${isPlaying ? 'scale-100' : 'scale-[0.98] grayscale-[0.2]'}`}>
+                  <div className={`relative group transition-all duration-700 ease-out flex items-center justify-center ${viewMode === 'lyrics' ? 'h-[25vh] md:h-[35vh] lg:h-[40vh]' : 'h-[35vh] md:h-[50vh] lg:h-[55vh]'} aspect-square rounded-[40px] overflow-hidden shadow-[0_20px_80px_rgba(0,0,0,0.8)] ${isPlaying ? 'scale-100' : 'scale-[0.98] grayscale-[0.2]'}`}>
                       <img 
                         src={track.coverUrl} 
                         alt="Cover" 
                         className={`w-full h-full object-cover transition-transform duration-[30s] ease-linear ${isPlaying ? 'scale-110 rotate-1' : 'scale-100'}`} 
+                        onError={(e) => {
+                          (e.target as HTMLImageElement).src = 'assets/default-cover.png';
+                        }}
                       />
                   </div>
                   
@@ -174,7 +206,7 @@ const FullScreenPlayer: React.FC<FullScreenPlayerProps> = ({
                          transition={{ duration: 0.6, ease: "easeOut" }}
                          className="w-full lg:w-1/2 h-full flex flex-col justify-center overflow-hidden"
                      >
-                          <LyricsView lyricsRaw={track.lyrics} currentTime={currentTime} onSeek={onSeek} />
+                          <LyricsView lyricsRaw={track.lyrics} currentTime={currentTime}  onSeek={onSeek} />
                      </motion.div>
                   )}
               </AnimatePresence>
@@ -221,9 +253,9 @@ const FullScreenPlayer: React.FC<FullScreenPlayerProps> = ({
               <div className="flex items-center justify-between gap-4">
                   {/* Extras Left */}
                   <div className="flex items-center gap-1 md:gap-3">
-                      <div className="relative group">
+                      <div className="relative group" ref={volumeRef}>
                           <button 
-                             onClick={handleVolumeToggle}
+                             onClick={() => setShowVolumeSlider(!showVolumeSlider)}
                              onMouseEnter={() => setShowVolumeSlider(true)}
                              className="p-3 rounded-2xl transition-all text-white/40 hover:bg-white/10 hover:text-white"
                           >
@@ -234,14 +266,16 @@ const FullScreenPlayer: React.FC<FullScreenPlayerProps> = ({
                               <motion.div 
                                 initial={{ opacity: 0, y: 10 }}
                                 animate={{ opacity: 1, y: 0 }}
-                                onMouseLeave={() => setShowVolumeSlider(false)}
                                 className="absolute bottom-full left-0 mb-4 bg-black/80 backdrop-blur-2xl border border-white/10 p-4 rounded-3xl h-40 flex flex-col items-center shadow-2xl"
                               >
                                   <input 
                                      type="range" 
                                      min="0" max="1" step="0.01"
                                      value={volume} 
-                                     onChange={(e) => onVolumeChange(parseFloat(e.target.value))}
+                                     onChange={(e) => {
+                                       onVolumeChange(parseFloat(e.target.value));
+                                       handleVolumeInteraction();
+                                     }}
                                      className="h-full w-1 accent-white appearance-none bg-white/20 rounded-full outline-none [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-3 [&::-webkit-slider-thumb]:h-3 [&::-webkit-slider-thumb]:bg-white [&::-webkit-slider-thumb]:rounded-full cursor-pointer"
                                      style={{ writingMode: 'bt-lr' as any, WebkitAppearance: 'slider-vertical' }}
                                   />

@@ -14,7 +14,8 @@ export type TranslationKey =
   | 'philosophy' | 'philosophy_text' | 'privacy' | 'privacy_text' | 'opensource_text' | 'create_playlist' | 'playlists' | 'no_playlists' | 'add_to_playlist' | 'playlist' | 'cover_image' | 'playlist_name' | 'my_playlist' | 'create' | 'enter_new_playlist_name' | 'delete_playlist_confirm' | 'your_library' | 'repeat'
   | 'good_evening' | 'good_morning' | 'good_afternoon' | 'artist' | 'recently_added'
   | 'sort_default' | 'sort_title_asc' | 'sort_title_desc' | 'sort_date_desc' | 'sort_date_asc' | 'sort_duration_desc'  | 'sort_duration_asc' 
-  | 'current' | 'new' | 'version' | 'changelog_207_1' | 'changelog_207_2' | 'changelog_207_3' | 'changelog_207_4' | 'changelog_207_5';
+  | 'current' | 'new' | 'version' | 'changelog_207_1' | 'changelog_207_2' | 'changelog_207_3' | 'changelog_207_4' | 'changelog_207_5' | 'changelog_208_1' | 'changelog_208_2' | 'changelog_208_3'
+  | 'spotiflac_download' | 'spotiflac_desc' | 'spotiflac_choose_folder' | 'spotiflac_choose_folder_desc' | 'spotiflac_select_folder' | 'spotiflac_saving_to' | 'spotiflac_change_folder' | 'spotiflac_input_placeholder' | 'spotiflac_download_selected' | 'spotiflac_download_url' | 'spotiflac_processing';
 
 export const translations: Record<string, Record<TranslationKey, string>> = {
   ru: {
@@ -123,6 +124,20 @@ export const translations: Record<string, Record<TranslationKey, string>> = {
     changelog_207_3: 'Исправлено сохранение аудио-эффектов (Slowed/Speed Up) после перезагрузки.',
     changelog_207_4: 'Улучшено фоновое воспроизведение и сворачивание в трей.',
     changelog_207_5: 'Починена запись метаданных (ID3) напрямую в mp3 файлы.',
+    changelog_208_1: 'Исправлены баги с вылетом приложения на NixOS.',
+    changelog_208_2: 'Исправлена ошибка с установкой фона и аватарки в профиле. Теперь всё работает корректно!',
+    changelog_208_3: 'Добавлен SpotiFLAC! Огромная от души благодарность разработчикам SpotiFLAC (<a href="https://github.com/spotiflacapp/SpotiFLAC-Extension" target="_blank" rel="noopener noreferrer" class="text-[var(--accent-color)] hover:underline">SpotiFLAC-Extension</a>), а именно <a href="https://github.com/zarzet" target="_blank" rel="noopener noreferrer" class="text-[var(--accent-color)] hover:underline">Zarz Eleutherius</a> и <a href="https://github.com/Amonoman" target="_blank" rel="noopener noreferrer" class="text-[var(--accent-color)] hover:underline">Amonoman</a>. Прям от всех пользователей Glass Music спасибо!',
+    spotiflac_download: 'SpotiFLAC Скачивание',
+    spotiflac_desc: 'Скачивайте треки в высоком качестве для офлайн прослушивания',
+    spotiflac_choose_folder: 'Выберите папку для скачивания',
+    spotiflac_choose_folder_desc: 'Для удобства выберите папку, куда будут сохраняться скачанные треки. В противном случае они будут сохраняться в скрытую директорию приложения.',
+    spotiflac_select_folder: 'Выбрать папку',
+    spotiflac_saving_to: 'Сохраняется в',
+    spotiflac_change_folder: 'Изменить',
+    spotiflac_input_placeholder: 'Ссылка на Spotify/YouTube или название трека...',
+    spotiflac_download_selected: 'Скачать выбранное',
+    spotiflac_download_url: 'Скачать по ссылке',
+    spotiflac_processing: 'Обработка...',
   },
   en: {
     listen_now: 'Listen Now',
@@ -230,5 +245,19 @@ export const translations: Record<string, Record<TranslationKey, string>> = {
     changelog_207_3: 'Fixed Audio Effects (Slowed/Speed Up) persistence after restart.',
     changelog_207_4: 'Improved background playback and minimize-to-tray behavior.',
     changelog_207_5: 'Fixed ID3 tag writing directly to mp3 files.',
+    changelog_208_1: 'Fixed app crashes on NixOS.',
+    changelog_208_2: 'Fixed issue with setting profile background and avatar. It works correctly now!',
+    changelog_208_3: 'Added SpotiFLAC! Huge heartfelt thanks to the SpotiFLAC developers (<a href="https://github.com/spotiflacapp/SpotiFLAC-Extension" target="_blank" rel="noopener noreferrer" class="text-[var(--accent-color)] hover:underline">SpotiFLAC-Extension</a>), specifically <a href="https://github.com/zarzet" target="_blank" rel="noopener noreferrer" class="text-[var(--accent-color)] hover:underline">Zarz Eleutherius</a> and <a href="https://github.com/Amonoman" target="_blank" rel="noopener noreferrer" class="text-[var(--accent-color)] hover:underline">Amonoman</a>. A big thank you from all Glass Music users!',
+    spotiflac_download: 'SpotiFLAC Download',
+    spotiflac_desc: 'Download high quality tracks for offline play',
+    spotiflac_choose_folder: 'Choose Download Folder',
+    spotiflac_choose_folder_desc: 'For your convenience, please select a folder where your downloaded tracks will be saved. Otherwise, they will be downloaded to a hidden app directory.',
+    spotiflac_select_folder: 'Select Folder',
+    spotiflac_saving_to: 'Saving to',
+    spotiflac_change_folder: 'Change',
+    spotiflac_input_placeholder: 'Spotify/YouTube URL or search query...',
+    spotiflac_download_selected: 'Download Selected',
+    spotiflac_download_url: 'Download URL',
+    spotiflac_processing: 'Processing...',
   }
 };

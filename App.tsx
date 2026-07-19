@@ -10,6 +10,7 @@ import CreatePlaylistModal from './components/CreatePlaylistModal';
 import LayoutEditorOverlay from './components/LayoutEditorOverlay';
 import SelectTracksModal from './components/SelectTracksModal';
 import YouTubeModal from './components/YouTubeModal';
+import SpotifyModal from './components/SpotifyModal';
 import Background from './components/Background';
 import Visualizer from './components/Visualizer';
 import SnowEffect from './components/SnowEffect';
@@ -62,6 +63,7 @@ const App: React.FC = () => {
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [settingsInitialView, setSettingsInitialView] = useState<'settings' | 'about' | 'changelog'>('settings');
   const [isYouTubeModalOpen, setIsYouTubeModalOpen] = useState(false);
+  const [isSpotifyModalOpen, setIsSpotifyModalOpen] = useState(false);
   const [isCreatePlaylistOpen, setIsCreatePlaylistOpen] = useState(false);
   const [isEditingLayout, setIsEditingLayout] = useState(false);
   const [isSelectTracksOpen, setIsSelectTracksOpen] = useState(false);
@@ -333,7 +335,7 @@ const App: React.FC = () => {
           }
 
           if (savedTracks) {
-              const convertFileSrc = (path: string) => `file://${path.replace(/\\/g, '/')}`;
+              const convertFileSrc = (path: string) => `file://${encodeURI(path.replace(/\\/g, '/'))}`;
               const restored = (Array.isArray(savedTracks) ? savedTracks : []).map(t => {
                   let fixedCover = t.coverUrl;
                   if (fixedCover) {
@@ -361,7 +363,7 @@ const App: React.FC = () => {
               }
           }
           if (savedArtists) {
-              const convertFileSrc = (path: string) => `file://${path.replace(/\\/g, '/')}`;
+              const convertFileSrc = (path: string) => `file://${encodeURI(path.replace(/\\/g, '/'))}`;
               const fixedArtists: any = {};
               for (const key in savedArtists) {
                   const meta = savedArtists[key];
@@ -380,7 +382,7 @@ const App: React.FC = () => {
               setArtistMetadata(fixedArtists);
           }
           if (savedProfile) {
-              const convertFileSrc = (path: string) => `file://${path.replace(/\\/g, '/')}`;
+              const convertFileSrc = (path: string) => `file://${encodeURI(path.replace(/\\/g, '/'))}`;
               let avatarUrl = savedProfile.avatarUrl;
               let bannerUrl = savedProfile.bannerUrl;
               if (avatarUrl && avatarUrl.startsWith('asset://localhost/')) {
@@ -479,7 +481,7 @@ const App: React.FC = () => {
     if (!isLoaded) return;
     const isDesktop = () => (window as any).require !== undefined;
     if (isDesktop()) {
-        const currentVersion = "2.0.7"; // Should match package.json
+        const currentVersion = "2.0.8"; // Should match package.json
         const lastVersion = localStorage.getItem('glass_music_last_version');
         if (lastVersion !== currentVersion) {
             setSettingsInitialView('changelog');
@@ -567,7 +569,7 @@ const App: React.FC = () => {
 
     let src = track.fileUrl;
     if (!src && track.path) {
-        src = `file://${track.path.replace(/\\/g, '/')}`;
+        src = `file://${encodeURI(track.path.replace(/\\/g, '/'))}`;
     }
     if (!src) return;
     
@@ -1162,7 +1164,7 @@ const App: React.FC = () => {
             let fileUrl = '';
             const isDesktop = () => (window as any).require !== undefined;
             if (isDesktop() && filePath) {
-                fileUrl = `file://${filePath.replace(/\\/g, '/')}`;
+                fileUrl = `file://${encodeURI(filePath.replace(/\\/g, '/'))}`;
             } else {
                 fileUrl = URL.createObjectURL(file);
             }
@@ -1227,7 +1229,7 @@ const App: React.FC = () => {
                     try {
                         const mockFile = { path: file.path, name: file.name } as any as File;
                         const metadata = await parseFileMetadata(mockFile);
-                        const fileUrl = `file://${file.path.replace(/\\/g, '/')}`;
+                        const fileUrl = `file://${encodeURI(file.path.replace(/\\/g, '/'))}`;
                         const duration = await getAudioDuration(fileUrl);
                         
                         return {
@@ -1271,6 +1273,17 @@ const App: React.FC = () => {
     }
   };
 
+  
+  const handleDownloadSuccess = (folderPath: string) => {
+      if (folderPath) {
+          const newSyncFolders = Array.from(new Set([...(userProfile.syncFolders || []), folderPath]));
+          if (newSyncFolders.length !== (userProfile.syncFolders || []).length) {
+              handleUpdateProfile({ syncFolders: newSyncFolders });
+          }
+          scanFolders([folderPath]);
+      }
+  };
+
   const handleImportFolderClick = async () => {
       const isDesktop = () => (window as any).require !== undefined;
       if (isDesktop()) {
@@ -1300,6 +1313,7 @@ const App: React.FC = () => {
           onImportClick={() => fileInputRef.current?.click()} 
           onImportFolderClick={handleImportFolderClick}
           onYouTubeImportClick={() => setIsYouTubeModalOpen(true)}
+          onSpotiFLACImportClick={() => setIsSpotifyModalOpen(true)}
           onSettingsClick={() => setSettingsOpen(true)}
           currentView={playerState.currentView}
           onChangeView={(view) => { 
@@ -1436,6 +1450,13 @@ const App: React.FC = () => {
       <YouTubeModal
         isOpen={isYouTubeModalOpen}
         onClose={() => setIsYouTubeModalOpen(false)}
+        t={t}
+        accentColor={theme.accentColor}
+      />
+      <SpotifyModal
+        isOpen={isSpotifyModalOpen}
+        onDownloadSuccess={handleDownloadSuccess}
+        onClose={() => setIsSpotifyModalOpen(false)}
         t={t}
         accentColor={theme.accentColor}
       />
