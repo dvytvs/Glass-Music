@@ -164,3 +164,4 @@ Download the ready-to-use `.dmg` package from [our releases](https://github.com/
 <p align="center">
   <i>Designed with ❤️. Keep your music local, keep your UI beautiful.</i>
 </p>
+
