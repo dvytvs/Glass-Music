@@ -16,7 +16,7 @@ import Visualizer from './components/Visualizer';
 import SnowEffect from './components/SnowEffect';
 import TitleBar from './components/TitleBar';
 import { Track, PlaybackState, PlayerState, ViewType, ThemeConfig, ArtistMetadata, UserProfile, Playlist, AudioEffect } from './types';
-import { generateMockCover, parseFileMetadata, sortTracks, fetchLyricsFromLRCLIB } from './utils';
+import { generateMockCover, generateMockCoverPng, parseFileMetadata, sortTracks, fetchLyricsFromLRCLIB, isJunkLyrics } from './utils';
 import { translations, TranslationKey } from './translations';
 import { GoogleGenAI } from "@google/genai";
 
@@ -25,6 +25,7 @@ const THEME_KEY = 'glass_music_theme_v1';
 const ARTIST_DATA_KEY = 'glass_music_artists_v1';
 const USER_PROFILE_KEY = 'glass_music_profile_v1';
 const PLAYLISTS_KEY = 'glass_music_playlists_v1';
+const SESSION_KEY = 'glass_music_session_v1';
 
 const DEFAULT_THEME: ThemeConfig = {
   accentColor: '#db2777', 
@@ -40,7 +41,8 @@ const DEFAULT_THEME: ThemeConfig = {
   sidebarPosition: 'left',
   playerDock: 'bottom',
   speedUpRate: 1.25,
-  slowedRate: 0.85
+  slowedRate: 0.85,
+  savePlaybackSession: true
 };
 
 const DEFAULT_PROFILE: UserProfile = {
@@ -52,6 +54,22 @@ const DEFAULT_PROFILE: UserProfile = {
 };
 
 const ARTIST_SPLIT_REGEX = /\s*(?:,|;|feat\.?|ft\.?|&|\/|featuring)\s+/i;
+
+const formatTrackMediaUrl = (filePath: string, port?: number) => {
+  if (!filePath) return '';
+  const cleanPath = filePath.replace(/\\/g, '/');
+  const formattedPath = cleanPath.startsWith('/') ? cleanPath : `/${cleanPath}`;
+  
+  const encodedPath = formattedPath
+    .split('/')
+    .map(segment => encodeURIComponent(segment))
+    .join('/');
+
+  if (port && port > 0) {
+    return `http://127.0.0.1:${port}${encodedPath}`;
+  }
+  return `file://${encodedPath}`;
+};
 
 const App: React.FC = () => {
   const [tracks, setTracks] = useState<Track[]>([]);
@@ -101,7 +119,9 @@ const App: React.FC = () => {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const saveTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   
-  // РЕФЫ ДЛЯ МГНОВЕННОГО ДОСТУПА ВНУТРИ СОБЫТИЙ AUDIO
+  const lastListenTimeLoggedRef = useRef<number>(0);
+  
+   
   const tracksRef = useRef<Track[]>([]);
   const queueRef = useRef<Track[]>([]);
   const playerStateRef = useRef(playerState);
@@ -137,7 +157,13 @@ const App: React.FC = () => {
     } else {
       document.documentElement.classList.remove('light-theme');
     }
-  }, [getEffectiveTheme()]);
+
+    const preset = theme.themePreset || 'liquid';
+    document.documentElement.classList.remove('theme-tokyo_night', 'theme-win95', 'theme-catppuccin', 'theme-nord', 'theme-cyberpunk', 'theme-oled');
+    if (preset !== 'liquid') {
+      document.documentElement.classList.add(`theme-${preset}`);
+    }
+  }, [getEffectiveTheme(), theme.themePreset]);
 
   useEffect(() => {
     const prefersDark = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
@@ -153,7 +179,7 @@ const App: React.FC = () => {
   }, []);
 
   useEffect(() => {
-    // Send state to electron if needed for Discord RPC
+     
   }, [playerState.playbackState]);
 
   const initAudioContext = useCallback(() => {
@@ -171,7 +197,7 @@ const App: React.FC = () => {
       const source = ctx.createMediaElementSource(audio);
       sourceNodeRef.current = source;
 
-      // Create 10-band EQ
+       
       const frequencies = [32, 64, 125, 250, 500, 1000, 2000, 4000, 8000, 16000];
       const bands = frequencies.map(freq => {
         const filter = ctx.createBiquadFilter();
@@ -189,7 +215,7 @@ const App: React.FC = () => {
       analyserRef.current = analyserNode;
       setAnalyser(analyserNode);
 
-      // Bass and Treble nodes
+       
       const bassNode = ctx.createBiquadFilter();
       bassNode.type = 'lowshelf';
       bassNode.frequency.value = 200;
@@ -202,31 +228,7 @@ const App: React.FC = () => {
       trebleNode.gain.value = theme.trebleLevel || 0;
       trebleNodeRef.current = trebleNode;
 
-      // Reverb nodes
-      const convolver = ctx.createConvolver();
-      const reverbGain = ctx.createGain();
-      const dryGain = ctx.createGain();
-      
-      // Generate simple impulse response
-      const rate = ctx.sampleRate;
-      const length = rate * 2; // 2 seconds
-      const impulse = ctx.createBuffer(2, length, rate);
-      const left = impulse.getChannelData(0);
-      const right = impulse.getChannelData(1);
-      for (let i = 0; i < length; i++) {
-        const decay = Math.exp(-i / (rate * 0.5)); // Decay factor
-        left[i] = (Math.random() * 2 - 1) * decay;
-        right[i] = (Math.random() * 2 - 1) * decay;
-      }
-      convolver.buffer = impulse;
-      
-      reverbGain.gain.value = theme.reverbLevel || 0;
-      dryGain.gain.value = 1; // Keep dry signal
-      
-      reverbNodeRef.current = convolver;
-      reverbGainNodeRef.current = reverbGain;
-
-      // Connect source -> bands -> bass -> treble -> analyser
+       
       let currentConnection: AudioNode = source;
       bands.forEach(band => {
         currentConnection.connect(band);
@@ -235,17 +237,9 @@ const App: React.FC = () => {
       currentConnection.connect(bassNode);
       bassNode.connect(trebleNode);
       trebleNode.connect(analyserNode);
+      analyserNode.connect(ctx.destination);
       
-      // Split analyser to dry and wet (reverb)
-      analyserNode.connect(dryGain);
-      analyserNode.connect(convolver);
-      convolver.connect(reverbGain);
-      
-      // Connect both to destination
-      dryGain.connect(ctx.destination);
-      reverbGain.connect(ctx.destination);
-      
-      // Apply saved EQ
+       
       if (theme.eqBands) {
         theme.eqBands.forEach((gain, i) => {
           if (bands[i]) bands[i].gain.value = gain;
@@ -254,7 +248,7 @@ const App: React.FC = () => {
     } catch (e) {
       console.error("Failed to initialize AudioContext:", e);
     }
-  }, [theme.eqBands]);
+  }, [theme.eqBands, theme.bassLevel, theme.trebleLevel]);
 
   useEffect(() => {
     if (eqBandsRef.current.length > 0 && theme.eqBands) {
@@ -295,36 +289,118 @@ const App: React.FC = () => {
 
   const translateText = async (text: string): Promise<string> => {
     if (!text) return "";
-    if (!process.env.GEMINI_API_KEY) {
-      console.warn("GEMINI_API_KEY is missing. Translation is disabled.");
-      return "Ошибка: Отсутствует ключ Gemini API. Перевод невозможен.";
+    const cleanText = text.trim();
+    if (!cleanText) return "";
+
+    const targetLang = getEffectiveLanguage() === 'ru' ? 'ru' : 'en';
+
+     
+    const libreTranslateUrls = [
+      'https://translate.terraprint.co/translate',
+      'https://libretranslate.de/translate',
+      'https://translate.argosopentech.com/translate'
+    ];
+
+    for (const ltUrl of libreTranslateUrls) {
+      try {
+        const controller = new AbortController();
+        const timeout = setTimeout(() => controller.abort(), 3000);
+        const res = await fetch(ltUrl, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            q: cleanText,
+            source: 'auto',
+            target: targetLang,
+            format: 'text'
+          }),
+          signal: controller.signal
+        });
+        clearTimeout(timeout);
+        if (res.ok) {
+          const data = await res.json();
+          if (data && data.translatedText) {
+            return data.translatedText;
+          }
+        }
+      } catch (e) {
+         
+      }
     }
+
+     
     try {
-      const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
-      const targetLang = getEffectiveLanguage() === 'ru' ? 'Russian' : 'English';
-      const response = await ai.models.generateContent({
-        model: "gemini-2.5-flash",
-        contents: `Translate the following text to ${targetLang}. Keep the meaning and tone. Only return the translated text:\n\n${text}`,
-      });
-      return response.text || text;
+      const maxChunk = 1400;
+      const chunks: string[] = [];
+      for (let i = 0; i < cleanText.length; i += maxChunk) {
+        chunks.push(cleanText.substring(i, i + maxChunk));
+      }
+      
+      const translatedChunks = await Promise.all(chunks.map(async (chunk) => {
+        const url = `https://translate.googleapis.com/translate_a/single?client=gtx&sl=auto&tl=${targetLang}&dt=t&q=${encodeURIComponent(chunk)}`;
+        const res = await fetch(url);
+        if (res.ok) {
+          const data = await res.json();
+          if (data && Array.isArray(data[0])) {
+            return data[0].map((item: any) => item[0]).filter(Boolean).join('');
+          }
+        }
+        return chunk;
+      }));
+      
+      const fullTranslated = translatedChunks.join('');
+      if (fullTranslated && fullTranslated !== cleanText) {
+        return fullTranslated;
+      }
     } catch (e) {
-      console.error("Translation error:", e);
-      return text;
+      console.warn("GTX translation failed, trying MyMemory...", e);
     }
+
+     
+    try {
+      const myMemoryUrl = `https://api.mymemory.translated.net/get?q=${encodeURIComponent(cleanText.slice(0, 500))}&langpair=en|${targetLang}`;
+      const res = await fetch(myMemoryUrl);
+      if (res.ok) {
+        const data = await res.json();
+        if (data && data.responseData && data.responseData.translatedText) {
+          return data.responseData.translatedText;
+        }
+      }
+    } catch (e) {
+      console.error("MyMemory translation error:", e);
+    }
+
+     
+    if (process.env.GEMINI_API_KEY) {
+      try {
+        const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
+        const targetLangName = targetLang === 'ru' ? 'Russian' : 'English';
+        const response = await ai.models.generateContent({
+          model: "gemini-2.5-flash",
+          contents: `Translate the following text to ${targetLangName}. Keep the meaning and tone. Only return the translated text:\n\n${cleanText}`,
+        });
+        if (response.text) return response.text;
+      } catch (e) {
+        console.error("Translation error:", e);
+      }
+    }
+
+    return text;
   };
 
   const loadData = async () => {
       try {
-          let savedTracks, savedTheme, savedArtists, savedProfile, savedPlaylists;
+          let savedTracks, savedTheme, savedArtists, savedProfile, savedPlaylists, savedSession;
           const isDesktop = () => (window as any).require !== undefined;
           if (isDesktop()) {
               const ipcRenderer = (window as any).require('electron').ipcRenderer;
-              [savedTracks, savedTheme, savedArtists, savedProfile, savedPlaylists] = await Promise.all([
+              [savedTracks, savedTheme, savedArtists, savedProfile, savedPlaylists, savedSession] = await Promise.all([
                 ipcRenderer.invoke('get-local-data', { key: STORAGE_KEY }),
                 ipcRenderer.invoke('get-local-data', { key: THEME_KEY }),
                 ipcRenderer.invoke('get-local-data', { key: ARTIST_DATA_KEY }),
                 ipcRenderer.invoke('get-local-data', { key: USER_PROFILE_KEY }),
-                ipcRenderer.invoke('get-local-data', { key: PLAYLISTS_KEY })
+                ipcRenderer.invoke('get-local-data', { key: PLAYLISTS_KEY }),
+                ipcRenderer.invoke('get-local-data', { key: SESSION_KEY })
               ]);
           } else {
               savedTracks = JSON.parse(localStorage.getItem(STORAGE_KEY) || 'null');
@@ -332,10 +408,11 @@ const App: React.FC = () => {
               savedArtists = JSON.parse(localStorage.getItem(ARTIST_DATA_KEY) || 'null');
               savedProfile = JSON.parse(localStorage.getItem(USER_PROFILE_KEY) || 'null');
               savedPlaylists = JSON.parse(localStorage.getItem(PLAYLISTS_KEY) || 'null');
+              savedSession = JSON.parse(localStorage.getItem(SESSION_KEY) || 'null');
           }
 
           if (savedTracks) {
-              const convertFileSrc = (path: string) => `file://${encodeURI(path.replace(/\\/g, '/'))}`;
+              const convertFileSrc = (path: string) => formatTrackMediaUrl(path);
               const restored = (Array.isArray(savedTracks) ? savedTracks : []).map(t => {
                   let fixedCover = t.coverUrl;
                   if (fixedCover) {
@@ -350,7 +427,68 @@ const App: React.FC = () => {
                   }
                   return { ...t, coverUrl: fixedCover };
               });
-              setTracks(sortTracks(restored.filter(t => t.fileUrl || t.path)));
+              const sortedRestored = sortTracks(restored.filter(t => t.fileUrl || t.path));
+              setTracks(sortedRestored);
+
+               
+              if (savedTheme?.savePlaybackSession !== false && savedSession && savedSession.currentTrackId) {
+                  const sessionTrack = sortedRestored.find(t => t.id === savedSession.currentTrackId);
+                  if (sessionTrack) {
+                      const restoredQueue = savedSession.queueIds && Array.isArray(savedSession.queueIds)
+                          ? savedSession.queueIds.map((id: string) => sortedRestored.find(t => t.id === id)).filter(Boolean) as Track[]
+                          : sortedRestored;
+                      const restoredPos = typeof savedSession.currentTime === 'number' ? savedSession.currentTime : 0;
+                      
+                      setPlayerState(prev => ({
+                          ...prev,
+                          currentTrack: sessionTrack,
+                          currentTime: restoredPos,
+                          duration: sessionTrack.duration || 0,
+                          queue: restoredQueue.length > 0 ? restoredQueue : sortedRestored,
+                          playbackState: PlaybackState.PAUSED
+                      }));
+
+                      const audio = audioRef.current;
+                      let src = sessionTrack.fileUrl;
+                      if (sessionTrack.path && isDesktop()) {
+                          try {
+                              const ipcRenderer = (window as any).require('electron').ipcRenderer;
+                              const port = ipcRenderer.sendSync('get-media-port-sync');
+                              if (port) {
+                                  src = formatTrackMediaUrl(sessionTrack.path, port);
+                              }
+                          } catch (e) {}
+                      }
+                      if (src) {
+                          audio.src = src;
+                          audio.load();
+                          const setPosOnLoad = () => {
+                              if (restoredPos > 0) {
+                                  audio.currentTime = restoredPos;
+                              }
+                          };
+                          audio.addEventListener('loadedmetadata', setPosOnLoad, { once: true });
+                      }
+                  }
+              }
+
+              if (isDesktop()) {
+                   
+                  setTimeout(async () => {
+                      try {
+                          const ipcRenderer = (window as any).require('electron').ipcRenderer;
+                          const tracksToUpdate = restored.filter(t => t.path && (!t.coverUrl || t.coverUrl.startsWith('data:image/svg+xml') || t.coverUrl.startsWith('blob:')));
+                          for (const t of tracksToUpdate) {
+                              try {
+                                  const meta = await ipcRenderer.invoke('read-id3-tags', { filePath: t.path });
+                                  if (meta && meta.coverUrl) {
+                                      setTracks(curr => curr.map(item => item.id === t.id ? { ...item, coverUrl: meta.coverUrl, albumArtist: meta.albumArtist || item.albumArtist, year: meta.year || item.year } : item));
+                                  }
+                              } catch (err) {}
+                          }
+                      } catch (e) {}
+                  }, 1000);
+              }
           }
           if (savedTheme) {
               setTheme({ ...DEFAULT_THEME, ...savedTheme });
@@ -410,7 +548,7 @@ const App: React.FC = () => {
 
   useEffect(() => { loadData(); }, []);
 
-  // Electron: Sync playback state for background play
+   
   useEffect(() => {
     const isDesktop = () => (window as any).require !== undefined;
     if (isDesktop()) {
@@ -419,34 +557,94 @@ const App: React.FC = () => {
     }
   }, [playerState.playbackState]);
 
-  // MediaSession API: System integration (MPRIS on Linux, SMTC on Windows)
+   
   useEffect(() => {
     if (!('mediaSession' in navigator)) return;
 
     if (playerState.currentTrack) {
         const { currentTrack } = playerState;
+        const isDesktop = () => (window as any).require !== undefined;
+
+         
+        if (isDesktop() && currentTrack.path && (!currentTrack.coverUrl || currentTrack.coverUrl.startsWith('data:image/svg+xml') || currentTrack.coverUrl.startsWith('blob:'))) {
+            try {
+                const ipcRenderer = (window as any).require('electron').ipcRenderer;
+                ipcRenderer.invoke('read-id3-tags', { filePath: currentTrack.path }).then((tags: any) => {
+                    if (tags && tags.coverUrl && tags.coverUrl !== currentTrack.coverUrl) {
+                        setTracks(curr => curr.map(item => item.id === currentTrack.id ? { ...item, coverUrl: tags.coverUrl } : item));
+                        setPlayerState(prev => prev.currentTrack?.id === currentTrack.id ? { ...prev, currentTrack: { ...prev.currentTrack, coverUrl: tags.coverUrl } } : prev);
+                    }
+                }).catch(() => {});
+            } catch (e) {}
+        }
+
+        const artworks: MediaImage[] = [];
+        let coverSrc = currentTrack.coverUrl;
+        
+         
+        if (isDesktop() && coverSrc && (coverSrc.startsWith('file://') || coverSrc.startsWith('/'))) {
+            try {
+                const fs = (window as any).require('fs');
+                let localPath = coverSrc.replace(/^file:\/\//, '');
+                if (process.platform === 'win32' && localPath.startsWith('/')) {
+                    localPath = localPath.slice(1);
+                }
+                localPath = decodeURIComponent(localPath);
+                if (fs.existsSync(localPath)) {
+                    const buf = fs.readFileSync(localPath);
+                    const isPng = localPath.toLowerCase().endsWith('.png');
+                    const mime = isPng ? 'image/png' : 'image/jpeg';
+                    coverSrc = `data:${mime};base64,${buf.toString('base64')}`;
+                }
+            } catch (e) {}
+        }
+
+        if (coverSrc && typeof coverSrc === 'string' && coverSrc.trim().length > 0 && !coverSrc.startsWith('data:image/svg+xml')) {
+            const isJpg = coverSrc.toLowerCase().includes('.jpg') || coverSrc.toLowerCase().includes('.jpeg') || coverSrc.startsWith('data:image/jpeg');
+            const mimeType = isJpg ? 'image/jpeg' : 'image/png';
+            artworks.push({
+                src: coverSrc,
+                sizes: '512x512',
+                type: mimeType
+            });
+            artworks.push({
+                src: coverSrc,
+                sizes: '256x256',
+                type: mimeType
+            });
+            artworks.push({
+                src: coverSrc,
+                sizes: '128x128',
+                type: mimeType
+            });
+            artworks.push({
+                src: coverSrc,
+                sizes: '96x96',
+                type: mimeType
+            });
+        }
+
         navigator.mediaSession.metadata = new MediaMetadata({
-            title: currentTrack.title,
-            artist: currentTrack.artist,
-            album: currentTrack.album || '',
-            artwork: [
-                { src: currentTrack.coverUrl || '', sizes: '512x512', type: 'image/png' }
-            ]
+            title: currentTrack.title || 'Unknown Title',
+            artist: currentTrack.artist || 'Unknown Artist',
+            album: currentTrack.album || 'Glass Music',
+            artwork: artworks
         });
 
         navigator.mediaSession.playbackState = playerState.playbackState === PlaybackState.PLAYING ? 'playing' : 'paused';
 
-        // Add position state for better system integration (MPRIS/SMTC)
+         
         try {
-            if (navigator.mediaSession.setPositionState) {
+            if (navigator.mediaSession.setPositionState && playerState.duration > 0 && !Number.isNaN(playerState.duration) && Number.isFinite(playerState.duration)) {
+                const pos = Math.min(Math.max(playerState.currentTime || 0, 0), playerState.duration);
                 navigator.mediaSession.setPositionState({
-                    duration: playerState.duration || 0,
-                    playbackRate: 1,
-                    position: playerState.currentTime || 0
+                    duration: playerState.duration,
+                    playbackRate: audioRef.current.playbackRate || 1,
+                    position: pos
                 });
             }
         } catch (error) {
-            console.error('Error setting media session position state:', error);
+             
         }
     } else {
         navigator.mediaSession.metadata = null;
@@ -454,44 +652,19 @@ const App: React.FC = () => {
     }
   }, [playerState.currentTrack, playerState.playbackState, playerState.currentTime, playerState.duration]);
 
-  useEffect(() => {
-    if (!('mediaSession' in navigator)) return;
-
-    navigator.mediaSession.setActionHandler('play', () => handlePlayPause());
-    navigator.mediaSession.setActionHandler('pause', () => handlePlayPause());
-    navigator.mediaSession.setActionHandler('previoustrack', () => handlePrev());
-    navigator.mediaSession.setActionHandler('nexttrack', () => handleNext());
-    navigator.mediaSession.setActionHandler('seekto', (details) => {
-        if (details.seekTime !== undefined) {
-            handleSeek(details.seekTime);
-        }
-    });
-
-    return () => {
-        navigator.mediaSession.setActionHandler('play', null);
-        navigator.mediaSession.setActionHandler('pause', null);
-        navigator.mediaSession.setActionHandler('previoustrack', null);
-        navigator.mediaSession.setActionHandler('nexttrack', null);
-        navigator.mediaSession.setActionHandler('seekto', null);
-    };
-  }, [playerState.currentTrack]); // Refresh handlers when track changes to ensure context
-
-  // Electron: Check for updates to show changelog
+   
   useEffect(() => {
     if (!isLoaded) return;
-    const isDesktop = () => (window as any).require !== undefined;
-    if (isDesktop()) {
-        const currentVersion = "2.0.8"; // Should match package.json
-        const lastVersion = localStorage.getItem('glass_music_last_version');
-        if (lastVersion !== currentVersion) {
-            setSettingsInitialView('changelog');
-            setSettingsOpen(true);
-            localStorage.setItem('glass_music_last_version', currentVersion);
-        }
+    const currentVersion = "3.0.0";
+    const lastVersion = localStorage.getItem('glass_music_last_version');
+    if (lastVersion !== currentVersion) {
+        setSettingsInitialView('changelog');
+        setSettingsOpen(true);
+        localStorage.setItem('glass_music_last_version', currentVersion);
     }
   }, [isLoaded]);
 
-  // Fetch metadata for top artists on load
+   
 
 
   const handleUpdateTrack = useCallback((id: string, data: Partial<Track>) => {
@@ -501,15 +674,33 @@ const App: React.FC = () => {
         const metadataChanged = ['title', 'artist', 'album', 'albumArtist', 'year', 'lyrics', 'coverUrl'].some(key => key in data && data[key as keyof Track] !== track?.[key as keyof Track]);
 
         const isDesktop = () => (window as any).require !== undefined;
-        if (metadataChanged && track && track.path && track.path.toLowerCase().endsWith('.mp3') && isDesktop()) {
+        if (metadataChanged && track && track.path && isDesktop()) {
             try {
                 const ipcRenderer = (window as any).require('electron').ipcRenderer;
                 ipcRenderer.invoke('write-id3-tags', { filePath: track.path, tags: { ...track, ...data } })
                     .then((result: any) => {
-                        if (!result.success) console.error("Failed to write ID3 tags:", result.error);
-                        else console.log("Successfully wrote ID3 tags to", track.path);
+                        if (!result.success) {
+                            console.error("Failed to write audio tags:", result.error);
+                        } else {
+                            console.log("Successfully wrote audio tags to", track.path);
+                             
+                            if (playerStateRef.current.currentTrack?.id === id) {
+                                const audio = audioRef.current;
+                                if (audio.error) {
+                                    const port = ipcRenderer.sendSync('get-media-port-sync');
+                                    const currentPos = playerStateRef.current.currentTime || 0;
+                                    const wasPlaying = playerStateRef.current.playbackState === PlaybackState.PLAYING;
+                                    audio.src = `${formatTrackMediaUrl(track.path, port)}?t=${Date.now()}`;
+                                    audio.load();
+                                    audio.currentTime = currentPos;
+                                    if (wasPlaying) {
+                                        audio.play().catch(console.error);
+                                    }
+                                }
+                            }
+                        }
                     })
-                    .catch((err: any) => console.error("Electron error writing ID3 tags:", err));
+                    .catch((err: any) => console.error("Electron error writing audio tags:", err));
             } catch (e) {
                 console.error(e);
             }
@@ -544,16 +735,16 @@ const App: React.FC = () => {
         historyRef.current.push(currentTrack.id);
         if (historyRef.current.length > 100) historyRef.current.shift();
         setPlayerState(prev => ({ ...prev, history: [...historyRef.current] }));
-        forwardHistoryRef.current = []; // Clear forward history when playing a new track
+        forwardHistoryRef.current = [];  
     }
 
-    // Stop current playback
+     
     audioRef.current.pause();
 
-    // Increment play count
+     
     handleUpdateTrack(track.id, { playCount: (track.playCount || 0) + 1 });
     
-    // Update user stats
+     
     setUserProfile(prev => {
         if (!prev) return prev;
         return {
@@ -567,28 +758,37 @@ const App: React.FC = () => {
         } as any;
     });
 
-    let src = track.fileUrl;
-    if (!src && track.path) {
-        src = `file://${encodeURI(track.path.replace(/\\/g, '/'))}`;
+    let src = '';
+    const isDesktop = () => (window as any).require !== undefined;
+    if (isDesktop() && track.path) {
+        try {
+            const ipcRenderer = (window as any).require('electron').ipcRenderer;
+            const port = ipcRenderer.sendSync('get-media-port-sync');
+            src = formatTrackMediaUrl(track.path, port);
+        } catch (e) {
+            src = formatTrackMediaUrl(track.path);
+        }
+    } else {
+        src = track.fileUrl || (track.path ? formatTrackMediaUrl(track.path) : '');
     }
     if (!src) return;
     
     const targetVolume = playerStateRef.current.volume;
     const audio = audioRef.current;
     
-    // Cleanup previous blob URL
+     
     if (audio.src && audio.src.startsWith('blob:') && audio.src !== src) {
         URL.revokeObjectURL(audio.src);
     }
     
-    // Сбрасываем текущее время перед сменой источника
+     
     audio.pause();
     audio.src = src;
-    audio.load(); // Force load
+    audio.load();  
     audio.currentTime = 0;
     audio.volume = targetVolume;
     
-    // Reset local audio effect if global is none
+     
     let currentEffect = themeRef.current.globalAudioEffect && themeRef.current.globalAudioEffect !== 'none' 
         ? themeRef.current.globalAudioEffect 
         : 'normal';
@@ -626,7 +826,7 @@ const App: React.FC = () => {
           ...prev, 
           currentTrack: track, 
           playbackState: PlaybackState.PLAYING,
-          audioEffect: currentEffect === 'normal' ? 'normal' : prev.audioEffect // Reset local effect
+          audioEffect: currentEffect === 'normal' ? 'normal' : prev.audioEffect  
       }));
     } catch (err) { 
         console.error("Playback error:", err);
@@ -638,7 +838,7 @@ const App: React.FC = () => {
         }));
     }
 
-    // Fetch lyrics if needed
+     
     if (!track.lyrics) {
       fetchLyricsFromLRCLIB(track.artist, track.title).then(lyrics => {
         if (lyrics) {
@@ -673,12 +873,12 @@ const App: React.FC = () => {
 
     if (playerStateRef.current.isShuffled) {
         if (shuffledQueueRef.current.length === 0) {
-            // Refill shuffled queue
+             
             shuffledQueueRef.current = activeQueue
                 .map(t => t.id)
                 .filter(id => id !== current.id);
             
-            // If only one track in queue, we have to allow it
+             
             if (shuffledQueueRef.current.length === 0 && activeQueue.length > 0) {
                 shuffledQueueRef.current = [activeQueue[0].id];
             }
@@ -718,7 +918,7 @@ const App: React.FC = () => {
          }
      }
      
-     // Fallback to sequential prev if history is empty
+      
      const activeQueue = queueRef.current.length > 0 ? queueRef.current : tracksRef.current;
      if (!current || activeQueue.length === 0) return;
 
@@ -743,11 +943,11 @@ const App: React.FC = () => {
     if (playerStateRef.current.currentTrack?.id === track.id) {
         const audio = audioRef.current;
         if (playerStateRef.current.playbackState === PlaybackState.PLAYING) {
-          // Spotify/YouTube pause handled by state
+           
           audio.pause();
           setPlayerState(prev => ({ ...prev, playbackState: PlaybackState.PAUSED }));
         } else {
-          // Spotify/YouTube play handled by state
+           
           initAudioContext();
           const playPromise = audio.play();
           if (playPromise !== undefined) {
@@ -767,7 +967,7 @@ const App: React.FC = () => {
     if (newQueue) {
         setPlayerState(prev => ({ ...prev, queue: newQueue }));
         queueRef.current = newQueue;
-        shuffledQueueRef.current = []; // Reset shuffle for new queue
+        shuffledQueueRef.current = [];  
     }
     
     await playTrackInternal(track);
@@ -798,10 +998,15 @@ const App: React.FC = () => {
         handleNext(true);
     };
     const onTimeUpdate = () => {
-        setPlayerState(prev => ({ ...prev, currentTime: audio.currentTime }));
+        if (Math.abs(playerStateRef.current.currentTime - audio.currentTime) > 0.25) {
+            setPlayerState(prev => ({ ...prev, currentTime: audio.currentTime }));
+        }
         
-        // Track listening time
-        if (playerStateRef.current.playbackState === PlaybackState.PLAYING) {
+         
+        const now = Date.now();
+        if (playerStateRef.current.playbackState === PlaybackState.PLAYING && now - lastListenTimeLoggedRef.current >= 30000) {
+            const elapsedSeconds = Math.round((now - (lastListenTimeLoggedRef.current || (now - 30000))) / 1000);
+            lastListenTimeLoggedRef.current = now;
             setUserProfile(prev => {
                 if (!prev) return prev;
                 return {
@@ -809,7 +1014,7 @@ const App: React.FC = () => {
                     stats: {
                         ...prev.stats,
                         totalListens: prev.stats?.totalListens || 0,
-                        listeningTime: (prev.stats?.listeningTime || 0) + 1,
+                        listeningTime: (prev.stats?.listeningTime || 0) + (elapsedSeconds > 0 ? elapsedSeconds : 30),
                         topArtists: prev.stats?.topArtists || {}
                     }
                 };
@@ -823,6 +1028,35 @@ const App: React.FC = () => {
     };
     const onError = (e: any) => {
         console.error("Audio element error:", audio.error);
+        const currentTrack = playerStateRef.current.currentTrack;
+        const currentPos = playerStateRef.current.currentTime || 0;
+        const wasPlaying = playerStateRef.current.playbackState === PlaybackState.PLAYING;
+        const isDesktop = () => typeof window !== 'undefined' && (window as any).require !== undefined;
+
+         
+        if (currentTrack && isDesktop() && currentTrack.path) {
+            try {
+                const ipcRenderer = (window as any).require('electron').ipcRenderer;
+                const port = ipcRenderer.sendSync('get-media-port-sync');
+                if (port) {
+                    console.log("Auto-recovering audio playback stream...");
+                    const recoveredSrc = `${formatTrackMediaUrl(currentTrack.path, port)}?t=${Date.now()}`;
+                    setTimeout(() => {
+                        audio.src = recoveredSrc;
+                        audio.load();
+                        audio.currentTime = currentPos;
+                        if (wasPlaying) {
+                            audio.play().then(() => {
+                                setPlayerState(prev => ({ ...prev, playbackState: PlaybackState.PLAYING }));
+                            }).catch(console.error);
+                        }
+                    }, 200);
+                    return;
+                }
+            } catch (recoveryErr) {
+                console.error("Recovery failed:", recoveryErr);
+            }
+        }
         setPlayerState(prev => ({ ...prev, playbackState: PlaybackState.PAUSED }));
     };
     
@@ -843,32 +1077,18 @@ const App: React.FC = () => {
 
   useEffect(() => {
     if (!isLoaded) return;
-    
-    const saveData = () => {
-        try {
-            const tracksToSave = tracks.map(t => ({ ...t, fileUrl: '' }));
-            const isDesktop = () => (window as any).require !== undefined;
-            if (isDesktop()) {
-                const ipcRenderer = (window as any).require('electron').ipcRenderer;
-                ipcRenderer.send('save-local-data-sync', { key: STORAGE_KEY, data: tracksToSave });
-                ipcRenderer.send('save-local-data-sync', { key: THEME_KEY, data: theme });
-                ipcRenderer.send('save-local-data-sync', { key: ARTIST_DATA_KEY, data: artistMetadata });
-                ipcRenderer.send('save-local-data-sync', { key: USER_PROFILE_KEY, data: userProfile });
-                ipcRenderer.send('save-local-data-sync', { key: PLAYLISTS_KEY, data: playlists });
-            } else {
-                localStorage.setItem(STORAGE_KEY, JSON.stringify(tracksToSave));
-                localStorage.setItem(THEME_KEY, JSON.stringify(theme));
-                localStorage.setItem(ARTIST_DATA_KEY, JSON.stringify(artistMetadata));
-                localStorage.setItem(USER_PROFILE_KEY, JSON.stringify(userProfile));
-                localStorage.setItem(PLAYLISTS_KEY, JSON.stringify(playlists));
-            }
-        } catch (e) { console.error("Save error:", e); }
-    };
 
     if (saveTimeoutRef.current) clearTimeout(saveTimeoutRef.current);
     saveTimeoutRef.current = setTimeout(async () => {
         try {
             const tracksToSave = tracks.map(t => ({ ...t, fileUrl: '' }));
+            const shouldSaveSession = theme.savePlaybackSession !== false;
+            const sessionToSave = (shouldSaveSession && playerState.currentTrack) ? {
+                currentTrackId: playerState.currentTrack.id,
+                currentTime: audioRef.current ? (audioRef.current.currentTime || playerState.currentTime || 0) : 0,
+                queueIds: playerState.queue.map(t => t.id)
+            } : null;
+
             const isDesktop = () => (window as any).require !== undefined;
             if (isDesktop()) {
                 const ipcRenderer = (window as any).require('electron').ipcRenderer;
@@ -877,7 +1097,10 @@ const App: React.FC = () => {
                     ipcRenderer.invoke('save-local-data', { key: THEME_KEY, data: theme }),
                     ipcRenderer.invoke('save-local-data', { key: ARTIST_DATA_KEY, data: artistMetadata }),
                     ipcRenderer.invoke('save-local-data', { key: USER_PROFILE_KEY, data: userProfile }),
-                    ipcRenderer.invoke('save-local-data', { key: PLAYLISTS_KEY, data: playlists })
+                    ipcRenderer.invoke('save-local-data', { key: PLAYLISTS_KEY, data: playlists }),
+                    sessionToSave 
+                      ? ipcRenderer.invoke('save-local-data', { key: SESSION_KEY, data: sessionToSave }) 
+                      : ipcRenderer.invoke('save-local-data', { key: SESSION_KEY, data: null })
                 ]);
             } else {
                 localStorage.setItem(STORAGE_KEY, JSON.stringify(tracksToSave));
@@ -885,24 +1108,44 @@ const App: React.FC = () => {
                 localStorage.setItem(ARTIST_DATA_KEY, JSON.stringify(artistMetadata));
                 localStorage.setItem(USER_PROFILE_KEY, JSON.stringify(userProfile));
                 localStorage.setItem(PLAYLISTS_KEY, JSON.stringify(playlists));
+                if (sessionToSave) {
+                  localStorage.setItem(SESSION_KEY, JSON.stringify(sessionToSave));
+                } else {
+                  localStorage.removeItem(SESSION_KEY);
+                }
             }
         } catch (e) { console.error("Save error:", e); }
-    }, 500);
+    }, 1000);
 
-    window.addEventListener('beforeunload', saveData);
-    return () => window.removeEventListener('beforeunload', saveData);
+    return () => {
+        if (saveTimeoutRef.current) clearTimeout(saveTimeoutRef.current);
+    };
   }, [tracks, theme, artistMetadata, userProfile, playlists, isLoaded]);
+
+  const [isRefetchingLyrics, setIsRefetchingLyrics] = useState(false);
+
+  const handleRefetchLyrics = useCallback(async (track: Track) => {
+    if (!track) return;
+    setIsRefetchingLyrics(true);
+    const lyrics = await fetchLyricsFromLRCLIB(track.artist, track.title);
+    setIsRefetchingLyrics(false);
+    if (lyrics && !isJunkLyrics(lyrics)) {
+      handleUpdateTrack(track.id, { lyrics });
+    } else {
+      alert(t('lyrics_not_found'));
+    }
+  }, [handleUpdateTrack, t]);
 
   useEffect(() => {
     const track = playerState.currentTrack;
-    if (track && !track.lyrics) {
+    if (track && (!track.lyrics || isJunkLyrics(track.lyrics))) {
       console.log(`[App] Auto-fetching lyrics for: ${track.artist} - ${track.title}`);
       fetchLyricsFromLRCLIB(track.artist, track.title).then(lyrics => {
-        if (lyrics) {
+        if (lyrics && !isJunkLyrics(lyrics)) {
           console.log(`[App] Auto-fetch success for: ${track.title}`);
           handleUpdateTrack(track.id, { lyrics });
         } else {
-          console.log(`[App] Auto-fetch failed for: ${track.title}`);
+          console.log(`[App] Auto-fetch failed or returned junk for: ${track.title}`);
         }
       });
     }
@@ -911,7 +1154,7 @@ const App: React.FC = () => {
   const handleUpdateTheme = (newConfig: Partial<ThemeConfig>) => {
     setTheme(prev => {
         const next = { ...prev, ...newConfig };
-        // Force save immediately for critical settings
+         
         const isDesktop = () => (window as any).require !== undefined;
         if (isDesktop()) {
             const ipcRenderer = (window as any).require('electron').ipcRenderer;
@@ -934,7 +1177,7 @@ const App: React.FC = () => {
             };
         const newState = { ...prev, [artist]: newArtistData };
         
-        // Force save immediately to prevent data loss
+         
         const isDesktop = () => (window as any).require !== undefined;
         if (isDesktop()) {
             const ipcRenderer = (window as any).require('electron').ipcRenderer;
@@ -952,7 +1195,7 @@ const App: React.FC = () => {
       setSelectedArtist(artist);
       setPlayerState(prev => ({ ...prev, currentView: 'artist_detail' }));
       
-      // Fetch metadata if avatar OR bio is missing
+       
       const existingMeta = artistMetadata[artist];
       const isDesktop = () => (window as any).require !== undefined;
       if (isDesktop() && (!existingMeta?.avatar || !existingMeta?.bio)) {
@@ -1009,7 +1252,7 @@ const App: React.FC = () => {
             if (meta) {
               handleUpdateArtist(artist, meta as any, false);
             }
-            // Add a small delay to avoid rate-limiting
+             
             await new Promise(resolve => setTimeout(resolve, 1000));
           } catch (e) {
             console.error(`Failed to fetch metadata for ${artist}:`, e);
@@ -1019,16 +1262,63 @@ const App: React.FC = () => {
     };
 
     fetchAllArtistsMetadata();
-  }, [isLoaded, tracks.length]); // Run when tracks are loaded or added
+  }, [isLoaded, tracks.length]);  
 
   const handleOnboardingComplete = (profile: Partial<UserProfile>, themeUpdate: Partial<ThemeConfig>) => {
     setUserProfile(prev => ({ ...prev, ...profile, onboardingDone: true }));
     setTheme(prev => ({ ...prev, ...themeUpdate }));
   };
 
-  const handleSeek = (time: number) => { 
+  const handleSeek = useCallback((time: number) => { 
     audioRef.current.currentTime = time; 
-  };
+  }, []);
+
+  useEffect(() => {
+    if (!('mediaSession' in navigator)) return;
+
+    const onPlay = () => handlePlayPause();
+    const onPause = () => handlePlayPause();
+    const onPrev = () => handlePrev();
+    const onNext = () => handleNext(false);
+    const onSeekTo = (details: MediaSessionActionDetails) => {
+        if (details.seekTime !== undefined && !Number.isNaN(details.seekTime)) {
+            handleSeek(details.seekTime);
+        }
+    };
+    const onSeekBackward = (details: MediaSessionActionDetails) => {
+        const skip = details.seekOffset || 10;
+        handleSeek(Math.max((audioRef.current.currentTime || 0) - skip, 0));
+    };
+    const onSeekForward = (details: MediaSessionActionDetails) => {
+        const skip = details.seekOffset || 10;
+        handleSeek(Math.min((audioRef.current.currentTime || 0) + skip, audioRef.current.duration || 0));
+    };
+    const onStop = () => {
+        audioRef.current.pause();
+        audioRef.current.currentTime = 0;
+        setPlayerState(prev => ({ ...prev, playbackState: PlaybackState.PAUSED, currentTime: 0 }));
+    };
+
+    navigator.mediaSession.setActionHandler('play', onPlay);
+    navigator.mediaSession.setActionHandler('pause', onPause);
+    navigator.mediaSession.setActionHandler('previoustrack', onPrev);
+    navigator.mediaSession.setActionHandler('nexttrack', onNext);
+    navigator.mediaSession.setActionHandler('seekto', onSeekTo);
+    navigator.mediaSession.setActionHandler('seekbackward', onSeekBackward);
+    navigator.mediaSession.setActionHandler('seekforward', onSeekForward);
+    navigator.mediaSession.setActionHandler('stop', onStop);
+
+    return () => {
+        navigator.mediaSession.setActionHandler('play', null);
+        navigator.mediaSession.setActionHandler('pause', null);
+        navigator.mediaSession.setActionHandler('previoustrack', null);
+        navigator.mediaSession.setActionHandler('nexttrack', null);
+        navigator.mediaSession.setActionHandler('seekto', null);
+        navigator.mediaSession.setActionHandler('seekbackward', null);
+        navigator.mediaSession.setActionHandler('seekforward', null);
+        navigator.mediaSession.setActionHandler('stop', null);
+    };
+  }, [handlePlayPause, handlePrev, handleNext, handleSeek]);
   const handleVolume = (vol: number) => { 
     audioRef.current.volume = vol; 
     setPlayerState(prev => ({ ...prev, volume: vol })); 
@@ -1038,7 +1328,7 @@ const App: React.FC = () => {
     setPlayerState(prev => {
         const newState = !prev.isShuffled;
         if (newState) {
-            shuffledQueueRef.current = []; // Will be refilled on next
+            shuffledQueueRef.current = [];  
         }
         setTheme(t => ({ ...t, isShuffled: newState }));
         return { ...prev, isShuffled: newState };
@@ -1055,7 +1345,7 @@ const App: React.FC = () => {
 
   const toggleAudioEffect = () => {
     if (themeRef.current.globalAudioEffect && themeRef.current.globalAudioEffect !== 'none') {
-        // Если включен глобальный эффект, локальный переключатель не работает
+         
         return;
     }
     
@@ -1082,7 +1372,7 @@ const App: React.FC = () => {
       if (trackInLibrary) {
           handleUpdateTrack(id, { isLiked: !trackInLibrary.isLiked });
       } else {
-          // Если трека нет в библиотеке (например, из поиска Spotify), добавляем его
+           
           const trackToAdd = trackData || (playerStateRef.current.currentTrack?.id === id ? playerStateRef.current.currentTrack : null);
           if (trackToAdd) {
               const newTrack = { ...trackToAdd, isLiked: true };
@@ -1131,7 +1421,7 @@ const App: React.FC = () => {
       timeoutId = setTimeout(() => {
         resolve(0);
         cleanup();
-      }, 1500); // 1.5 second timeout
+      }, 1500);  
 
       audio.addEventListener('loadedmetadata', () => {
         resolve(audio.duration);
@@ -1169,7 +1459,7 @@ const App: React.FC = () => {
                 fileUrl = URL.createObjectURL(file);
             }
             
-            const duration = await getAudioDuration(file);
+            const duration = metadata.duration || (await getAudioDuration(file));
 
             batch.push({
               id: Math.random().toString(36).substr(2, 9), title: metadata.title || file.name.replace(/\.[^/.]+$/, ""),
@@ -1179,7 +1469,7 @@ const App: React.FC = () => {
               year: metadata.year || new Date().getFullYear().toString(), source: 'local', addedAt: Date.now()
             });
 
-            // Update state in batches of 10 or at the end
+             
             if (batch.length >= 10 || i === filesArray.length - 1) {
                 const currentBatch = [...batch];
                 setTracks(prev => {
@@ -1230,7 +1520,7 @@ const App: React.FC = () => {
                         const mockFile = { path: file.path, name: file.name } as any as File;
                         const metadata = await parseFileMetadata(mockFile);
                         const fileUrl = `file://${encodeURI(file.path.replace(/\\/g, '/'))}`;
-                        const duration = await getAudioDuration(fileUrl);
+                        const duration = metadata.duration || 0;
                         
                         return {
                             id: Math.random().toString(36).substr(2, 9),
@@ -1297,12 +1587,60 @@ const App: React.FC = () => {
       }
   };
 
+  const handleShuffleAll = useCallback((q: Track[]) => {
+    setPlayerState(prev => ({ ...prev, isShuffled: true, queue: q }));
+    if (q[0]) handlePlay(q[0], q);
+  }, [handlePlay]);
+
+  const handleChangeView = useCallback((view: ViewType) => {
+    setViewHistory([]);
+    setPlayerState(prev => ({ ...prev, currentView: view }));
+    setSidebarOpen(true);
+  }, []);
+
+  const handleSelectPlaylist = useCallback((id: string) => {
+    setSelectedPlaylist(id);
+    setPlayerState(prev => ({ ...prev, currentView: 'playlist_detail' }));
+    setSidebarOpen(true);
+  }, []);
+
+  const handleDeletePlaylist = useCallback((id: string) => {
+    setPlaylists(prev => prev.filter(p => p.id !== id));
+    setSelectedPlaylist(prev => prev === id ? null : prev);
+  }, []);
+
+  const handleUpdatePlaylist = useCallback((id: string, data: Partial<Playlist>) => {
+    setPlaylists(prev => prev.map(p => p.id === id ? { ...p, ...data } : p));
+  }, []);
+
+  const handleRequestFileUnlock = useCallback(() => {
+    audioRef.current.pause();
+    audioRef.current.src = "";
+  }, []);
+
+  const handleCreatePlaylistOpen = useCallback(() => {
+    setIsCreatePlaylistOpen(true);
+  }, []);
+
+  const handleOpenSelectTracks = useCallback(() => {
+    setIsSelectTracksOpen(true);
+  }, []);
+
+  const isVideoBg = theme.backgroundType === 'video';
+  const isHeavyBg = isVideoBg || (theme.animateBackground && playerState.playbackState === PlaybackState.PLAYING);
+
+  const mainGlassClass = theme.enableGlass
+    ? (isHeavyBg ? 'bg-black/55 backdrop-blur-xl border border-white/10' : 'bg-black/40 backdrop-blur-2xl border border-white/10')
+    : 'bg-[var(--panel-bg)] border border-[var(--glass-border)]';
+
   return (
     <div className="relative w-full h-screen flex flex-col overflow-hidden bg-[var(--bg-main)] text-[var(--text-main)] selection:text-[var(--text-main)]">
       <TitleBar />
-      {theme.seasonalTheme && <SnowEffect />}
+      {(theme.themePreset === 'nord' || theme.themePreset === 'autumn') && (
+        <SnowEffect themePreset={theme.themePreset} accentColor={theme.accentColor} />
+      )}
       <Background config={theme} isLight={getEffectiveTheme() === 'light'} analyser={analyser} isPlaying={playerState.playbackState === PlaybackState.PLAYING} profileBannerUrl={userProfile.bannerUrl} />
-      <Visualizer analyser={analyser} isPlaying={playerState.playbackState === PlaybackState.PLAYING} accentColor={theme.accentColor} enabled={theme.animateBackground} />
+      <Visualizer analyser={analyser} isPlaying={playerState.playbackState === PlaybackState.PLAYING} accentColor={theme.accentColor} enabled={theme.animateBackground && !isVideoBg} />
       
       {!userProfile.onboardingDone && isLoaded && (
         <OnboardingModal onComplete={handleOnboardingComplete} accentColor={theme.accentColor} t={t} />
@@ -1316,43 +1654,30 @@ const App: React.FC = () => {
           onSpotiFLACImportClick={() => setIsSpotifyModalOpen(true)}
           onSettingsClick={() => setSettingsOpen(true)}
           currentView={playerState.currentView}
-          onChangeView={(view) => { 
-            setViewHistory([]);
-            setPlayerState(prev => ({ ...prev, currentView: view })); 
-            setSidebarOpen(true); 
-          }}
+          onChangeView={handleChangeView}
           isOpen={sidebarOpen} accentColor={theme.accentColor} searchQuery={searchQuery}
-          onSearchChange={setSearchQuery} enableGlass={theme.enableGlass} user={userProfile} t={t}
+          onSearchChange={setSearchQuery} enableGlass={theme.enableGlass} isVideoBg={isHeavyBg} user={userProfile} t={t}
           playlists={playlists}
           selectedPlaylist={selectedPlaylist}
-          onSelectPlaylist={(id) => {
-            setSelectedPlaylist(id);
-            setPlayerState(prev => ({ ...prev, currentView: 'playlist_detail' }));
-            setSidebarOpen(true);
-          }}
-          onCreatePlaylist={() => setIsCreatePlaylistOpen(true)}
+          onSelectPlaylist={handleSelectPlaylist}
+          onCreatePlaylist={handleCreatePlaylistOpen}
         />
-        <div className={`flex-1 flex flex-col relative z-20 ${theme.enableGlass ? 'bg-black/40 backdrop-blur-[60px] border border-white/10' : 'bg-[var(--panel-bg)] border border-[var(--glass-border)]'} rounded-[2rem] md:rounded-[3rem] overflow-hidden shadow-2xl transition-all duration-700 ease-[cubic-bezier(0.32,0.72,0,1)]`}>
+        <div className={`flex-1 flex flex-col relative z-20 ${mainGlassClass} rounded-[2rem] md:rounded-[3rem] overflow-hidden shadow-2xl`}>
           <MainView 
             tracks={tracks} currentTrack={playerState.currentTrack} playbackState={playerState.playbackState}
-            onPlay={handlePlay} onShuffleAll={(q) => { setPlayerState(prev => ({ ...prev, isShuffled: true, queue: q })); if (q[0]) handlePlay(q[0], q); }}
+            onPlay={handlePlay} onShuffleAll={handleShuffleAll}
             currentView={playerState.currentView} selectedArtist={selectedArtist} selectedAlbum={selectedAlbum}
             onUpdateTrack={handleUpdateTrack} onDeleteTrack={handleDeleteTrack} onGoToArtist={handleGoToArtist}
             onGoToAlbum={handleGoToAlbum} onBack={handleBack}
             accentColor={theme.accentColor} artistMetadata={artistMetadata} onUpdateArtist={handleUpdateArtist}
-            searchQuery={searchQuery} onRequestFileUnlock={() => { audioRef.current.pause(); audioRef.current.src = ""; }}
+            searchQuery={searchQuery} onRequestFileUnlock={handleRequestFileUnlock}
             onToggleLike={handleToggleLike} enableGlass={theme.enableGlass} t={t} onTranslate={translateText}
             playlists={playlists} selectedPlaylist={selectedPlaylist}
-            onChangeView={(view) => { setPlayerState(prev => ({ ...prev, currentView: view })); }}
-            onDeletePlaylist={(id) => {
-              setPlaylists(prev => prev.filter(p => p.id !== id));
-              if (selectedPlaylist === id) setSelectedPlaylist(null);
-            }}
-            onUpdatePlaylist={(id, data) => {
-              setPlaylists(prev => prev.map(p => p.id === id ? { ...p, ...data } : p));
-            }}
-            onCreatePlaylist={() => setIsCreatePlaylistOpen(true)}
-            onOpenSelectTracks={() => setIsSelectTracksOpen(true)}
+            onChangeView={handleChangeView}
+            onDeletePlaylist={handleDeletePlaylist}
+            onUpdatePlaylist={handleUpdatePlaylist}
+            onCreatePlaylist={handleCreatePlaylistOpen}
+            onOpenSelectTracks={handleOpenSelectTracks}
             userProfile={userProfile}
             onUpdateProfile={handleUpdateProfile}
             playerStyle={theme.playerStyle}
@@ -1386,6 +1711,8 @@ const App: React.FC = () => {
             audioEffect={theme.globalAudioEffect && theme.globalAudioEffect !== 'none' ? theme.globalAudioEffect : playerState.audioEffect} 
             onToggleAudioEffect={toggleAudioEffect}
             analyser={analyser}
+            onRefetchLyrics={handleRefetchLyrics}
+            isRefetchingLyrics={isRefetchingLyrics}
         />
       )}
       {isEditingLayout && (
@@ -1393,6 +1720,7 @@ const App: React.FC = () => {
           config={theme}
           onUpdate={handleUpdateTheme}
           onClose={() => setIsEditingLayout(false)}
+          t={t}
         />
       )}
       <SettingsModal 

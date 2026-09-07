@@ -41,7 +41,7 @@ export interface UserProfile {
   language?: string;
   stats?: {
     totalListens: number;
-    listeningTime: number; // in seconds
+    listeningTime: number;  
     topArtists: Record<string, number>;
   };
   syncFolders?: string[];
@@ -63,7 +63,10 @@ export interface PlayerState {
   audioEffect: AudioEffect;
 }
 
+export type ThemePreset = 'liquid' | 'tokyo_night' | 'win95' | 'catppuccin' | 'nord' | 'cyberpunk' | 'oled' | 'autumn';
+
 export interface ThemeConfig {
+  themePreset?: ThemePreset;
   accentColor: string;
   backgroundType: 'liquid' | 'image' | 'video';
   backgroundSource: string | null;
@@ -85,6 +88,7 @@ export interface ThemeConfig {
   reverbLevel?: number;
   bassLevel?: number;
   trebleLevel?: number;
+  savePlaybackSession?: boolean;
 }
 
 export interface ArtistMetadata {

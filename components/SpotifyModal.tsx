@@ -21,7 +21,7 @@ const SpotifyModal: React.FC<SpotifyModalProps> = ({ isOpen, onClose, onDownload
   const [downloadFolder, setDownloadFolder] = useState<string | null>(null);
   const [isLoadingConfig, setIsLoadingConfig] = useState(true);
 
-  // Search state
+   
   const [searchResults, setSearchResults] = useState<any[]>([]);
   const [isSearching, setIsSearching] = useState(false);
   const [selectedResult, setSelectedResult] = useState<any>(null);
@@ -162,7 +162,7 @@ const SpotifyModal: React.FC<SpotifyModalProps> = ({ isOpen, onClose, onDownload
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
         exit={{ opacity: 0 }}
-        className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-md"
+        className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-none"
         onClick={onClose}
       >
         <motion.div
@@ -172,7 +172,7 @@ const SpotifyModal: React.FC<SpotifyModalProps> = ({ isOpen, onClose, onDownload
           onClick={(e) => e.stopPropagation()}
           className="bg-[#121212] border border-white/10 rounded-2xl shadow-2xl w-full max-w-lg overflow-hidden flex flex-col max-h-[85vh]"
         >
-          {/* Header */}
+           
           <div className="p-5 border-b border-white/5 flex items-center justify-between bg-black/40 shrink-0">
             <div>
               <h2 className="text-xl font-bold text-white flex items-center gap-2">
@@ -225,7 +225,7 @@ const SpotifyModal: React.FC<SpotifyModalProps> = ({ isOpen, onClose, onDownload
                     </button>
                 </div>
 
-                {/* Input Section */}
+                 
                 <div className="flex gap-2">
                   <div className="relative flex-1">
                     <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
@@ -268,7 +268,7 @@ const SpotifyModal: React.FC<SpotifyModalProps> = ({ isOpen, onClose, onDownload
                   </button>
                 </div>
 
-                {/* Search Results */}
+                 
                 {searchResults.length > 0 && status === 'idle' && (
                   <div className="flex flex-col gap-2 max-h-[250px] overflow-y-auto pr-2 custom-scrollbar">
                     {searchResults.map((res, i) => (
@@ -302,7 +302,7 @@ const SpotifyModal: React.FC<SpotifyModalProps> = ({ isOpen, onClose, onDownload
                   </div>
                 )}
 
-                {/* Status & Metadata View */}
+                 
                 <AnimatePresence mode="wait">
                   {status !== 'idle' && (
                     <motion.div
@@ -311,7 +311,7 @@ const SpotifyModal: React.FC<SpotifyModalProps> = ({ isOpen, onClose, onDownload
                       exit={{ opacity: 0, y: -10 }}
                       className="flex flex-col items-center justify-center p-6 bg-[#181818] rounded-xl border border-white/5"
                     >
-                      {/* Track Info (if available) */}
+                       
                       {metadata && (
                         <motion.div 
                           initial={{ opacity: 0, scale: 0.9 }}
@@ -334,7 +334,7 @@ const SpotifyModal: React.FC<SpotifyModalProps> = ({ isOpen, onClose, onDownload
                         </motion.div>
                       )}
 
-                      {/* Progress / Status indicator */}
+                       
                       <div className="w-full flex flex-col items-center gap-4">
                         {status === 'error' ? (
                           <AlertCircle className="w-10 h-10 text-red-500 mb-2" />

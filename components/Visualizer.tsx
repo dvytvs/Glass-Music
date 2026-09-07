@@ -7,54 +7,50 @@ interface VisualizerProps {
   enabled?: boolean;
 }
 
-const Visualizer: React.FC<VisualizerProps> = ({ analyser, isPlaying, accentColor, enabled = true }) => {
+const Visualizer: React.FC<VisualizerProps> = React.memo(({ analyser, isPlaying, accentColor, enabled = false }) => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const requestRef = useRef<number>();
 
   useEffect(() => {
-    if (!analyser || !canvasRef.current || !enabled) return;
+    if (!analyser || !canvasRef.current || !enabled || !isPlaying) {
+      if (requestRef.current) cancelAnimationFrame(requestRef.current);
+      if (canvasRef.current) {
+        const ctx = canvasRef.current.getContext('2d');
+        if (ctx) ctx.clearRect(0, 0, canvasRef.current.width, canvasRef.current.height);
+      }
+      return;
+    }
 
     const canvas = canvasRef.current;
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
 
-    const bufferLength = analyser.frequencyBinCount;
+    const bufferLength = Math.min(analyser.frequencyBinCount, 64);
     const dataArray = new Uint8Array(bufferLength);
 
     const draw = () => {
-      if (!isPlaying) {
-        // Fade out slightly when paused
-        ctx.fillStyle = 'rgba(0, 0, 0, 0.05)';
-        ctx.fillRect(0, 0, canvas.width, canvas.height);
-        requestRef.current = requestAnimationFrame(draw);
-        return;
-      }
-
+      if (!isPlaying || !enabled) return;
       requestRef.current = requestAnimationFrame(draw);
-      analyser.getByteFrequencyData(dataArray);
 
+      analyser.getByteFrequencyData(dataArray);
       ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-      const barWidth = (canvas.width / bufferLength) * 2.5;
-      let barHeight;
+      const barWidth = (canvas.width / bufferLength) * 2;
       let x = 0;
 
+      const gradient = ctx.createLinearGradient(0, canvas.height, 0, 0);
+      gradient.addColorStop(0, `${accentColor}00`);
+      gradient.addColorStop(1, `${accentColor}50`);
+      ctx.fillStyle = gradient;
+
       for (let i = 0; i < bufferLength; i++) {
-        barHeight = dataArray[i] * 1.5;
-
-        // Create gradient for bars
-        const gradient = ctx.createLinearGradient(0, canvas.height, 0, canvas.height - barHeight);
-        gradient.addColorStop(0, `${accentColor}00`); // Transparent at bottom
-        gradient.addColorStop(1, `${accentColor}80`); // Semi-transparent at top
-
-        ctx.fillStyle = gradient;
-        ctx.fillRect(x, canvas.height - barHeight, barWidth, barHeight);
-
-        x += barWidth + 1;
+        const barHeight = (dataArray[i] / 255) * canvas.height * 0.4;
+        ctx.fillRect(x, canvas.height - barHeight, barWidth - 1, barHeight);
+        x += barWidth;
       }
     };
 
-    draw();
+    requestRef.current = requestAnimationFrame(draw);
 
     return () => {
       if (requestRef.current) cancelAnimationFrame(requestRef.current);
@@ -76,10 +72,10 @@ const Visualizer: React.FC<VisualizerProps> = ({ analyser, isPlaying, accentColo
   return (
     <canvas
       ref={canvasRef}
-      className={`fixed inset-0 z-0 pointer-events-none transition-opacity duration-1000 ${enabled ? 'opacity-30' : 'opacity-0'} mix-blend-screen`}
-      style={{ filter: 'blur(4px)' }}
+      className={`fixed inset-0 z-0 pointer-events-none transition-opacity duration-500 ${enabled && isPlaying ? 'opacity-40' : 'opacity-0'}`}
     />
   );
-};
+});
 
 export default Visualizer;
+

@@ -2,14 +2,17 @@
 import React, { useEffect, useRef, useMemo } from 'react';
 import { LyricLine } from '../types';
 import { parseLrc } from '../utils';
+import { RefreshCw, Sparkles } from './Icons';
 
 interface LyricsViewProps {
   lyricsRaw?: string;
   currentTime: number;
   onSeek?: (time: number) => void;
+  onRefetchLyrics?: () => void;
+  isRefetching?: boolean;
 }
 
-const LyricsView: React.FC<LyricsViewProps> = ({ lyricsRaw, currentTime, onSeek }) => {
+const LyricsView: React.FC<LyricsViewProps> = ({ lyricsRaw, currentTime, onSeek, onRefetchLyrics, isRefetching }) => {
   const containerRef = useRef<HTMLDivElement>(null);
   
   const lines = useMemo(() => {
@@ -39,10 +42,10 @@ const LyricsView: React.FC<LyricsViewProps> = ({ lyricsRaw, currentTime, onSeek 
     return parsed;
   }, [lyricsRaw]);
 
-  // Check if it's plain text mode (time is -1)
+   
   const isPlainText = lines.length > 0 && lines[0].time === -1;
 
-  // Find active line (only for synced)
+   
   const activeIndex = useMemo(() => {
       if (isPlainText || lines.length === 0) return -1;
       for (let i = lines.length - 1; i >= 0; i--) {
@@ -55,7 +58,7 @@ const LyricsView: React.FC<LyricsViewProps> = ({ lyricsRaw, currentTime, onSeek 
 
   const activeLineRef = useRef<HTMLDivElement>(null);
 
-  // Auto-scroll logic (only for synced)
+   
   useEffect(() => {
     if (!isPlainText && activeLineRef.current && containerRef.current) {
       activeLineRef.current.scrollIntoView({
@@ -67,19 +70,40 @@ const LyricsView: React.FC<LyricsViewProps> = ({ lyricsRaw, currentTime, onSeek 
 
   if (!lyricsRaw || lines.length === 0) {
     return (
-      <div className="w-full h-full flex flex-col items-center justify-center text-white/20 animate-fade-in">
-         <p className="text-4xl font-black tracking-tighter mb-4">Текст не найден</p>
-         <p className="text-sm font-bold uppercase tracking-widest opacity-50 text-center px-8 leading-loose">
-            Добавь текст в режиме редактирования трека. <br/>Поддерживается обычный текст и LRC.
+      <div className="w-full h-full flex flex-col items-center justify-center text-white/40 animate-fade-in p-6 text-center">
+         <p className="text-3xl md:text-4xl font-black tracking-tight mb-3 text-white/80">Текст не найден</p>
+         <p className="text-xs font-bold uppercase tracking-widest opacity-60 text-center max-w-md leading-relaxed mb-6">
+            Загрузи текст из сети через LRCLIB или добавь его вручную в параметрах трека.
          </p>
+         {onRefetchLyrics && (
+           <button 
+             onClick={onRefetchLyrics}
+             disabled={isRefetching}
+             className="px-6 py-3 bg-white/10 hover:bg-white text-white hover:text-black rounded-full font-black text-xs uppercase tracking-wider transition-all flex items-center gap-2 active:scale-95 border border-white/20 shadow-xl disabled:opacity-50 cursor-pointer"
+           >
+             <RefreshCw className={`w-4 h-4 ${isRefetching ? 'animate-spin' : ''}`} />
+             <span>{isRefetching ? 'Поиск в LRCLIB...' : 'Загрузить из LRCLIB'}</span>
+           </button>
+         )}
       </div>
     );
   }
 
-  // --- Plain Text View (Static Scroll) ---
+   
   if (isPlainText) {
       return (
-        <div className="w-full h-full overflow-hidden relative">
+        <div className="w-full h-full overflow-hidden relative group">
+            {onRefetchLyrics && (
+              <button 
+                onClick={onRefetchLyrics}
+                disabled={isRefetching}
+                title="Обновить текст из LRCLIB"
+                className="absolute top-4 right-4 z-20 px-4 py-2 bg-black/40 hover:bg-white text-white/70 hover:text-black rounded-full text-[11px] font-bold uppercase tracking-wider transition-all flex items-center gap-2 border border-white/10 backdrop-blur-md cursor-pointer"
+              >
+                <RefreshCw className={`w-3.5 h-3.5 ${isRefetching ? 'animate-spin' : ''}`} />
+                <span>{isRefetching ? 'Обновление...' : 'LRCLIB'}</span>
+              </button>
+            )}
             <div className="w-full h-full overflow-y-auto px-10 py-24 space-y-8">
                 {lines.map((line, index) => (
                     <p 
@@ -94,9 +118,20 @@ const LyricsView: React.FC<LyricsViewProps> = ({ lyricsRaw, currentTime, onSeek 
       );
   }
 
-  // --- Synced View (LRC) ---
+   
   return (
     <div className="w-full h-full overflow-hidden relative">
+      {onRefetchLyrics && (
+        <button 
+          onClick={onRefetchLyrics}
+          disabled={isRefetching}
+          title="Обновить текст из LRCLIB"
+          className="absolute top-4 right-4 z-20 px-4 py-2 bg-black/40 hover:bg-white text-white/70 hover:text-black rounded-full text-[11px] font-bold uppercase tracking-wider transition-all flex items-center gap-2 border border-white/10 backdrop-blur-md cursor-pointer"
+        >
+          <RefreshCw className={`w-3.5 h-3.5 ${isRefetching ? 'animate-spin' : ''}`} />
+          <span>{isRefetching ? 'Обновление...' : 'LRCLIB'}</span>
+        </button>
+      )}
       <div 
         ref={containerRef}
         className="w-full h-full overflow-y-auto px-4 lg:px-0 py-[50vh] space-y-10 scroll-smooth no-scrollbar"
@@ -107,7 +142,7 @@ const LyricsView: React.FC<LyricsViewProps> = ({ lyricsRaw, currentTime, onSeek 
           const isPast = index < activeIndex;
           const distance = Math.abs(index - activeIndex);
           
-          // Cinematic karaoke style
+           
           let blur = 0;
           let scale = 1;
           let opacity = 1;
@@ -115,17 +150,14 @@ const LyricsView: React.FC<LyricsViewProps> = ({ lyricsRaw, currentTime, onSeek 
           const isCountdown = (line as any).isCountdown;
 
           if (isActive) {
-            scale = isCountdown ? 1.4 : 1.05;
+            scale = isCountdown ? 1.3 : 1.05;
             opacity = 1;
-            blur = 0;
           } else if (isPast) {
             scale = 0.98;
-            opacity = Math.max(0.1, 0.4 - distance * 0.08);
-            blur = Math.min(distance * 1.2, 10);
+            opacity = Math.max(0.15, 0.4 - distance * 0.08);
           } else {
             scale = 0.98;
-            opacity = Math.max(0.1, 0.6 - distance * 0.1);
-            blur = Math.min(distance * 0.8, 6);
+            opacity = Math.max(0.15, 0.6 - distance * 0.1);
           }
 
           return (
@@ -133,18 +165,17 @@ const LyricsView: React.FC<LyricsViewProps> = ({ lyricsRaw, currentTime, onSeek 
               key={index}
               ref={isActive ? activeLineRef : null}
               onClick={() => !isPlainText && onSeek && onSeek(line.time)}
-              className="transition-all duration-1000 ease-[cubic-bezier(0.23,1,0.32,1)] origin-left cursor-pointer group"
+              className="transition-all duration-500 ease-out origin-left cursor-pointer group"
               style={{
                 transform: `scale(${scale})`,
                 opacity: opacity,
-                filter: `blur(${blur}px)`,
               }}
             >
               <p 
-                className={`text-3xl md:text-5xl lg:text-6xl leading-[1.2] font-black transition-all duration-1000 
+                className={`text-3xl md:text-5xl lg:text-6xl leading-[1.2] font-black transition-colors duration-500 
                 ${isCountdown ? 'tracking-[0.5em] font-mono' : 'tracking-tight'} 
                 ${isActive 
-                    ? (isCountdown ? 'text-[var(--accent-color)] drop-shadow-[0_0_30px_var(--accent-color)]' : 'text-white drop-shadow-[0_0_40px_rgba(255,255,255,0.4)]') 
+                    ? (isCountdown ? 'text-[var(--accent-color)] drop-shadow-[0_0_20px_var(--accent-color)]' : 'text-white drop-shadow-[0_0_30px_rgba(255,255,255,0.4)]') 
                     : 'text-white/30 group-hover:text-white/60'}
               `}>
                 {line.text}

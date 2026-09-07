@@ -2,9 +2,9 @@
 import React, { useRef, useMemo, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { X, Image, Video, Droplet, Upload, Check, Sliders, Snowflake, Trash2, ArrowLeft, LayoutGrid, Pencil } from './Icons';
-// Import AlertCircle directly from lucide if possible, or add it to Icons.tsx. Assuming standard set.
+ 
 import { AlertCircle, Music, Activity, History } from 'lucide-react'; 
-import { ThemeConfig, UserProfile } from '../types';
+import { ThemeConfig, UserProfile, ThemePreset } from '../types';
 import { TranslationKey } from '../translations';
 import { fileToDataURL } from '../utils';
 
@@ -28,7 +28,7 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [view, setView] = useState<'settings' | 'about' | 'changelog'>(initialView);
 
-  // Sync view with initialView when modal opens
+   
   React.useEffect(() => {
     if (isOpen) {
       setView(initialView);
@@ -37,8 +37,8 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
 
   const isWinterSeason = useMemo(() => {
       const now = new Date();
-      const month = now.getMonth(); // 0 = Jan, 11 = Dec
-      // Winter: Dec (11), Jan (0), Feb (1)
+      const month = now.getMonth();  
+       
       return month === 11 || month === 0 || month === 1;
   }, []);
 
@@ -47,7 +47,7 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
     if (file) {
       try {
         const type = file.type.startsWith('video') ? 'video' : 'image';
-        // Convert to Base64 (Data URI) for persistence across reloads
+         
         const base64Url = await fileToDataURL(file);
         onUpdate({ backgroundType: type, backgroundSource: base64Url });
       } catch (err) {
@@ -63,7 +63,7 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
-      className="fixed inset-0 z-[100] flex items-center justify-center bg-black/40 backdrop-blur-md"
+      className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60"
       onClick={onClose}
     >
       <motion.div 
@@ -71,11 +71,11 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
         animate={{ scale: 1, y: 0, opacity: 1 }}
         exit={{ scale: 0.95, y: 20, opacity: 0 }}
         transition={{ type: "spring", damping: 25, stiffness: 300 }}
-        className={`w-full max-w-2xl bg-[var(--panel-bg)] border border-[var(--glass-border)] rounded-[3rem] shadow-[0_40px_80px_rgba(0,0,0,0.2)] overflow-hidden ${config.enableGlass ? 'backdrop-blur-3xl' : ''} relative flex flex-col max-h-[85vh]`}
+        className="w-full max-w-2xl bg-[var(--bg-main)] border border-[var(--glass-border)] rounded-[3rem] shadow-[0_40px_80px_rgba(0,0,0,0.6)] overflow-hidden relative flex flex-col max-h-[85vh]"
         onClick={(e) => e.stopPropagation()}
       >
-        {/* Header */}
-        <div className="flex items-center justify-between px-8 py-6 border-b border-[var(--glass-border)] shrink-0 bg-[var(--panel-bg)]/80 backdrop-blur-md sticky top-0 z-10">
+         
+        <div className="flex items-center justify-between px-8 py-6 border-b border-[var(--glass-border)] shrink-0 bg-[var(--card-bg)] sticky top-0 z-10">
           <div className="flex items-center gap-4">
               {(view === 'about' || view === 'changelog') && (
                   <button onClick={() => setView('settings')} className="p-2 hover:bg-[var(--card-hover)] rounded-full transition-all active:scale-95">
@@ -125,10 +125,42 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
 
         <div className="p-8 overflow-y-auto custom-scrollbar flex-1 relative">
           
-          {/* VIEW: SETTINGS */}
+           
           {view === 'settings' && (
             <div className="space-y-10 animate-fade-in">
-                {/* Theme Mode */}
+                 
+                <section>
+                     <h3 className="text-xs font-bold text-[var(--text-muted)] uppercase tracking-wider mb-4 flex items-center gap-2">
+                        <Sliders className="w-4 h-4"/> {t('theme_presets')}
+                     </h3>
+                     <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+                         {[
+                             { id: 'liquid', name: t('theme_liquid'), color: '#3b82f6' },
+                             { id: 'tokyo_night', name: t('theme_tokyo_night'), color: '#7aa2f7' },
+                             { id: 'win95', name: t('theme_win95'), color: '#008080' },
+                             { id: 'catppuccin', name: t('theme_catppuccin'), color: '#cba6f7' },
+                             { id: 'nord', name: t('theme_nord'), color: '#88c0d0' },
+                             { id: 'autumn', name: t('theme_autumn'), color: '#e07a5f' },
+                             { id: 'cyberpunk', name: t('theme_cyberpunk'), color: '#ffe700' },
+                             { id: 'oled', name: t('theme_oled'), color: '#ffffff' },
+                         ].map((preset) => (
+                             <button 
+                                key={preset.id}
+                                onClick={() => onUpdate({ themePreset: preset.id as ThemePreset, accentColor: preset.color })}
+                                className={`py-3 px-4 rounded-2xl text-xs font-bold transition-all border flex items-center gap-2.5 ${
+                                    (config.themePreset || 'liquid') === preset.id 
+                                        ? 'bg-[var(--text-main)] text-[var(--bg-main)] border-[var(--text-main)] shadow-md' 
+                                        : 'bg-[var(--card-bg)] text-[var(--text-muted)] border-[var(--glass-border)] hover:bg-[var(--card-hover)] hover:text-[var(--text-main)]'
+                                }`}
+                             >
+                                 <span className="w-3.5 h-3.5 rounded-full shrink-0 border border-black/20" style={{ backgroundColor: preset.color }} />
+                                 <span className="truncate">{preset.name}</span>
+                             </button>
+                         ))}
+                     </div>
+                </section>
+
+                 
                 <section>
                      <h3 className="text-xs font-bold text-[var(--text-muted)] uppercase tracking-wider mb-4 flex items-center gap-2">
                         <Sliders className="w-4 h-4"/> {t('theme')}
@@ -155,7 +187,7 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
                      </div>
                 </section>
 
-                {/* Language */}
+                 
                 <section>
                      <h3 className="text-xs font-bold text-[var(--text-muted)] uppercase tracking-wider mb-4 flex items-center gap-2">
                         <LayoutGrid className="w-4 h-4"/> {t('language')}
@@ -182,7 +214,7 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
                      </div>
                 </section>
 
-                {/* Player Style Toggle */}
+                 
                 <section>
                      <h3 className="text-xs font-bold text-[var(--text-muted)] uppercase tracking-wider mb-4 flex items-center gap-2">
                         <LayoutGrid className="w-4 h-4"/> {t('player_style')}
@@ -209,7 +241,7 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
                      </div>
                 </section>
 
-                {/* Equalizer */}
+                 
                 <section>
                      <h3 className="text-xs font-bold text-[var(--text-muted)] uppercase tracking-wider mb-4 flex items-center gap-2">
                         <Music className="w-4 h-4"/> Эквалайзер
@@ -250,9 +282,9 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
                         </div>
                      </div>
                 </section>
-                   {/* Toggles Section */}
+                    
                 <div className="space-y-3">
-                    {/* Glass Toggle */}
+                     
                     <motion.section whileTap={{ scale: 0.98 }} className="flex items-center justify-between bg-[var(--card-bg)] p-4 rounded-[2.5rem] border border-[var(--glass-border)] hover:bg-[var(--card-hover)] transition-all cursor-pointer" onClick={() => onUpdate({ enableGlass: !config.enableGlass })}>
                         <div className="flex items-center gap-3">
                             <div className="w-10 h-10 rounded-full bg-[var(--glass-border)] flex items-center justify-center">
@@ -268,7 +300,7 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
                         </div>
                     </motion.section>
 
-                    {/* Animate Background Toggle */}
+                     
                     <motion.section whileTap={{ scale: 0.98 }} className="flex items-center justify-between bg-[var(--card-bg)] p-4 rounded-[2.5rem] border border-[var(--glass-border)] hover:bg-[var(--card-hover)] transition-all cursor-pointer" onClick={() => onUpdate({ animateBackground: !config.animateBackground })}>
                         <div className="flex items-center gap-3">
                             <div className="w-10 h-10 rounded-full bg-[var(--glass-border)] flex items-center justify-center">
@@ -284,7 +316,23 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
                         </div>
                     </motion.section>
 
-                    {/* Speed Up / Slowed Rates */}
+                     
+                    <motion.section whileTap={{ scale: 0.98 }} className="flex items-center justify-between bg-[var(--card-bg)] p-4 rounded-[2.5rem] border border-[var(--glass-border)] hover:bg-[var(--card-hover)] transition-all cursor-pointer" onClick={() => onUpdate({ savePlaybackSession: config.savePlaybackSession === false ? true : false })}>
+                        <div className="flex items-center gap-3">
+                            <div className="w-10 h-10 rounded-full bg-[var(--glass-border)] flex items-center justify-center">
+                                <History className="w-5 h-5" style={{ color: config.accentColor }}/>
+                            </div>
+                            <div>
+                                <h3 className="text-[var(--text-main)] font-bold text-sm">{t('save_session')}</h3>
+                                <p className="text-xs text-[var(--text-muted)] mt-0.5">{t('save_session_desc')}</p>
+                            </div>
+                        </div>
+                        <div className={`w-12 h-6 rounded-full p-1 transition-all duration-300 relative ${config.savePlaybackSession !== false ? 'bg-[var(--text-main)]' : 'bg-[var(--glass-border)]'}`}>
+                            <div className={`w-4 h-4 rounded-full bg-[var(--bg-main)] shadow-sm transition-all duration-300 ${config.savePlaybackSession !== false ? 'translate-x-6' : 'translate-x-0'}`}></div>
+                        </div>
+                    </motion.section>
+
+                     
                     <section className="bg-[var(--card-bg)] p-4 rounded-[2.5rem] border border-[var(--glass-border)]">
                         <div className="flex items-center gap-3 mb-4">
                             <div className="w-10 h-10 rounded-full bg-[var(--glass-border)] flex items-center justify-center">
@@ -380,27 +428,9 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
                             </div>
                         </div>
                     </section>
-                    
-                    {/* Seasonal Theme (Visible only in winter) */}
-                    {isWinterSeason && (
-                        <motion.section whileTap={{ scale: 0.98 }} className="flex items-center justify-between bg-blue-500/10 p-4 rounded-[2.5rem] border border-blue-500/20 hover:bg-blue-500/20 transition-all cursor-pointer" onClick={() => onUpdate({ seasonalTheme: !config.seasonalTheme })}>
-                            <div className="flex items-center gap-3">
-                                <div className="w-10 h-10 rounded-full bg-blue-500/20 flex items-center justify-center">
-                                    <Snowflake className="w-5 h-5 text-blue-400 animate-spin-slow"/>
-                                </div>
-                                <div>
-                                    <h3 className="text-blue-400 font-bold text-sm">{t('seasonal_theme')}</h3>
-                                    <p className="text-xs text-blue-400/70 mt-0.5">{t('seasonal_theme')}</p>
-                                </div>
-                            </div>
-                            <div className={`w-12 h-6 rounded-full p-1 transition-all duration-300 relative ${config.seasonalTheme ? 'bg-blue-500' : 'bg-blue-500/20'}`}>
-                                <div className={`w-4 h-4 rounded-full bg-white shadow-sm transition-all duration-300 ${config.seasonalTheme ? 'translate-x-6' : 'translate-x-0'}`}></div>
-                            </div>
-                        </motion.section>
-                    )}
                 </div>
 
-                {/* Accent Color */}
+                 
                 <section>
                     <h3 className="text-xs font-bold text-[var(--text-muted)] uppercase tracking-wider mb-4">{t('accent_color')}</h3>
                     <div className="flex items-center gap-6 bg-[var(--card-bg)] p-6 rounded-[2.5rem] border border-[var(--glass-border)] shadow-sm">
@@ -420,13 +450,13 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
                     </div>
                 </section>
 
-                {/* Background Source */}
+                 
                 <div className="space-y-8 transition-all duration-500">
                     <section>
                         <h3 className="text-xs font-bold text-[var(--text-muted)] uppercase tracking-wider mb-4">{t('background')}</h3>
                         <div className="grid grid-cols-2 gap-4">
                         
-                        {/* Liquid (Default) */}
+                         
                         <button 
                             onClick={() => onUpdate({ backgroundType: 'liquid' })}
                             className={`h-32 rounded-[2.5rem] border flex flex-col items-center justify-center gap-2 transition-all ${
@@ -439,7 +469,7 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
                             <span className="text-xs font-bold uppercase tracking-wider">{t('liquid_bg')}</span>
                         </button>
 
-                        {/* Image/Video Upload */}
+                         
                         <button 
                             onClick={() => {
                                 if (config.backgroundSource) {
@@ -485,7 +515,7 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
                         />
                     </section>
 
-                    {/* Sliders */}
+                     
                     <section className="space-y-8 bg-[var(--card-bg)] p-6 rounded-[2.5rem] border border-[var(--glass-border)] shadow-sm transition-all duration-500">
                         <div className={`transition-all duration-500 ${config.enableGlass ? 'opacity-100' : 'opacity-40 grayscale pointer-events-none'}`}>
                             <div className="flex justify-between mb-3 items-end">
@@ -519,7 +549,7 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
                     </section>
                 </div>
 
-                {/* DELETE ZONE */}
+                 
                 <section className="pt-12 mt-12 border-t border-[var(--glass-border)]">
                     <button 
                         onClick={onClearLibrary}
@@ -533,7 +563,7 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
             </div>
           )}
 
-          {/* VIEW: ABOUT */}
+           
           {view === 'about' && (
               <div className="space-y-10 animate-scale-in">
                   <div className="flex flex-col items-center justify-center mb-12 pt-6">
@@ -566,16 +596,20 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
                           </p>
                           <button 
                              onClick={async () => {
-                                 const url = "https://github.com/dvytvs/Glass-Music.git";
+                                 const url = "https://github.com/dvytvs/Glass-Music";
                                  const isDesktop = () => (window as any).require !== undefined;
                                  if (isDesktop()) {
-                                     const ipcRenderer = (window as any).require('electron').ipcRenderer;
-                                     ipcRenderer.invoke('open-external', url);
+                                     try {
+                                         const ipcRenderer = (window as any).require('electron').ipcRenderer;
+                                         await ipcRenderer.invoke('open-external', url);
+                                     } catch (e) {
+                                         window.open(url, '_blank', 'noopener,noreferrer');
+                                     }
                                  } else {
-                                     window.open(url, '_blank');
+                                     window.open(url, '_blank', 'noopener,noreferrer');
                                  }
                              }}
-                             className="block w-full py-5 bg-[var(--text-main)] text-[var(--bg-main)] text-center font-black rounded-full hover:scale-105 active:scale-95 transition-all shadow-2xl"
+                             className="block w-full py-5 bg-[var(--text-main)] text-[var(--bg-main)] text-center font-black rounded-full hover:scale-105 active:scale-95 transition-all shadow-2xl cursor-pointer"
                           >
                               GitHub Repository
                           </button>
@@ -594,8 +628,19 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
                       
                       <div className="border-b border-[var(--glass-border)] pb-6">
                           <h3 className="text-xl font-bold text-[var(--text-main)] flex items-center gap-2 mb-2">
-                              {t('version')} 2.0.8 ({t('current')}) <span className="text-xs bg-green-500/20 text-green-500 px-2 py-1 rounded-full ml-2">{t('new')}</span>
+                              {t('version')} 3.0.0 ({t('current')}) <span className="text-xs bg-green-500/20 text-green-500 px-2 py-1 rounded-full ml-2">{t('new')}</span>
                           </h3>
+                          <ul className="list-disc list-inside text-[var(--text-muted)] space-y-2 text-sm leading-relaxed">
+                              <li>{t('changelog_300_1')}</li>
+                              <li>{t('changelog_300_2')}</li>
+                              <li>{t('changelog_300_3')}</li>
+                              <li>{t('changelog_300_4')}</li>
+                              <li>{t('changelog_300_5')}</li>
+                              <li>{t('changelog_300_6')}</li>
+                          </ul>
+                      </div>
+                      <div className="border-b border-[var(--glass-border)] pb-6">
+                          <h3 className="text-xl font-bold text-[var(--text-main)] mb-2">{t('version')} 2.0.8</h3>
                           <ul className="list-disc list-inside text-[var(--text-muted)] space-y-2 text-sm leading-relaxed">
                               <li>{t('changelog_208_1')}</li>
                               <li>{t('changelog_208_2')}</li>
@@ -603,7 +648,7 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
                           </ul>
                       </div>
                       <div className="border-b border-[var(--glass-border)] pb-6">
-                          <h3 className="text-xl font-bold text-[var(--text-main)] mb-2">Версия 2.0.7</h3>
+                          <h3 className="text-xl font-bold text-[var(--text-main)] mb-2">{t('version')} 2.0.7</h3>
                           <ul className="list-disc list-inside text-[var(--text-muted)] space-y-2 text-sm leading-relaxed">
                               <li>{t('changelog_207_1')}</li>
                               <li>{t('changelog_207_2')}</li>

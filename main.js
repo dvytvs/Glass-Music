@@ -1,12 +1,160 @@
 const { app, BrowserWindow, ipcMain, nativeTheme, Tray, Menu, globalShortcut, dialog } = require('electron');
 const path = require('path');
 const fs = require('fs');
+const http = require('http');
 const NodeID3 = require('node-id3');
 const { downloadTrack } = require('./downloader.js');
 
+ 
+let localMediaPort = 0;
+const mediaServer = http.createServer((req, res) => {
+    try {
+        let rawUrl = req.url || '';
+        let cleanUrl = rawUrl.split('?')[0];
+        let filePath;
+        try {
+            filePath = decodeURIComponent(cleanUrl);
+        } catch (e) {
+            filePath = cleanUrl;
+        }
 
-// Disable Chromium's MPRIS / Media Session integration to prevent playbackRate from syncing to the OS
-app.commandLine.appendSwitch('disable-features', 'MediaSessionService,HardwareMediaKeyHandling');
+        if (process.platform === 'win32') {
+            while (filePath.startsWith('/')) {
+                filePath = filePath.slice(1);
+            }
+        } else {
+            if (!filePath.startsWith('/')) {
+                filePath = '/' + filePath;
+            }
+        }
+
+        if (req.method === 'OPTIONS') {
+            res.writeHead(204, {
+                'Access-Control-Allow-Origin': '*',
+                'Access-Control-Allow-Headers': '*',
+                'Access-Control-Allow-Methods': 'GET, HEAD, OPTIONS'
+            });
+            res.end();
+            return;
+        }
+
+        if (!fs.existsSync(filePath)) {
+            const normalized = path.normalize(filePath);
+            if (fs.existsSync(normalized)) {
+                filePath = normalized;
+            } else {
+                res.writeHead(404, { 'Access-Control-Allow-Origin': '*' });
+                res.end('Not found');
+                return;
+            }
+        }
+
+        const stat = fs.statSync(filePath);
+        const total = stat.size;
+        const ext = path.extname(filePath).toLowerCase();
+        
+        let contentType = 'application/octet-stream';
+        if (ext === '.mp3') contentType = 'audio/mpeg';
+        else if (ext === '.flac') contentType = 'audio/flac';
+        else if (ext === '.wav') contentType = 'audio/wav';
+        else if (ext === '.ogg' || ext === '.opus') contentType = 'audio/ogg';
+        else if (ext === '.m4a' || ext === '.aac' || ext === '.mp4') contentType = 'audio/mp4';
+        else if (ext === '.webm') contentType = 'audio/webm';
+        else if (ext === '.aiff' || ext === '.aif') contentType = 'audio/aiff';
+        else if (ext === '.jpg' || ext === '.jpeg') contentType = 'image/jpeg';
+        else if (ext === '.png') contentType = 'image/png';
+        else if (ext === '.webp') contentType = 'image/webp';
+        else if (ext === '.gif') contentType = 'image/gif';
+
+        if (req.method === 'HEAD') {
+            res.writeHead(200, {
+                'Content-Length': total,
+                'Content-Type': contentType,
+                'Accept-Ranges': 'bytes',
+                'Access-Control-Allow-Origin': '*',
+                'Access-Control-Allow-Headers': '*',
+                'Cache-Control': 'no-cache'
+            });
+            res.end();
+            return;
+        }
+
+        if (req.headers.range) {
+            const range = req.headers.range;
+            const parts = range.replace(/bytes=/, "").split("-");
+            const partialstart = parts[0];
+            const partialend = parts[1];
+            
+            const start = parseInt(partialstart, 10);
+            const end = partialend ? parseInt(partialend, 10) : total - 1;
+            const chunksize = (end - start) + 1;
+            
+            const fileStream = fs.createReadStream(filePath, { start, end });
+            res.writeHead(206, {
+                'Content-Range': `bytes ${start}-${end}/${total}`,
+                'Accept-Ranges': 'bytes',
+                'Content-Length': chunksize,
+                'Content-Type': contentType,
+                'Access-Control-Allow-Origin': '*',
+                'Access-Control-Allow-Headers': '*',
+                'Cache-Control': 'no-cache'
+            });
+
+            req.on('close', () => {
+                if (fileStream && !fileStream.destroyed) {
+                    fileStream.destroy();
+                }
+            });
+
+            fileStream.pipe(res);
+        } else {
+            const fileStream = fs.createReadStream(filePath);
+            res.writeHead(200, {
+                'Content-Length': total,
+                'Content-Type': contentType,
+                'Accept-Ranges': 'bytes',
+                'Access-Control-Allow-Origin': '*',
+                'Access-Control-Allow-Headers': '*',
+                'Cache-Control': 'no-cache'
+            });
+
+            req.on('close', () => {
+                if (fileStream && !fileStream.destroyed) {
+                    fileStream.destroy();
+                }
+            });
+
+            fileStream.pipe(res);
+        }
+    } catch (e) {
+        console.error("Media Server Error:", e);
+        if (!res.headersSent) {
+            res.writeHead(500, { 'Access-Control-Allow-Origin': '*' });
+        }
+        res.end();
+    }
+});
+
+mediaServer.listen(0, '127.0.0.1', () => {
+    localMediaPort = mediaServer.address().port;
+});
+
+ipcMain.handle('get-media-port', () => localMediaPort);
+ipcMain.on('get-media-port-sync', (e) => e.returnValue = localMediaPort);
+
+
+ 
+if (process.platform === 'linux') {
+    app.commandLine.appendSwitch('ozone-platform-hint', 'auto');
+    app.commandLine.appendSwitch('ignore-gpu-blocklist');
+    app.commandLine.appendSwitch('enable-gpu-rasterization');
+    if (app.setDesktopName) {
+        app.setDesktopName('glass-music.desktop');
+    }
+}
+
+app.setName('Glass Music');
+
 
 let mainWindow;
 let tray;
@@ -28,7 +176,7 @@ if (!gotTheLock) {
         const { nativeImage } = require('electron');
         const iconPath = path.join(__dirname, 'trei', 'trei.png');
         
-        // Create native image from path (works better inside asar archives)
+         
         let trayIcon = nativeImage.createFromPath(iconPath);
         
         tray = new Tray(trayIcon); 
@@ -123,7 +271,7 @@ if (!gotTheLock) {
              if (mainWindow) mainWindow.close();
         });
 
-        // Notify renderer about theme changes
+         
         nativeTheme.on('updated', () => {
             if (mainWindow) {
                 mainWindow.webContents.send('system-theme-updated', {
@@ -240,7 +388,7 @@ ipcMain.handle('get-metadata', async (e, { query }) => {
         const res = await fetch(`https://api.deezer.com/search?q=${encodeURIComponent(query)}&limit=10`);
         const data = await res.json();
         if (data.data && data.data.length > 0) {
-            // Attempt to find a better match by checking if both artist and title are present in query
+             
             let trackShort = data.data[0];
             const queryLower = query.toLowerCase();
             
@@ -248,14 +396,14 @@ ipcMain.handle('get-metadata', async (e, { query }) => {
                 const titleLower = item.title.toLowerCase();
                 const artistLower = item.artist.name.toLowerCase();
                 
-                // If query contains both artist and title, this is likely our match
+                 
                 if (queryLower.includes(titleLower) && queryLower.includes(artistLower)) {
                     trackShort = item;
                     break;
                 }
             }
             
-            // Fetch full track details for contributors and album details for year
+             
             const [trackRes, albumRes] = await Promise.all([
                 fetch(`https://api.deezer.com/track/${trackShort.id}`),
                 fetch(`https://api.deezer.com/album/${trackShort.album.id}`)
@@ -264,13 +412,13 @@ ipcMain.handle('get-metadata', async (e, { query }) => {
             const trackFull = await trackRes.json();
             const albumFull = await albumRes.json();
             
-            // Handle multiple artists for track
+             
             let artistName = trackFull.artist.name;
             if (trackFull.contributors && trackFull.contributors.length > 1) {
                 artistName = trackFull.contributors.map(c => c.name).join(', ');
             }
             
-            // Handle multiple artists for album
+             
             let albumArtistName = albumFull.artist ? albumFull.artist.name : (trackFull.album.artist ? trackFull.album.artist.name : artistName);
             if (albumFull.contributors && albumFull.contributors.length > 1) {
                 albumArtistName = albumFull.contributors.map(c => c.name).join(', ');
@@ -297,62 +445,64 @@ ipcMain.handle('get-artist-metadata', async (e, { artist, lastfmKey }) => {
     const cleanName = artist.trim();
     if (!cleanName || cleanName.toLowerCase() === 'неизвестный артист') return null;
 
-    // 1. Fetch from Deezer (Images)
+     
     try {
         const dzRes = await fetch(`https://api.deezer.com/search/artist?q=${encodeURIComponent(cleanName)}&limit=10`);
         const dzData = await dzRes.json();
         if (dzData.data && dzData.data.length > 0) {
-            // Try to find exact match first
+             
             const exactMatch = dzData.data.find(a => a.name.toLowerCase() === cleanName.toLowerCase());
             const artist = exactMatch || dzData.data[0];
             result.avatar = artist.picture_xl || artist.picture_big || artist.picture_medium || artist.picture;
-            result.banner = result.avatar; // Deezer doesn't have explicit banners in search
+            result.banner = result.avatar;  
         }
     } catch (err) { console.error("Deezer error:", err); }
 
-    // 2. Fetch from Last.fm (Bio)
+     
     try {
-        const apiKey = process.env.LASTFM_API_KEY || '832c52267b9e19bcde175057e7c3a6fa';
-        console.log(`[Main] Fetching Last.fm bio for: ${cleanName}`);
-        const lfRes = await fetch(`https://ws.audioscrobbler.com/2.0/?method=artist.getinfo&artist=${encodeURIComponent(cleanName)}&api_key=${apiKey}&format=json`);
-        const lfData = await lfRes.json();
-        
-        if (lfData.error) {
-            console.error(`[Main] Last.fm API error: ${lfData.message} (Code: ${lfData.error})`);
-        } else if (lfData.artist && lfData.artist.bio) {
-            const bioData = lfData.artist.bio;
-            let bio = bioData.content || bioData.summary || "";
+        const apiKey = lastfmKey || process.env.LASTFM_API_KEY || process.env.VITE_LASTFM_API_KEY;
+        if (apiKey) {
+            console.log(`[Main] Fetching Last.fm bio for: ${cleanName}`);
+            const lfRes = await fetch(`https://ws.audioscrobbler.com/2.0/?method=artist.getinfo&artist=${encodeURIComponent(cleanName)}&api_key=${apiKey}&format=json`);
+            const lfData = await lfRes.json();
             
-            // 1. Strip HTML tags
-            bio = bio.replace(/<[^>]*>?/gm, '');
+            if (lfData.error) {
+                console.error(`[Main] Last.fm API error: ${lfData.message} (Code: ${lfData.error})`);
+            } else if (lfData.artist && lfData.artist.bio) {
+                const bioData = lfData.artist.bio;
+                let bio = bioData.content || bioData.summary || "";
             
-            // 2. Decode common HTML entities
-            bio = bio.replace(/&quot;/g, '"')
-                     .replace(/&amp;/g, '&')
-                     .replace(/&lt;/g, '<')
-                     .replace(/&gt;/g, '>')
-                     .replace(/&apos;/g, "'")
-                     .replace(/&nbsp;/g, ' ');
+                 
+                bio = bio.replace(/<[^>]*>?/gm, '');
+                
+                 
+                bio = bio.replace(/&quot;/g, '"')
+                         .replace(/&amp;/g, '&')
+                         .replace(/&lt;/g, '<')
+                         .replace(/&gt;/g, '>')
+                         .replace(/&apos;/g, "'")
+                         .replace(/&nbsp;/g, ' ');
 
-            // 3. Clean up Last.fm specific footers
-            bio = bio.replace(/User-contributed text is available under the Creative Commons By-SA License; additional terms may apply\./g, '');
-            bio = bio.replace(/Read more on Last\.fm.*/gi, '');
-            
-            result.bio = bio.trim();
-            
-            // If bio is still just a "Read more" or similar link-like text, clear it
-            if (result.bio.toLowerCase().includes('last.fm/music') && result.bio.length < 100) {
-                result.bio = "";
-            }
+                 
+                bio = bio.replace(/User-contributed text is available under the Creative Commons By-SA License; additional terms may apply\./g, '');
+                bio = bio.replace(/Read more on Last\.fm.*/gi, '');
+                
+                result.bio = bio.trim();
+                
+                 
+                if (result.bio.toLowerCase().includes('last.fm/music') && result.bio.length < 100) {
+                    result.bio = "";
+                }
 
-            console.log(`[Main] Bio for ${cleanName}: ${result.bio ? result.bio.substring(0, 50) + '...' : 'EMPTY'}`);
-            
-            // If Deezer failed, try Last.fm for image
-            if (!result.avatar && lfData.artist.image) {
-                const img = lfData.artist.image.find(i => i.size === 'mega' || i.size === 'extralarge' || i.size === 'large');
-                if (img && img['#text'] && !img['#text'].includes('2a96cbd8b46e442fc41c2b86b821562f')) {
-                    result.avatar = img['#text'];
-                    result.banner = result.avatar;
+                console.log(`[Main] Bio for ${cleanName}: ${result.bio ? result.bio.substring(0, 50) + '...' : 'EMPTY'}`);
+                
+                 
+                if (!result.avatar && lfData.artist.image) {
+                    const img = lfData.artist.image.find(i => i.size === 'mega' || i.size === 'extralarge' || i.size === 'large');
+                    if (img && img['#text'] && !img['#text'].includes('2a96cbd8b46e442fc41c2b86b821562f')) {
+                        result.avatar = img['#text'];
+                        result.banner = result.avatar;
+                    }
                 }
             }
         }
@@ -392,41 +542,235 @@ ipcMain.handle('save-custom-image', async (e, { folder, filename, base64Data }) 
 ipcMain.handle('read-id3-tags', async (e, { filePath }) => {
     try {
         if (!fs.existsSync(filePath)) return null;
-        
-        const tags = await new Promise((resolve) => {
-            let timeoutId = setTimeout(() => resolve(null), 10000);
-            NodeID3.read(filePath, (err, tags) => {
-                clearTimeout(timeoutId);
-                if (err) resolve(null);
-                else resolve(tags);
-            });
-        });
+        const ext = path.extname(filePath).toLowerCase();
 
-        if (!tags) return null;
+        const getFileUrl = (absPath) => {
+            const clean = absPath.replace(/\\/g, '/');
+            return process.platform === 'win32'
+                ? `file:///${clean.startsWith('/') ? clean.slice(1) : clean}`
+                : `file://${clean.startsWith('/') ? clean : '/' + clean}`;
+        };
+
+        let title = null;
+        let artist = null;
+        let album = null;
+        let albumArtist = null;
+        let year = null;
+        let lyrics = null;
+        let duration = 0;
+        let foundImageBuffer = null;
+        let foundMime = 'image/jpeg';
+
+         
+        try {
+            const mm = require('music-metadata');
+            const meta = await mm.parseFile(filePath, { duration: true });
+            if (meta) {
+                const common = meta.common || {};
+                title = common.title || null;
+                artist = common.artist || (Array.isArray(common.artists) ? common.artists.join(', ') : null);
+                album = common.album || null;
+                albumArtist = common.albumartist || null;
+                year = common.year ? String(common.year) : (common.date ? String(common.date).substring(0, 4) : null);
+                if (common.lyrics) {
+                    lyrics = Array.isArray(common.lyrics) ? common.lyrics.join('\n') : String(common.lyrics);
+                }
+                if (meta.format && meta.format.duration && !Number.isNaN(meta.format.duration)) {
+                    duration = Math.round(meta.format.duration);
+                }
+
+                 
+                const pictures = common.picture || [];
+                for (const p of pictures) {
+                    if (p && p.data && p.data.length > 0) {
+                        foundImageBuffer = p.data;
+                        if (p.format) foundMime = p.format;
+                        break;
+                    }
+                }
+
+                 
+                if (!foundImageBuffer && meta.native) {
+                    for (const tagSetKey of Object.keys(meta.native)) {
+                        const tagList = meta.native[tagSetKey] || [];
+                        for (const item of tagList) {
+                            if (item && (item.id === 'APIC' || item.id === 'PIC' || item.id === 'METADATA_BLOCK_PICTURE' || item.id === 'COVERART')) {
+                                if (item.value) {
+                                    if (Buffer.isBuffer(item.value.data)) {
+                                        foundImageBuffer = item.value.data;
+                                        if (item.value.format) foundMime = item.value.format;
+                                        break;
+                                    } else if (Buffer.isBuffer(item.value)) {
+                                        foundImageBuffer = item.value;
+                                        break;
+                                    } else if (item.value.imageBuffer && Buffer.isBuffer(item.value.imageBuffer)) {
+                                        foundImageBuffer = item.value.imageBuffer;
+                                        break;
+                                    }
+                                }
+                            }
+                        }
+                        if (foundImageBuffer) break;
+                    }
+                }
+            }
+        } catch (mmErr) {}
+
+         
+        if (ext === '.flac') {
+            try {
+                const Metaflac = require('metaflac-js');
+                const flac = new Metaflac(filePath);
+                const getTag = (name) => {
+                    const t = flac.getTag(name);
+                    return t && t.length > 0 ? t[0] : null;
+                };
+                title = title || getTag('TITLE');
+                artist = artist || getTag('ARTIST');
+                album = album || getTag('ALBUM');
+                albumArtist = albumArtist || getTag('ALBUMARTIST') || getTag('ALBUM ARTIST');
+                year = year || getTag('DATE') || getTag('YEAR');
+                lyrics = lyrics || getTag('UNSYNCEDLYRICS') || getTag('LYRICS');
+
+                if (!foundImageBuffer) {
+                    const pic = flac.getPicture();
+                    if (pic && pic.buffer) {
+                        foundImageBuffer = pic.buffer;
+                        if (pic.mime) foundMime = pic.mime;
+                    }
+                }
+            } catch (flacErr) {}
+        }
+
+         
+        try {
+            const rawTags = NodeID3.read(filePath);
+            if (rawTags) {
+                title = title || rawTags.title;
+                artist = artist || rawTags.artist;
+                album = album || rawTags.album;
+                albumArtist = albumArtist || rawTags.performerInfo;
+                year = year || rawTags.year;
+                if (!lyrics && rawTags.unsynchronisedLyrics) {
+                    lyrics = rawTags.unsynchronisedLyrics.text;
+                }
+                if (!foundImageBuffer) {
+                    if (rawTags.image && rawTags.image.imageBuffer) {
+                        foundImageBuffer = rawTags.image.imageBuffer;
+                        if (rawTags.image.mime) foundMime = rawTags.image.mime;
+                    } else if (rawTags.raw && rawTags.raw.APIC) {
+                        const apic = rawTags.raw.APIC;
+                        if (Buffer.isBuffer(apic)) foundImageBuffer = apic;
+                        else if (apic.imageBuffer) {
+                            foundImageBuffer = apic.imageBuffer;
+                            if (apic.mime) foundMime = apic.mime;
+                        } else if (apic.data) {
+                            foundImageBuffer = apic.data;
+                            if (apic.mime) foundMime = apic.mime;
+                        }
+                    }
+                }
+            }
+        } catch (nodeId3Err) {}
+
+         
+        if (!foundImageBuffer) {
+            try {
+                const stat = fs.statSync(filePath);
+                const readSize = Math.min(stat.size, 10 * 1024 * 1024);
+                const fd = fs.openSync(filePath, 'r');
+                const headBuf = Buffer.alloc(readSize);
+                fs.readSync(fd, headBuf, 0, readSize, 0);
+                fs.closeSync(fd);
+
+                let imgStart = -1;
+                let isPng = false;
+                for (let i = 0; i < headBuf.length - 8; i++) {
+                    if (headBuf[i] === 0xFF && headBuf[i+1] === 0xD8 && headBuf[i+2] === 0xFF) {
+                        imgStart = i;
+                        isPng = false;
+                        break;
+                    } else if (headBuf[i] === 0x89 && headBuf[i+1] === 0x50 && headBuf[i+2] === 0x4E && headBuf[i+3] === 0x47) {
+                        imgStart = i;
+                        isPng = true;
+                        break;
+                    }
+                }
+                if (imgStart >= 0) {
+                    if (isPng) {
+                        const iendIdx = headBuf.indexOf(Buffer.from([0x49, 0x45, 0x4E, 0x44]), imgStart);
+                        if (iendIdx > imgStart) {
+                            foundImageBuffer = headBuf.slice(imgStart, iendIdx + 8);
+                            foundMime = 'image/png';
+                        }
+                    } else {
+                        for (let j = imgStart + 4; j < headBuf.length - 1; j++) {
+                            if (headBuf[j] === 0xFF && headBuf[j+1] === 0xD9) {
+                                foundImageBuffer = headBuf.slice(imgStart, j + 2);
+                                foundMime = 'image/jpeg';
+                                break;
+                            }
+                        }
+                    }
+                }
+            } catch (binErr) {}
+        }
+
+         
+        if (duration <= 0) {
+            try {
+                const fd = fs.openSync(filePath, 'r');
+                const buf = Buffer.alloc(8192);
+                const bytesRead = fs.readSync(fd, buf, 0, 8192, 0);
+                fs.closeSync(fd);
+
+                if (bytesRead >= 34 && ext === '.flac' && buf.toString('ascii', 0, 4) === 'fLaC') {
+                    const streamInfo = buf.slice(8, 42);
+                    const sr = (streamInfo[10] << 12) | (streamInfo[11] << 4) | (streamInfo[12] >> 4);
+                    const samplesHi = BigInt(streamInfo[13] & 0x0F);
+                    const samplesLo = BigInt(streamInfo.readUInt32BE(14));
+                    const totalSamples = (samplesHi << 32n) | samplesLo;
+                    if (sr > 0 && totalSamples > 0n) {
+                        duration = Math.round(Number(totalSamples) / sr);
+                    }
+                } else if (bytesRead >= 44 && ext === '.wav' && buf.toString('ascii', 0, 4) === 'RIFF') {
+                    const byteRate = buf.readUInt32LE(28);
+                    const stat = fs.statSync(filePath);
+                    if (byteRate > 0) duration = Math.round((stat.size - 44) / byteRate);
+                }
+            } catch (durErr) {}
+        }
 
         let coverUrl = null;
-        if (tags.image && tags.image.imageBuffer) {
+        let coverDataUrl = null;
+
+        if (foundImageBuffer && Buffer.isBuffer(foundImageBuffer) && foundImageBuffer.length > 0) {
             const crypto = require('crypto');
-            const hash = crypto.createHash('md5').update(tags.image.imageBuffer).digest('hex');
+            const hash = crypto.createHash('md5').update(foundImageBuffer).digest('hex');
             const coversDir = path.join(userDataPath, 'covers');
             if (!fs.existsSync(coversDir)) {
                 fs.mkdirSync(coversDir, { recursive: true });
             }
-            const ext = tags.image.mime === 'image/png' ? 'png' : 'jpg';
-            const coverPath = path.join(coversDir, `${hash}.${ext}`);
+            const mimeLower = foundMime.toLowerCase();
+            const extPic = mimeLower.includes('png') ? 'png' : (mimeLower.includes('webp') ? 'webp' : 'jpg');
+            const coverPath = path.join(coversDir, `${hash}.${extPic}`);
             if (!fs.existsSync(coverPath)) {
-                fs.writeFileSync(coverPath, tags.image.imageBuffer);
+                fs.writeFileSync(coverPath, foundImageBuffer);
             }
-            coverUrl = `file://${coverPath.replace(/\\/g, '/')}`;
+            coverUrl = getFileUrl(coverPath);
+            coverDataUrl = `data:${mimeLower.startsWith('image/') ? mimeLower : 'image/' + mimeLower};base64,${foundImageBuffer.toString('base64')}`;
         }
 
         return {
-            title: tags.title,
-            artist: tags.artist,
-            album: tags.album,
-            albumArtist: tags.performerInfo,
-            coverUrl: coverUrl,
-            year: tags.year
+            title,
+            artist,
+            album,
+            albumArtist,
+            coverUrl,
+            coverDataUrl,
+            year,
+            lyrics,
+            duration
         };
     } catch (err) {
         console.error("Error reading ID3 tags:", err);
@@ -452,6 +796,69 @@ ipcMain.handle('write-id3-tags', async (e, { filePath, tags }) => {
             }
         }
 
+        const ext = path.extname(filePath).toLowerCase();
+
+         
+        if (ext === '.flac') {
+            try {
+                const Metaflac = require('metaflac-js');
+                const flac = new Metaflac(filePath);
+                
+                if (tags.title !== undefined) {
+                    flac.removeTag('TITLE');
+                    if (tags.title) flac.setTag('TITLE=' + tags.title);
+                }
+                if (tags.artist !== undefined) {
+                    flac.removeTag('ARTIST');
+                    if (tags.artist) flac.setTag('ARTIST=' + tags.artist);
+                }
+                if (tags.album !== undefined) {
+                    flac.removeTag('ALBUM');
+                    if (tags.album) flac.setTag('ALBUM=' + tags.album);
+                }
+                if (tags.albumArtist !== undefined) {
+                    flac.removeTag('ALBUMARTIST');
+                    flac.removeTag('ALBUM ARTIST');
+                    if (tags.albumArtist) {
+                        flac.setTag('ALBUMARTIST=' + tags.albumArtist);
+                        flac.setTag('ALBUM ARTIST=' + tags.albumArtist);
+                    }
+                }
+                if (tags.year !== undefined) {
+                    flac.removeTag('DATE');
+                    flac.removeTag('YEAR');
+                    if (tags.year) {
+                        flac.setTag('DATE=' + tags.year);
+                        flac.setTag('YEAR=' + tags.year);
+                    }
+                }
+                if (tags.lyrics !== undefined) {
+                    flac.removeTag('UNSYNCEDLYRICS');
+                    flac.removeTag('LYRICS');
+                    if (tags.lyrics !== null && tags.lyrics !== '') {
+                        flac.setTag('UNSYNCEDLYRICS=' + tags.lyrics);
+                        flac.setTag('LYRICS=' + tags.lyrics);
+                    }
+                }
+
+                if (coverBuffer) {
+                    try {
+                        flac.removePictures();
+                        flac.importPictureFromBuffer(coverBuffer);
+                    } catch (picErr) {
+                        console.error("Could not import picture to FLAC:", picErr);
+                    }
+                }
+
+                flac.save();
+                return { success: true };
+            } catch (flacErr) {
+                console.error("FLAC write error:", flacErr);
+                return { success: false, error: flacErr.message };
+            }
+        }
+
+         
         const id3Tags = {};
         if (tags.title) id3Tags.title = tags.title;
         if (tags.artist) id3Tags.artist = tags.artist;
@@ -500,6 +907,17 @@ ipcMain.handle('spotiflac-search', async (e, { query }) => {
         return await searchTracks(query);
     } catch (err) {
         return { success: false, error: err.message };
+    }
+});
+
+ipcMain.handle('open-external', async (e, url) => {
+    try {
+        const { shell } = require('electron');
+        if (url) {
+            await shell.openExternal(url);
+        }
+    } catch (err) {
+        console.error("Failed to open external URL:", err);
     }
 });
 

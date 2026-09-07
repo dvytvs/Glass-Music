@@ -44,9 +44,9 @@ const CreatePlaylistModal: React.FC<CreatePlaylistModalProps> = ({ isOpen, onClo
   };
 
   return (
-    <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/40 backdrop-blur-md p-4 animate-fade-in">
+    <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/40 backdrop-blur-none p-4 animate-fade-in">
       <div 
-        className={`w-full max-w-md bg-[var(--panel-bg)] border border-[var(--glass-border)] rounded-[32px] shadow-[0_40px_80px_rgba(0,0,0,0.4)] overflow-hidden animate-scale-in ${enableGlass ? 'backdrop-blur-3xl' : ''} flex flex-col`}
+        className={`w-full max-w-md bg-[var(--panel-bg)] border border-[var(--glass-border)] rounded-[32px] shadow-[0_40px_80px_rgba(0,0,0,0.4)] overflow-hidden animate-scale-in ${enableGlass ? 'backdrop-blur-none' : ''} flex flex-col`}
         onClick={e => e.stopPropagation()}
       >
         <div className="p-6 flex items-center justify-between border-b border-[var(--glass-border)]">

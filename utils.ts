@@ -1,7 +1,7 @@
 
 import { LyricLine, Track } from "./types";
 
-// Using global jsmediatags from CDN
+ 
 const jsmediatags = (window as any).jsmediatags;
 
 export const formatTime = (seconds: number): string => {
@@ -20,7 +20,45 @@ export const generateMockCover = (id: string) => {
   return `data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="500" height="500" viewBox="0 0 500 500"><rect width="500" height="500" fill="hsl(${hue}, 70%, 20%)"/><text x="50%" y="50%" dominant-baseline="middle" text-anchor="middle" font-family="sans-serif" font-size="100" fill="rgba(255,255,255,0.2)">♫</text></svg>`;
 };
 
-export const parseFileMetadata = async (file: File): Promise<{ title?: string, artist?: string, album?: string, coverUrl?: string, year?: string, albumArtist?: string }> => {
+export const generateMockCoverPng = (id: string): string => {
+  if (typeof document === 'undefined') return generateMockCover(id);
+  try {
+    const canvas = document.createElement('canvas');
+    canvas.width = 512;
+    canvas.height = 512;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return generateMockCover(id);
+    
+    const hash = id.split("").reduce((a, b) => {
+      a = ((a << 5) - a) + b.charCodeAt(0);
+      return a & a;
+    }, 0);
+    const hue = Math.abs(hash) % 360;
+    
+     
+    ctx.fillStyle = `hsl(${hue}, 65%, 22%)`;
+    ctx.fillRect(0, 0, 512, 512);
+    
+     
+    ctx.beginPath();
+    ctx.arc(256, 256, 140, 0, Math.PI * 2);
+    ctx.fillStyle = `hsla(${hue}, 75%, 35%, 0.3)`;
+    ctx.fill();
+    
+     
+    ctx.fillStyle = 'rgba(255, 255, 255, 0.4)';
+    ctx.font = 'bold 160px sans-serif';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText('♫', 256, 256);
+    
+    return canvas.toDataURL('image/png');
+  } catch (e) {
+    return generateMockCover(id);
+  }
+};
+
+export const parseFileMetadata = async (file: File): Promise<{ title?: string, artist?: string, album?: string, coverUrl?: string, year?: string, albumArtist?: string, duration?: number, lyrics?: string }> => {
   const isDesktop = () => (window as any).require !== undefined;
   
   if (isDesktop() && ((file as any).path || (file as any).webkitRelativePath || file.name)) {
@@ -38,8 +76,10 @@ export const parseFileMetadata = async (file: File): Promise<{ title?: string, a
             artist: tags.artist,
             album: tags.album,
             albumArtist: tags.albumArtist,
-            coverUrl: tags.coverUrl, // Already has file:// from main.js
-            year: tags.year
+            coverUrl: tags.coverUrl,  
+            year: tags.year,
+            lyrics: tags.lyrics,
+            duration: typeof tags.duration === 'number' ? tags.duration : undefined
           };
         }
       }
@@ -96,6 +136,9 @@ export const parseFileMetadata = async (file: File): Promise<{ title?: string, a
 };
 
 export const fileToDataURL = (file: File): Promise<string> => {
+  if (typeof window !== 'undefined' && (window as any).require !== undefined && (file as any).path) {
+    return Promise.resolve(`file://${encodeURI((file as any).path.replace(/\\/g, '/'))}`);
+  }
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
     reader.onload = (e) => {
@@ -111,7 +154,7 @@ export const fileToDataURL = (file: File): Promise<string> => {
 };
 
 export const parseLrc = (lrcString: string): LyricLine[] => {
-    if (!lrcString) return [];
+    if (!lrcString || isJunkLyrics(lrcString)) return [];
     
     const lines = lrcString.split('\n');
     const lyrics: LyricLine[] = [];
@@ -143,70 +186,127 @@ export const parseLrc = (lrcString: string): LyricLine[] => {
     return lyrics.sort((a, b) => a.time - b.time);
 };
 
-// --- SORTING HELPER ---
+ 
 export const sortTracks = (tracks: Track[]): Track[] => {
     return [...tracks].sort((a, b) => {
         const titleA = (a.title || "").trim();
         const titleB = (b.title || "").trim();
         
-        // Check if starts with English letter (A-Z, a-z)
+         
         const isEngA = /^[a-zA-Z]/.test(titleA);
         const isEngB = /^[a-zA-Z]/.test(titleB);
 
-        // Logic: Non-English (Russian, Symbols) comes BEFORE English
+         
         if (!isEngA && isEngB) return -1;
         if (isEngA && !isEngB) return 1;
 
-        // Otherwise, standard alphabetical sort (case insensitive)
+         
         return titleA.localeCompare(titleB, undefined, { numeric: true, sensitivity: 'base' });
     });
 };
 
-// --- WIKIDATA ARTIST FETCH ONLY ---
+ 
 const cleanString = (str: string) => {
     return str.replace(/\(.*\)/g, '').replace(/\[.*\]/g, '').replace(/feat\.|ft\./gi, '').trim();
 };
 
+export const isJunkLyrics = (lyrics?: string | null): boolean => {
+    if (!lyrics || !lyrics.trim()) return true;
+    const trimmed = lyrics.trim();
+    if (trimmed.includes('你好') && (trimmed.length < 50 || trimmed.includes('[00:00.00]'))) return true;
+    if (trimmed === '[00:00.00]' || trimmed === '[00:00.00]你好！' || trimmed === '[00:00.00]你好') return true;
+    if (/^\[\d{2}:\d{2}\.\d{2,3}\]\s*$/m.test(trimmed) && trimmed.length < 30) return true;
+    const nonEmptyLines = trimmed.split('\n').filter(l => l.trim().length > 0);
+    if (nonEmptyLines.length <= 2 && nonEmptyLines.some(l => l.includes('[00:00.00]'))) return true;
+    return false;
+};
+
 export const fetchLyricsFromLRCLIB = async (artist: string, title: string): Promise<string | null> => {
+    if (!artist || !title) return null;
     console.log(`[LRCLIB] Fetching lyrics for: ${artist} - ${title}`);
     try {
         const cleanArtist = cleanString(artist);
-        const cleanTitle = cleanString(title);
-        
-        // 1. Try GET (Best match)
-        const getUrl = `https://lrclib.net/api/get?artist_name=${encodeURIComponent(cleanArtist)}&track_name=${encodeURIComponent(cleanTitle)}`;
-        
-        const response = await fetch(getUrl, {
-            headers: {
-                'User-Agent': 'MyElectronPlayer/1.0.0 (https://github.com)'
-            }
-        });
+        let cleanTitle = cleanString(title);
+        cleanTitle = cleanTitle.replace(/-.*(remix|remaster|edit|mix|version|single|live).*/gi, '').trim();
 
-        if (response.ok) {
-            const data = await response.json();
-            console.log("[LRCLIB] GET success:", data.trackName);
-            return data.syncedLyrics || data.plainLyrics || null;
+        const isValidSynced = (lyr?: string | null) => {
+            if (!lyr || isJunkLyrics(lyr)) return false;
+            return /\[\d{2}:\d{2}\.\d{2,3}\]/.test(lyr);
+        };
+
+        const isValidPlain = (lyr?: string | null) => {
+            if (!lyr || isJunkLyrics(lyr)) return false;
+            return lyr.trim().length > 10;
+        };
+
+        const candidates: Array<{ syncedLyrics?: string; plainLyrics?: string }> = [];
+
+        const fetchEndpoint = async (url: string) => {
+            try {
+                const res = await fetch(url);
+                if (res.ok) {
+                    const data = await res.json();
+                    if (Array.isArray(data)) {
+                        data.forEach(item => { if (item) candidates.push(item); });
+                    } else if (data && typeof data === 'object') {
+                        candidates.push(data);
+                    }
+                }
+            } catch (e) {
+                console.error("[LRCLIB] Fetch error:", url, e);
+            }
+        };
+
+         
+        await fetchEndpoint(`https://lrclib.net/api/get?artist_name=${encodeURIComponent(cleanArtist)}&track_name=${encodeURIComponent(cleanTitle)}`);
+
+        for (const item of candidates) {
+            if (isValidSynced(item.syncedLyrics)) {
+                console.log("[LRCLIB] Found synced lyrics via exact GET");
+                return item.syncedLyrics!;
+            }
         }
 
-        console.log(`[LRCLIB] GET failed with status ${response.status}, trying SEARCH...`);
+         
+        await fetchEndpoint(`https://lrclib.net/api/search?artist_name=${encodeURIComponent(cleanArtist)}&track_name=${encodeURIComponent(cleanTitle)}`);
 
-        // 2. Try SEARCH (Fallback)
-        const searchUrl = `https://lrclib.net/api/search?artist_name=${encodeURIComponent(cleanArtist)}&track_name=${encodeURIComponent(cleanTitle)}`;
-        const searchRes = await fetch(searchUrl, {
-            headers: {
-                'User-Agent': 'MyElectronPlayer/1.0.0 (https://github.com)'
-            }
-        });
-
-        if (searchRes.ok) {
-            const results = await searchRes.json();
-            if (results && results.length > 0) {
-                console.log("[LRCLIB] SEARCH success, found", results.length, "results. Taking first.");
-                return results[0].syncedLyrics || results[0].plainLyrics || null;
+        for (const item of candidates) {
+            if (isValidSynced(item.syncedLyrics)) {
+                console.log("[LRCLIB] Found synced lyrics via search params");
+                return item.syncedLyrics!;
             }
         }
 
-        console.warn(`[LRCLIB] No lyrics found for ${artist} - ${title}`);
+         
+        await fetchEndpoint(`https://lrclib.net/api/search?q=${encodeURIComponent(`${cleanArtist} ${cleanTitle}`)}`);
+
+        for (const item of candidates) {
+            if (isValidSynced(item.syncedLyrics)) {
+                console.log("[LRCLIB] Found synced lyrics via q query");
+                return item.syncedLyrics!;
+            }
+        }
+
+         
+        if (cleanTitle.length > 2) {
+            await fetchEndpoint(`https://lrclib.net/api/search?q=${encodeURIComponent(cleanTitle)}`);
+            for (const item of candidates) {
+                if (isValidSynced(item.syncedLyrics)) {
+                    console.log("[LRCLIB] Found synced lyrics via title query");
+                    return item.syncedLyrics!;
+                }
+            }
+        }
+
+         
+        for (const item of candidates) {
+            if (isValidPlain(item.plainLyrics)) {
+                console.log("[LRCLIB] Found plain lyrics fallback");
+                return item.plainLyrics!;
+            }
+        }
+
+        console.warn(`[LRCLIB] No valid lyrics found for ${artist} - ${title}`);
         return null;
     } catch (error) {
         console.error("[LRCLIB] Error fetching lyrics:", error);
@@ -218,7 +318,7 @@ export const fetchOpenSourceArtistImage_Safe = async (artistName: string): Promi
     try {
         const cArtist = cleanString(artistName);
 
-        // 1. Search Wikidata
+         
         const searchUrl = `https://www.wikidata.org/w/api.php?action=wbsearchentities&search=${encodeURIComponent(cArtist)}&language=en&limit=1&format=json&origin=*`;
         const searchRes = await fetch(searchUrl);
         const searchData = await searchRes.json();
@@ -226,7 +326,7 @@ export const fetchOpenSourceArtistImage_Safe = async (artistName: string): Promi
         if (!searchData.search || searchData.search.length === 0) return null;
         const qid = searchData.search[0].id;
 
-        // 2. Get Claims (Image = P18)
+         
         const claimsUrl = `https://www.wikidata.org/w/api.php?action=wbgetclaims&entity=${qid}&property=P18&format=json&origin=*`;
         const claimsRes = await fetch(claimsUrl);
         const claimsData = await claimsRes.json();
@@ -234,7 +334,7 @@ export const fetchOpenSourceArtistImage_Safe = async (artistName: string): Promi
         const claims = claimsData.claims?.P18;
         if (!claims || claims.length === 0) return null;
 
-        // 3. Resolve Image URL
+         
         const fileName = claims[0].mainsnak.datavalue.value;
         const imageInfoUrl = `https://commons.wikimedia.org/w/api.php?action=query&titles=File:${encodeURIComponent(fileName)}&prop=imageinfo&iiprop=url&format=json&origin=*`;
         
@@ -249,10 +349,10 @@ export const fetchOpenSourceArtistImage_Safe = async (artistName: string): Promi
         return { avatar: finalUrl, banner: finalUrl };
 
     } catch (e) {
-        // Silent fail - user won't see errors, just no image.
+         
         return null;
     }
 };
 
-// Placeholder for deleted function to prevent import errors if any remain
+ 
 export const fetchOpenSourceCover = async () => null;

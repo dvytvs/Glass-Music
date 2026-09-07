@@ -33,6 +33,8 @@ interface FullScreenPlayerProps {
   audioEffect?: 'normal' | 'slowed' | 'spedup';
   onToggleAudioEffect?: () => void;
   analyser?: AnalyserNode | null;
+  onRefetchLyrics?: (track: Track) => void;
+  isRefetchingLyrics?: boolean;
 }
 
 const FullScreenPlayer: React.FC<FullScreenPlayerProps> = ({
@@ -57,7 +59,9 @@ const FullScreenPlayer: React.FC<FullScreenPlayerProps> = ({
   enableGlass,
   audioEffect = 'normal',
   onToggleAudioEffect,
-  analyser
+  analyser,
+  onRefetchLyrics,
+  isRefetchingLyrics
 }) => {
   const isPlaying = playbackState === PlaybackState.PLAYING;
   const progressPercent = duration ? (currentTime / duration) * 100 : 0;
@@ -69,7 +73,7 @@ const FullScreenPlayer: React.FC<FullScreenPlayerProps> = ({
   const volumeTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const prevVolumeRef = useRef<number>(1);
 
-  // Click outside volume slider to close
+   
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
       if (volumeRef.current && !volumeRef.current.contains(event.target as Node)) {
@@ -79,7 +83,7 @@ const FullScreenPlayer: React.FC<FullScreenPlayerProps> = ({
 
     if (showVolumeSlider) {
       document.addEventListener('mousedown', handleClickOutside);
-      // Auto-hide after 3 seconds
+       
       volumeTimeoutRef.current = setTimeout(() => setShowVolumeSlider(false), 3000);
     }
     
@@ -124,46 +128,58 @@ const FullScreenPlayer: React.FC<FullScreenPlayerProps> = ({
       className={`fixed inset-0 z-[100] bg-[#020202] overflow-hidden flex flex-col ${isClosing ? 'animate-slide-down-full' : 'animate-slide-up-full'}`}
       onAnimationEnd={onAnimationEnd}
     >
-      {/* Dynamic Animated Background Blobs */}
-      <div className="absolute inset-0 z-0 pointer-events-none">
-          <div 
-            className="absolute -top-[20%] -left-[10%] w-[70%] h-[70%] rounded-full blur-[120px] opacity-40 animate-pulse-slow mix-blend-screen"
-            style={{ backgroundColor: accentColor, filter: 'blur(120px)' }}
-          />
-          <div 
-            className="absolute top-[30%] -right-[10%] w-[60%] h-[60%] rounded-full blur-[140px] opacity-30 animate-pulse-slow mix-blend-screen delay-1000"
-            style={{ backgroundColor: accentColor === '#ffffff' ? '#3b82f6' : '#ffffff', filter: 'blur(140px)' }}
-          />
-          <div 
-            className="absolute -bottom-[10%] left-[20%] w-[50%] h-[50%] rounded-full blur-[100px] opacity-20 animate-pulse-slow mix-blend-screen delay-2000"
-            style={{ backgroundColor: accentColor, filter: 'blur(100px)' }}
-          />
-          <div 
-            className="absolute inset-0 z-0 opacity-30 blur-[150px] transition-all duration-[4s]"
-            style={{ 
-              backgroundImage: `url(${track.coverUrl})`, 
-              backgroundSize: 'cover', 
-              backgroundPosition: 'center',
-              filter: 'blur(150px)'
-            }}
-          />
-          <div className="absolute inset-0 bg-black/40 backdrop-blur-[2px]" />
+       
+      <div className="absolute inset-0 z-0 pointer-events-none overflow-hidden">
+          {track.coverUrl ? (
+            <div 
+              className="absolute -inset-20 bg-cover bg-center filter blur-3xl scale-125 opacity-45 transition-all duration-1000 transform-gpu"
+              style={{ 
+                backgroundImage: `url(${track.coverUrl})`,
+                willChange: 'transform, opacity'
+              }}
+            />
+          ) : (
+            <>
+              <div 
+                className="absolute -top-[20%] -left-[10%] w-[70%] h-[70%] rounded-full opacity-30 blur-3xl"
+                style={{ 
+                  background: `radial-gradient(circle, ${accentColor} 0%, transparent 70%)`,
+                  transform: 'translate3d(0,0,0)'
+                }}
+              />
+              <div 
+                className="absolute top-[30%] -right-[10%] w-[60%] h-[60%] rounded-full opacity-25 blur-3xl"
+                style={{ 
+                  background: `radial-gradient(circle, ${accentColor === '#ffffff' ? '#3b82f6' : '#ffffff'} 0%, transparent 70%)`,
+                  transform: 'translate3d(0,0,0)'
+                }}
+              />
+              <div 
+                className="absolute -bottom-[10%] left-[20%] w-[50%] h-[50%] rounded-full opacity-20 blur-3xl"
+                style={{ 
+                  background: `radial-gradient(circle, ${accentColor} 0%, transparent 70%)`,
+                  transform: 'translate3d(0,0,0)'
+                }}
+              />
+            </>
+          )}
+          <div className="absolute inset-0 bg-black/55 backdrop-blur-2xl" />
       </div>
 
-      {/* Close Button Top Right */}
+       
       <button 
         onClick={handleClose} 
-        className="absolute top-8 right-8 z-50 w-12 h-12 flex items-center justify-center rounded-full bg-white/10 hover:bg-white text-white hover:text-black transition-all active:scale-90 backdrop-blur-xl border border-white/10 shadow-2xl"
+        className="absolute top-8 right-8 z-50 w-12 h-12 flex items-center justify-center rounded-full bg-white/10 hover:bg-white text-white hover:text-black transition-all active:scale-90 backdrop-blur-md border border-white/10 shadow-2xl"
       >
         <Minimize2 className="w-5 h-5" />
       </button>
 
-      {/* Content Container */}
+       
       <div key={track.id} className="relative z-10 w-full h-full flex flex-col p-6 md:p-12 lg:p-20 max-w-[1600px] mx-auto animate-fade-in">
-          {/* Main Content Area: Side by Side on large screens */}
+           
           <div className="flex-1 flex flex-col lg:flex-row items-center lg:items-stretch gap-12 lg:gap-24 overflow-hidden">
               
-              {/* Left Side: Cover Art */}
+               
               <motion.div 
                 layout
                 className={`flex flex-col transition-all duration-700 ${viewMode === 'lyrics' ? 'lg:w-1/2 lg:items-start items-center justify-center' : 'w-full items-center justify-center'}`}
@@ -195,7 +211,7 @@ const FullScreenPlayer: React.FC<FullScreenPlayerProps> = ({
                   </div>
               </motion.div>
 
-              {/* Right Side: Lyrics (Only visible on desktop or if mode is lyrics) */}
+               
               <AnimatePresence mode="wait">
                   {viewMode === 'lyrics' && (
                      <motion.div 
@@ -206,15 +222,21 @@ const FullScreenPlayer: React.FC<FullScreenPlayerProps> = ({
                          transition={{ duration: 0.6, ease: "easeOut" }}
                          className="w-full lg:w-1/2 h-full flex flex-col justify-center overflow-hidden"
                      >
-                          <LyricsView lyricsRaw={track.lyrics} currentTime={currentTime}  onSeek={onSeek} />
+                          <LyricsView 
+                            lyricsRaw={track.lyrics} 
+                            currentTime={currentTime} 
+                            onSeek={onSeek} 
+                            onRefetchLyrics={() => onRefetchLyrics && onRefetchLyrics(track)}
+                            isRefetching={isRefetchingLyrics}
+                          />
                      </motion.div>
                   )}
               </AnimatePresence>
           </div>
 
-          {/* Controls Area (Floating at bottom) */}
-          <div className="w-full max-w-5xl mx-auto mt-12 pb-6 shrink-0 bg-white/5 backdrop-blur-3xl border border-white/10 rounded-[40px] p-6 shadow-2xl relative">
-              {/* Progress */}
+           
+          <div className="w-full max-w-5xl mx-auto mt-12 pb-6 shrink-0 bg-white/5 backdrop-blur-xl border border-white/10 rounded-[40px] p-6 shadow-2xl relative">
+               
               <div className="w-full px-4 mb-4">
                   <div className="flex justify-between text-[10px] font-black text-white/30 tracking-[0.2em] mb-2 font-mono uppercase">
                     <span>{formatTime(currentTime)}</span>
@@ -249,9 +271,9 @@ const FullScreenPlayer: React.FC<FullScreenPlayerProps> = ({
                   </div>
               </div>
 
-              {/* Controls Grid */}
+               
               <div className="flex items-center justify-between gap-4">
-                  {/* Extras Left */}
+                   
                   <div className="flex items-center gap-1 md:gap-3">
                       <div className="relative group" ref={volumeRef}>
                           <button 
@@ -266,7 +288,7 @@ const FullScreenPlayer: React.FC<FullScreenPlayerProps> = ({
                               <motion.div 
                                 initial={{ opacity: 0, y: 10 }}
                                 animate={{ opacity: 1, y: 0 }}
-                                className="absolute bottom-full left-0 mb-4 bg-black/80 backdrop-blur-2xl border border-white/10 p-4 rounded-3xl h-40 flex flex-col items-center shadow-2xl"
+                                className="absolute bottom-full left-0 mb-4 bg-black/80 backdrop-blur-xl border border-white/10 p-4 rounded-3xl h-40 flex flex-col items-center shadow-2xl"
                               >
                                   <input 
                                      type="range" 
@@ -296,7 +318,7 @@ const FullScreenPlayer: React.FC<FullScreenPlayerProps> = ({
                       </button>
                   </div>
 
-                  {/* Playback Center */}
+                   
                   <div className="flex items-center gap-4 md:gap-8">
                       <button onClick={onPrev} className="text-white/50 hover:text-white transition-all p-3 hover:bg-white/10 rounded-full">
                           <SkipBack className="w-7 h-7 fill-current" />
@@ -312,7 +334,7 @@ const FullScreenPlayer: React.FC<FullScreenPlayerProps> = ({
                       </button>
                   </div>
 
-                  {/* Extras Right */}
+                   
                   <div className="flex items-center gap-1 md:gap-3">
                        <button 
                            onClick={() => setViewMode(viewMode === 'lyrics' ? 'cover' : 'lyrics')}

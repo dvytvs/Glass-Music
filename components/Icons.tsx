@@ -7,8 +7,9 @@ import {
   MoreHorizontal, Airplay, Maximize2, Minimize2,
   Trash2, Edit, X, Check, ArrowLeft, ArrowRight,
   Settings, Image, Video, Droplet, Palette, Sliders,
-  MicVocal, Snowflake, Quote, User, Youtube, Calendar, RefreshCw,
-  Plus, ChevronDown, ChevronRight, Rabbit, Turtle, Timer, Download, Loader2, Pencil
+  MicVocal, Snowflake, Quote, User, Youtube, Calendar, RefreshCw, RotateCcw,
+  Plus, ChevronDown, ChevronRight, Rabbit, Turtle, Timer, Download, Loader2, Pencil,
+  Sparkles, Radio, Layers, Compass, Flame, SlidersHorizontal, Grid, List
 } from 'lucide-react';
 
 export { 
@@ -18,6 +19,7 @@ export {
   MoreHorizontal, Airplay, Maximize2, Minimize2,
   Trash2, Edit, X, Check, ArrowLeft, ArrowRight,
   Settings, Image, Video, Droplet, Palette, Sliders,
-  MicVocal, Snowflake, Quote, User, Youtube, Calendar, RefreshCw,
-  Plus, ChevronDown, ChevronRight, Rabbit, Turtle, Timer, Download, Loader2, Pencil
+  MicVocal, Snowflake, Quote, User, Youtube, Calendar, RefreshCw, RotateCcw,
+  Plus, ChevronDown, ChevronRight, Rabbit, Turtle, Timer, Download, Loader2, Pencil,
+  Sparkles, Radio, Layers, Compass, Flame, SlidersHorizontal, Grid, List
 };

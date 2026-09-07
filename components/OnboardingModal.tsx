@@ -27,7 +27,7 @@ const OnboardingModal: React.FC<OnboardingModalProps> = ({ onComplete, accentCol
 
   return (
     <div className="fixed inset-0 z-[300] flex bg-[var(--bg-main)]">
-      {/* Left side: GIF / Image Cover */}
+       
       <div className="hidden md:flex w-1/2 h-full relative overflow-hidden bg-black">
         <div className="absolute inset-0 z-10 bg-gradient-to-r from-transparent to-[var(--bg-main)]"></div>
         <img 
@@ -43,7 +43,7 @@ const OnboardingModal: React.FC<OnboardingModalProps> = ({ onComplete, accentCol
         )}
       </div>
 
-      {/* Right side: Onboarding Form */}
+       
       <div className="w-full md:w-1/2 h-full flex flex-col justify-center items-center p-8 lg:p-24 relative overflow-y-auto">
         <div className="w-full max-w-md flex flex-col items-center text-center animate-zoom-in">
           
