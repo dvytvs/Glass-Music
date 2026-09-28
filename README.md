@@ -14,7 +14,7 @@
 
 ---
 
-<img width="2553" height="1314" alt="Screenshot from 2026-07-17 15-39-14" src="https://github.com/user-attachments/assets/011eadc4-7f65-41ff-abbd-d0f59db99aff" />
+<img width="2559" height="1373" alt="Снимок экрана от 2026-09-28 16-36-59" src="https://github.com/user-attachments/assets/6f88da38-dbff-40c5-b97a-e0124fdc9dfa" />
 
 
 
@@ -36,7 +36,7 @@
 
 
 
-<img width="2553" height="1314" alt="Screenshot from 2026-07-17 15-39-52" src="https://github.com/user-attachments/assets/3d6ecd09-caad-4d5d-a894-0697b60a634b" />
+<img width="2559" height="1373" alt="Снимок экрана от 2026-09-28 16-40-10" src="https://github.com/user-attachments/assets/c1cff30a-c5da-4623-937a-8457f5f22f09" />
 
 
 
@@ -49,7 +49,7 @@
 - Текст песен (включая синхронизированный LRC формат).
 
 
-<img width="2553" height="1314" alt="Screenshot from 2026-07-17 15-39-27" src="https://github.com/user-attachments/assets/8e0e96e9-38af-4d7a-82f8-fc7240558571" />
+<img width="2559" height="1373" alt="Снимок экрана от 2026-09-28 16-41-02" src="https://github.com/user-attachments/assets/144a314a-6fcb-4498-91fa-59a106b1a42b" />
 
 
 
@@ -59,9 +59,7 @@
 - **Offline-First:** Плеер не требует интернета для работы (кроме поиска метаданных).
 - **Локальное хранение:** Ваши лайки, плейлисты и настройки хранятся в зашифрованном виде в `~/.config/glass-music`.
 
-<img width="2553" height="1314" alt="Screenshot from 2026-07-17 15-41-54" src="https://github.com/user-attachments/assets/30accd66-c68a-43cf-9cfa-2940603509ef" />
-
-<img width="2553" height="1314" alt="Screenshot from 2026-07-17 15-39-00" src="https://github.com/user-attachments/assets/df8936ce-9d2c-4e0a-a5a4-c795ecb739d5" />
+<img width="2559" height="1373" alt="Снимок экрана от 2026-09-28 16-41-47" src="https://github.com/user-attachments/assets/1c4e68bf-a3f6-46ed-85c4-026f7903f309" />
 
 
 
