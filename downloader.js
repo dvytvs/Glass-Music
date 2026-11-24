@@ -216,6 +216,58 @@ function extractYouTubeId(url) {
     return (match && match[2].length === 11) ? match[2] : null;
 }
 
+function cleanTrackInfo(rawTitle, rawArtist) {
+    let t = (rawTitle || '').trim();
+    let a = (rawArtist || '').trim();
+
+    t = t.replace(/\s*[\(\[](?:official\s*(?:video|audio|music\s*video|lyric\s*video|visualizer)|lyrics|audio|hq|hd|4k)[\)\]]/gi, '').trim();
+
+    if (t.includes(' - ')) {
+        const parts = t.split(' - ');
+        const left = parts[0].trim();
+        const right = parts.slice(1).join(' - ').trim();
+        if (!a || a.toLowerCase() === 'unknown' || a.toLowerCase() === 'unknown artist' || a.toLowerCase() === left.toLowerCase() || left.toLowerCase().includes(a.toLowerCase())) {
+            a = left;
+            t = right;
+        }
+    }
+
+    return { title: t, artist: a };
+}
+
+function ensureJpegOrPngBuffer(inputBuffer) {
+    if (!inputBuffer || !Buffer.isBuffer(inputBuffer) || inputBuffer.length === 0) return null;
+    if (inputBuffer.length >= 4) {
+        if (inputBuffer[0] === 0xFF && inputBuffer[1] === 0xD8 && inputBuffer[2] === 0xFF) {
+            return { buffer: inputBuffer, mime: 'image/jpeg' };
+        }
+        if (inputBuffer[0] === 0x89 && inputBuffer[1] === 0x50 && inputBuffer[2] === 0x4E && inputBuffer[3] === 0x47) {
+            return { buffer: inputBuffer, mime: 'image/png' };
+        }
+    }
+    try {
+        const { execSync } = require('child_process');
+        const ffmpegPath = require('ffmpeg-static');
+        const os = require('os');
+        const tmpIn = path.join(os.tmpdir(), `cov_dl_in_${Date.now()}_${Math.random().toString(36).substring(2)}`);
+        const tmpOut = path.join(os.tmpdir(), `cov_dl_out_${Date.now()}_${Math.random().toString(36).substring(2)}.jpg`);
+        fs.writeFileSync(tmpIn, inputBuffer);
+        try {
+            execSync(`"${ffmpegPath}" -i "${tmpIn}" -q:v 2 "${tmpOut}" -y`, { stdio: 'ignore' });
+            if (fs.existsSync(tmpOut) && fs.statSync(tmpOut).size > 0) {
+                const outBuf = fs.readFileSync(tmpOut);
+                return { buffer: outBuf, mime: 'image/jpeg' };
+            }
+        } finally {
+            try { if (fs.existsSync(tmpIn)) fs.unlinkSync(tmpIn); } catch (e) {}
+            try { if (fs.existsSync(tmpOut)) fs.unlinkSync(tmpOut); } catch (e) {}
+        }
+    } catch (err) {
+        console.error("FFmpeg image conversion error:", err);
+    }
+    return { buffer: inputBuffer, mime: 'image/jpeg' };
+}
+
 async function downloadTrack(queryOrUrl, sender, downloadPath) {
     try {
         sender.send('spotiflac-progress', { status: 'resolving', message: 'Resolving track metadata...' });
@@ -226,23 +278,24 @@ async function downloadTrack(queryOrUrl, sender, downloadPath) {
         let album = 'Unknown Album';
         let searchQuery = queryOrUrl;
 
-         
         if (queryOrUrl.includes('spotify.com/')) {
             const meta = await getSpotifyMetadata(queryOrUrl);
-            title = meta.title;
-            artist = meta.artist;
+            const parsed = cleanTrackInfo(meta.title, meta.artist);
+            title = parsed.title;
+            artist = parsed.artist;
             coverUrl = meta.coverUrl;
             album = meta.album || 'Unknown Album';
             searchQuery = `${artist} - ${title}`;
-            sender.send('spotiflac-metadata', meta);
+            sender.send('spotiflac-metadata', { title, artist, album, coverUrl });
         } else if (queryOrUrl.includes('deezer.com/')) {
             const trackIdMatch = queryOrUrl.match(/track\/(\d+)/);
             if (trackIdMatch) {
                 try {
                     const dData = await fetchJson(`https://api.deezer.com/track/${trackIdMatch[1]}`);
                     if (dData && dData.title) {
-                        title = dData.title;
-                        artist = dData.artist ? dData.artist.name : '';
+                        const parsed = cleanTrackInfo(dData.title, dData.artist ? dData.artist.name : '');
+                        title = parsed.title;
+                        artist = parsed.artist;
                         album = dData.album ? dData.album.title : '';
                         coverUrl = dData.album ? (dData.album.cover_xl || dData.album.cover_big) : null;
                         searchQuery = `${artist} - ${title}`;
@@ -250,28 +303,45 @@ async function downloadTrack(queryOrUrl, sender, downloadPath) {
                     }
                 } catch (e) {}
             }
+        } else if (queryOrUrl.includes('soundcloud.com/')) {
+            try {
+                const scInfo = await scdl.getInfo(queryOrUrl);
+                if (scInfo) {
+                    const parsed = cleanTrackInfo(scInfo.title || '', scInfo.user?.username || '');
+                    title = parsed.title;
+                    artist = parsed.artist;
+                    album = 'SoundCloud';
+                    coverUrl = scInfo.artwork_url ? scInfo.artwork_url.replace('-large', '-t500x500') : null;
+                    searchQuery = `${artist} - ${title}`;
+                    sender.send('spotiflac-metadata', { title, artist, album, coverUrl });
+                }
+            } catch (scInfoErr) {
+                console.warn("SoundCloud getInfo error:", scInfoErr.message);
+            }
         } else if (queryOrUrl.includes('youtube.com/') || queryOrUrl.includes('youtu.be/')) {
             const ytId = extractYouTubeId(queryOrUrl);
             if (ytId) {
                 try {
                     const ytMeta = await yts({ videoId: ytId });
                     if (ytMeta) {
-                        title = ytMeta.title;
-                        artist = ytMeta.author ? ytMeta.author.name : '';
+                        const parsed = cleanTrackInfo(ytMeta.title, ytMeta.author ? ytMeta.author.name : '');
+                        title = parsed.title;
+                        artist = parsed.artist;
                         coverUrl = ytMeta.thumbnail;
+                        album = 'YouTube';
                         searchQuery = `${artist} - ${title}`;
                         sender.send('spotiflac-metadata', { title, artist, coverUrl });
                     }
                 } catch(e) { console.error("YT Video ID Search Error", e); }
             }
         } else {
-             
             try {
                 const itunes = await fetchJson(`https://itunes.apple.com/search?term=${encodeURIComponent(queryOrUrl)}&entity=song&limit=1`);
                 if (itunes && itunes.results && itunes.results.length > 0) {
                     const r = itunes.results[0];
-                    title = r.trackName || title;
-                    artist = r.artistName || artist;
+                    const parsed = cleanTrackInfo(r.trackName || title, r.artistName || artist);
+                    title = parsed.title;
+                    artist = parsed.artist;
                     album = r.collectionName || album;
                     coverUrl = r.artworkUrl100 ? r.artworkUrl100.replace('100x100bb', '600x600bb') : coverUrl;
                     sender.send('spotiflac-metadata', { title, artist, album, coverUrl });
@@ -281,115 +351,136 @@ async function downloadTrack(queryOrUrl, sender, downloadPath) {
 
         const cleanPart = (str) => (str || '').replace(/[\/\?<>\\:\*\|":]/g, '').trim();
         const fallbackName = queryOrUrl.replace(/https?:\/\//g, '').replace(/[\/\?<>\\:\*\|":]/g, '_').slice(0, 50);
-        const finalName = title ? `${cleanPart(artist) ? cleanPart(artist) + ' - ' : ''}${cleanPart(title)}` : fallbackName;
+        let finalName = title ? `${cleanPart(artist) ? cleanPart(artist) + ' - ' : ''}${cleanPart(title)}` : fallbackName;
         
         if (!fs.existsSync(downloadPath)) {
             fs.mkdirSync(downloadPath, { recursive: true });
         }
         
-        const outputFilePath = path.join(downloadPath, `${finalName}.flac`);
+        let outputFilePath = path.join(downloadPath, `${finalName}.flac`);
         let downloadSuccess = false;
-        
-         
-        sender.send('spotiflac-progress', { status: 'searching', message: `Searching YouTube for: ${searchQuery}` });
-        try {
-            const searchResult = await yts(searchQuery);
-            if (searchResult && searchResult.videos && searchResult.videos.length > 0) {
-                 
-                 
-                const fullVideos = searchResult.videos.filter(v => (v.seconds >= 50 && v.seconds <= 900));
-                
-                 
-                const scored = (fullVideos.length > 0 ? fullVideos : searchResult.videos).map(v => {
-                    let score = 0;
-                    const vTitle = (v.title || '').toLowerCase();
-                    const vAuthor = (v.author?.name || '').toLowerCase();
-                    const tLower = (title || '').toLowerCase();
-                    const aLower = (artist || '').toLowerCase();
-                    
-                    if (tLower && vTitle.includes(tLower)) score += 10;
-                    if (aLower && (vTitle.includes(aLower) || vAuthor.includes(aLower))) score += 10;
-                    if (vAuthor.includes('topic') || vTitle.includes('official audio') || vTitle.includes('audio')) score += 5;
-                    if (vTitle.includes('remix') && !tLower.includes('remix')) score -= 15;
-                    if (vTitle.includes('cover') && !tLower.includes('cover')) score -= 15;
-                    if (vTitle.includes('slowed') && !tLower.includes('slowed')) score -= 15;
-                    if (vTitle.includes('sped up') && !tLower.includes('sped up')) score -= 15;
-                    if (vTitle.includes('tik tok') || vTitle.includes('tiktok') || vTitle.includes('shorts')) score -= 20;
-                    if (v.seconds < 45) score -= 50;  
-                    return { video: v, score };
-                });
 
-                scored.sort((a, b) => b.score - a.score);
-                const video = scored.length > 0 ? scored[0].video : searchResult.videos[0];
-                
-                if (!title) title = video.title;
-                if (!coverUrl) coverUrl = video.thumbnail;
-                
-                sender.send('spotiflac-metadata', { title, artist: artist || video.author.name, coverUrl });
-                sender.send('spotiflac-progress', { status: 'downloading', message: 'Downloading audio stream in FLAC...', progress: 40 });
-                
-                const ytdlOutputTemplate = path.join(downloadPath, `${finalName}.%(ext)s`);
-                
-                 
+        if (queryOrUrl.includes('soundcloud.com/')) {
+            try {
+                sender.send('spotiflac-progress', { status: 'downloading', message: 'Downloading audio stream from SoundCloud in FLAC...', progress: 40 });
+                const scStream = await scdl.download(queryOrUrl);
+                await convertStreamToFlac(scStream, outputFilePath);
+                downloadSuccess = true;
+            } catch (scDirectErr) {
+                console.warn("Direct SoundCloud stream error:", scDirectErr.message);
                 if (getYtDlpPath()) {
-                    const clientOptions = [
-                        'youtube:player_client=android',
-                        'youtube:player_client=web',
-                        'youtube:player_client=ios'
-                    ];
-
-                    for (const clientArg of clientOptions) {
-                        try {
-                            await executeYtDlp(video.url, {
-                                extractAudio: true,
-                                audioFormat: 'flac',
-                                audioQuality: '0',
-                                output: ytdlOutputTemplate,
-                                extractorArgs: clientArg
-                            });
-                            downloadSuccess = true;
-                            break;
-                        } catch (err) {
-                            console.warn("yt-dlp client attempt failed:", err.message);
-                        }
-                    }
-                }
-
-                 
-                if (!downloadSuccess) {
                     try {
-                        const play = require('play-dl');
-                        const stream = await play.stream(video.url);
-                        if (stream && stream.stream) {
-                            sender.send('spotiflac-progress', { status: 'downloading', message: 'Encoding YouTube stream to FLAC...', progress: 60 });
-                            await convertStreamToFlac(stream.stream, outputFilePath);
-                            downloadSuccess = true;
-                        }
-                    } catch (playErr) {
-                        console.warn("play-dl stream fallback failed:", playErr.message);
+                        const ytdlOutputTemplate = path.join(downloadPath, `${finalName}.%(ext)s`);
+                        await executeYtDlp(queryOrUrl, {
+                            extractAudio: true,
+                            audioFormat: 'flac',
+                            audioQuality: '0',
+                            output: ytdlOutputTemplate
+                        });
+                        downloadSuccess = true;
+                    } catch (ytdlpErr) {
+                        console.warn("SoundCloud yt-dlp error:", ytdlpErr.message);
                     }
                 }
             }
-        } catch (ytErr) {
-            console.error("YouTube Download Failed, falling back to SoundCloud...", ytErr);
+        }
+
+        if (!downloadSuccess) {
+            sender.send('spotiflac-progress', { status: 'searching', message: `Searching YouTube for: ${searchQuery}` });
+            try {
+                const searchResult = await yts(searchQuery);
+                if (searchResult && searchResult.videos && searchResult.videos.length > 0) {
+                    const fullVideos = searchResult.videos.filter(v => (v.seconds >= 50 && v.seconds <= 900));
+                    const scored = (fullVideos.length > 0 ? fullVideos : searchResult.videos).map(v => {
+                        let score = 0;
+                        const vTitle = (v.title || '').toLowerCase();
+                        const vAuthor = (v.author?.name || '').toLowerCase();
+                        const tLower = (title || '').toLowerCase();
+                        const aLower = (artist || '').toLowerCase();
+                        
+                        if (tLower && vTitle.includes(tLower)) score += 10;
+                        if (aLower && (vTitle.includes(aLower) || vAuthor.includes(aLower))) score += 10;
+                        if (vAuthor.includes('topic') || vTitle.includes('official audio') || vTitle.includes('audio')) score += 5;
+                        if (vTitle.includes('remix') && !tLower.includes('remix')) score -= 15;
+                        if (vTitle.includes('cover') && !tLower.includes('cover')) score -= 15;
+                        if (vTitle.includes('slowed') && !tLower.includes('slowed')) score -= 15;
+                        if (vTitle.includes('sped up') && !tLower.includes('sped up')) score -= 15;
+                        if (vTitle.includes('tik tok') || vTitle.includes('tiktok') || vTitle.includes('shorts')) score -= 20;
+                        if (v.seconds < 45) score -= 50;
+                        return { video: v, score };
+                    });
+
+                    scored.sort((a, b) => b.score - a.score);
+                    const video = scored.length > 0 ? scored[0].video : searchResult.videos[0];
+                    
+                    if (!title) {
+                        const p = cleanTrackInfo(video.title, video.author?.name || '');
+                        title = p.title;
+                        if (!artist) artist = p.artist;
+                    }
+                    if (!coverUrl) coverUrl = video.thumbnail;
+                    
+                    sender.send('spotiflac-metadata', { title, artist: artist || video.author.name, coverUrl });
+                    sender.send('spotiflac-progress', { status: 'downloading', message: 'Downloading audio stream in FLAC...', progress: 40 });
+                    
+                    const ytdlOutputTemplate = path.join(downloadPath, `${finalName}.%(ext)s`);
+                    
+                    if (getYtDlpPath()) {
+                        const clientOptions = [
+                            'youtube:player_client=android',
+                            'youtube:player_client=web',
+                            'youtube:player_client=ios'
+                        ];
+
+                        for (const clientArg of clientOptions) {
+                            try {
+                                await executeYtDlp(video.url, {
+                                    extractAudio: true,
+                                    audioFormat: 'flac',
+                                    audioQuality: '0',
+                                    output: ytdlOutputTemplate,
+                                    extractorArgs: clientArg
+                                });
+                                downloadSuccess = true;
+                                break;
+                            } catch (err) {
+                                console.warn("yt-dlp client attempt failed:", err.message);
+                            }
+                        }
+                    }
+
+                    if (!downloadSuccess) {
+                        try {
+                            const play = require('play-dl');
+                            const stream = await play.stream(video.url);
+                            if (stream && stream.stream) {
+                                sender.send('spotiflac-progress', { status: 'downloading', message: 'Encoding YouTube stream to FLAC...', progress: 60 });
+                                await convertStreamToFlac(stream.stream, outputFilePath);
+                                downloadSuccess = true;
+                            }
+                        } catch (playErr) {
+                            console.warn("play-dl stream fallback failed:", playErr.message);
+                        }
+                    }
+                }
+            } catch (ytErr) {
+                console.error("YouTube Download Failed, falling back to SoundCloud...", ytErr);
+            }
         }
         
-         
         if (!downloadSuccess) {
-            sender.send('spotiflac-progress', { status: 'searching', message: `YouTube unavailable. Searching SoundCloud for: ${searchQuery}` });
+            sender.send('spotiflac-progress', { status: 'searching', message: `Searching SoundCloud for: ${searchQuery}` });
             const searchResult = await scdl.search({ query: searchQuery, resourceType: 'tracks', limit: 15 });
             
             if (!searchResult || !searchResult.collection || searchResult.collection.length === 0) {
                 throw new Error("No available audio streams found on YouTube or SoundCloud.");
             }
             
-             
             const validTracks = searchResult.collection.filter(t => {
                 const dur = t.full_duration || t.duration || 0;
                 return t.policy !== 'SNIP' && t.policy !== 'BLOCK' && dur >= 50000;
             });
 
-             
             const scoredSC = (validTracks.length > 0 ? validTracks : searchResult.collection).map(t => {
                 let score = 0;
                 const scTitle = (t.title || '').toLowerCase();
@@ -407,20 +498,22 @@ async function downloadTrack(queryOrUrl, sender, downloadPath) {
             scoredSC.sort((a, b) => b.score - a.score);
             let track = scoredSC.length > 0 ? scoredSC[0].track : searchResult.collection[0];
             
-            if (!title) title = track.title;
+            if (!title) {
+                const p = cleanTrackInfo(track.title || '', track.user?.username || '');
+                title = p.title;
+                if (!artist) artist = p.artist;
+            }
             if (!coverUrl) coverUrl = track.artwork_url ? track.artwork_url.replace('-large', '-t500x500') : null;
             
             sender.send('spotiflac-metadata', { title, artist: artist || track.user.username, coverUrl });
             sender.send('spotiflac-progress', { status: 'downloading', message: 'Streaming lossless audio from SoundCloud...', progress: 50 });
             
-             
             try {
                 const scStream = await scdl.download(track.permalink_url);
                 await convertStreamToFlac(scStream, outputFilePath);
                 downloadSuccess = true;
             } catch (scStreamErr) {
                 console.warn("Direct SCDL stream error, trying fallback:", scStreamErr);
-                 
                 if (getYtDlpPath()) {
                     const ytdlOutputTemplate = path.join(downloadPath, `${finalName}.%(ext)s`);
                     await executeYtDlp(track.permalink_url, {
@@ -438,7 +531,6 @@ async function downloadTrack(queryOrUrl, sender, downloadPath) {
 
         sender.send('spotiflac-progress', { status: 'processing', message: 'Writing high-quality FLAC Vorbis tags and embedding cover art...' });
 
-         
         let coverBuffer = null;
         if (coverUrl) {
             try {
@@ -451,13 +543,30 @@ async function downloadTrack(queryOrUrl, sender, downloadPath) {
             }
         }
 
-        const finalArtist = artist || "Unknown Artist";
+        const cleaned = cleanTrackInfo(title, artist);
+        const finalArtist = cleanPart(cleaned.artist) || "Unknown Artist";
+        const finalTitle = cleanPart(cleaned.title) || "Unknown Title";
         const finalAlbum = album || "Single";
+
+        const desiredFileName = `${finalArtist} - ${finalTitle}.flac`;
+        const targetFilePath = path.join(downloadPath, desiredFileName);
+
+        if (outputFilePath !== targetFilePath && fs.existsSync(outputFilePath)) {
+            try {
+                if (fs.existsSync(targetFilePath)) {
+                    fs.unlinkSync(targetFilePath);
+                }
+                fs.renameSync(outputFilePath, targetFilePath);
+                outputFilePath = targetFilePath;
+            } catch (renErr) {
+                console.error("Failed to rename to desired file name:", renErr);
+            }
+        }
 
         try {
             if (fs.existsSync(outputFilePath)) {
                 const flac = new Metaflac(outputFilePath);
-                flac.setTag('TITLE=' + (title || 'Unknown Title'));
+                flac.setTag('TITLE=' + finalTitle);
                 flac.setTag('ARTIST=' + finalArtist);
                 flac.setTag('ALBUM=' + finalAlbum);
                 flac.setTag('ALBUMARTIST=' + finalArtist);
@@ -465,7 +574,13 @@ async function downloadTrack(queryOrUrl, sender, downloadPath) {
                 
                 if (coverBuffer) {
                     try {
-                        flac.importPictureFromBuffer(coverBuffer);
+                        const validImg = ensureJpegOrPngBuffer(coverBuffer);
+                        if (validImg && validImg.buffer) {
+                            flac.pictures = [];
+                            flac.picturesSpecs = [];
+                            flac.picturesDatas = [];
+                            flac.importPictureFromBuffer(validImg.buffer);
+                        }
                     } catch (e) {
                         console.error("Could not import picture to FLAC", e);
                     }
@@ -490,20 +605,20 @@ async function searchTracks(query) {
         const results = [];
         const seen = new Set();
 
-         
         try {
             const deezer = await fetchJson(`https://api.deezer.com/search?q=${encodeURIComponent(query)}&limit=10`);
             if (deezer && Array.isArray(deezer.data)) {
                 for (const t of deezer.data) {
-                    const key = `${(t.title || '').toLowerCase()}-${(t.artist?.name || '').toLowerCase()}`;
+                    const parsed = cleanTrackInfo(t.title, t.artist?.name || 'Unknown');
+                    const key = `${parsed.title.toLowerCase()}-${parsed.artist.toLowerCase()}`;
                     if (!seen.has(key)) {
                         seen.add(key);
                         const mins = Math.floor((t.duration || 0) / 60);
                         const secs = (t.duration || 0) % 60;
                         results.push({
                             id: `deezer-${t.id}`,
-                            title: t.title,
-                            artist: t.artist?.name || 'Unknown',
+                            title: parsed.title,
+                            artist: parsed.artist,
                             album: t.album?.title || '',
                             coverUrl: t.album?.cover_xl || t.album?.cover_big || t.album?.cover_medium,
                             duration: `${mins}:${secs.toString().padStart(2, '0')}`,
@@ -517,12 +632,12 @@ async function searchTracks(query) {
             console.warn("Deezer search error:", e);
         }
 
-         
         try {
             const itunes = await fetchJson(`https://itunes.apple.com/search?term=${encodeURIComponent(query)}&entity=song&limit=10`);
             if (itunes && Array.isArray(itunes.results)) {
                 for (const t of itunes.results) {
-                    const key = `${(t.trackName || '').toLowerCase()}-${(t.artistName || '').toLowerCase()}`;
+                    const parsed = cleanTrackInfo(t.trackName || '', t.artistName || 'Unknown');
+                    const key = `${parsed.title.toLowerCase()}-${parsed.artist.toLowerCase()}`;
                     if (!seen.has(key)) {
                         seen.add(key);
                         const durSec = Math.floor((t.trackTimeMillis || 0) / 1000);
@@ -530,8 +645,8 @@ async function searchTracks(query) {
                         const secs = durSec % 60;
                         results.push({
                             id: `itunes-${t.trackId}`,
-                            title: t.trackName,
-                            artist: t.artistName || 'Unknown',
+                            title: parsed.title,
+                            artist: parsed.artist,
                             album: t.collectionName || '',
                             coverUrl: t.artworkUrl100 ? t.artworkUrl100.replace('100x100bb', '600x600bb') : null,
                             duration: `${mins}:${secs.toString().padStart(2, '0')}`,
@@ -545,15 +660,15 @@ async function searchTracks(query) {
             console.warn("iTunes search error:", e);
         }
 
-         
         try {
             const yt = await yts(query);
             if (yt && yt.videos) {
                 for (const v of yt.videos.slice(0, 5)) {
+                    const parsed = cleanTrackInfo(v.title, v.author?.name || '');
                     results.push({
                         id: `yt-${v.videoId}`,
-                        title: v.title,
-                        artist: v.author.name,
+                        title: parsed.title,
+                        artist: parsed.artist,
                         album: 'YouTube',
                         coverUrl: v.thumbnail,
                         duration: v.timestamp,

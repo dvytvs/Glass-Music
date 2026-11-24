@@ -1,8 +1,7 @@
 
 import React, { useRef, useMemo, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { X, Image, Video, Droplet, Upload, Check, Sliders, Snowflake, Trash2, ArrowLeft, LayoutGrid, Pencil } from './Icons';
- 
+import { X, Image, Video, Droplet, Upload, Check, Sliders, Snowflake, Trash2, ArrowLeft, LayoutGrid, Pencil, Waves } from './Icons';
 import { AlertCircle, Music, Activity, History } from 'lucide-react'; 
 import { ThemeConfig, UserProfile, ThemePreset } from '../types';
 import { TranslationKey } from '../translations';
@@ -211,6 +210,24 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
                          >
                              {t('system')}
                          </button>
+                     </div>
+                </section>
+
+                <section>
+                     <h3 className="text-xs font-bold text-[var(--text-muted)] uppercase tracking-wider mb-4 flex items-center gap-2">
+                        <Waves className="w-4 h-4"/> {t('online_music_service')}
+                     </h3>
+                     <div className="flex items-center justify-between p-6 rounded-[2.5rem] bg-[var(--card-bg)] border border-[var(--glass-border)]">
+                        <div className="pr-4">
+                           <h4 className="text-base font-bold text-[var(--text-main)]">{t('online_music_service')}</h4>
+                           <p className="text-xs text-[var(--text-muted)] mt-1 max-w-md">{t('online_music_service_desc')}</p>
+                        </div>
+                        <button
+                           onClick={() => onUpdate({ enableMusicService: config.enableMusicService === false ? true : false })}
+                           className={`relative inline-flex h-8 w-14 shrink-0 items-center rounded-full transition-colors cursor-pointer ${config.enableMusicService !== false ? 'bg-purple-600' : 'bg-white/20'}`}
+                        >
+                           <span className={`inline-block h-6 w-6 transform rounded-full bg-white transition-transform ${config.enableMusicService !== false ? 'translate-x-7' : 'translate-x-1'}`} />
+                        </button>
                      </div>
                 </section>
 
@@ -628,8 +645,19 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
                       
                       <div className="border-b border-[var(--glass-border)] pb-6">
                           <h3 className="text-xl font-bold text-[var(--text-main)] flex items-center gap-2 mb-2">
-                              {t('version')} 3.0.0 ({t('current')}) <span className="text-xs bg-green-500/20 text-green-500 px-2 py-1 rounded-full ml-2">{t('new')}</span>
+                              {t('version')} 3.0.1 ({t('current')}) <span className="text-xs bg-green-500/20 text-green-500 px-2 py-1 rounded-full ml-2">{t('new')}</span>
                           </h3>
+                          <ul className="list-disc list-inside text-[var(--text-muted)] space-y-2 text-sm leading-relaxed">
+                              <li>{t('changelog_301_1')}</li>
+                              <li>{t('changelog_301_2')}</li>
+                              <li>{t('changelog_301_3')}</li>
+                              <li>{t('changelog_301_4')}</li>
+                              <li>{t('changelog_301_5')}</li>
+                              <li>{t('changelog_301_6')}</li>
+                          </ul>
+                      </div>
+                      <div className="border-b border-[var(--glass-border)] pb-6">
+                          <h3 className="text-xl font-bold text-[var(--text-main)] mb-2">{t('version')} 3.0.0</h3>
                           <ul className="list-disc list-inside text-[var(--text-muted)] space-y-2 text-sm leading-relaxed">
                               <li>{t('changelog_300_1')}</li>
                               <li>{t('changelog_300_2')}</li>

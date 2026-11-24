@@ -1,6 +1,6 @@
 
 import React, { useState } from 'react';
-import { Music, LayoutGrid, Mic2, Disc, ListMusic, Search, Play, Settings, Heart, User, Plus, ChevronDown, ChevronRight } from './Icons';
+import { Music, LayoutGrid, Mic2, Disc, ListMusic, Search, Play, Settings, Heart, User, Plus, ChevronDown, ChevronRight, Waves } from './Icons';
 import { ViewType, UserProfile, Playlist } from '../types';
 import { TranslationKey } from '../translations';
 
@@ -24,11 +24,12 @@ interface SidebarProps {
   onSelectPlaylist: (id: string) => void;
   onCreatePlaylist: () => void;
   selectedPlaylist: string | null;
+  enableMusicService?: boolean;
 }
 
 const Sidebar: React.FC<SidebarProps> = React.memo(({ 
   onImportClick, onImportFolderClick, onYouTubeImportClick, onSpotiFLACImportClick, onSettingsClick, currentView, onChangeView, isOpen, accentColor,
-  searchQuery, onSearchChange, enableGlass, isVideoBg, user, t, playlists, onSelectPlaylist, onCreatePlaylist, selectedPlaylist
+  searchQuery, onSearchChange, enableGlass, isVideoBg, user, t, playlists, onSelectPlaylist, onCreatePlaylist, selectedPlaylist, enableMusicService
 }) => {
   const [playlistsExpanded, setPlaylistsExpanded] = useState<boolean>(() => {
     try {
@@ -87,6 +88,15 @@ const Sidebar: React.FC<SidebarProps> = React.memo(({
         <nav className="flex-1 space-y-6 overflow-y-auto custom-scrollbar pr-2 pb-6">
            
           <div className="space-y-1">
+            {enableMusicService !== false && (
+              <NavItem 
+                icon={<Waves className="w-5 h-5 animate-pulse" />} 
+                label={t('my_wave')} 
+                active={currentView === 'wave'} 
+                onClick={() => onChangeView('wave')}
+                accentColor={accentColor}
+              />
+            )}
             <NavItem 
               icon={<Play className="w-5 h-5 fill-current" />} 
               label={t('listen_now')} 

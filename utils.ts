@@ -61,10 +61,16 @@ export const generateMockCoverPng = (id: string): string => {
 export const parseFileMetadata = async (file: File): Promise<{ title?: string, artist?: string, album?: string, coverUrl?: string, year?: string, albumArtist?: string, duration?: number, lyrics?: string }> => {
   const isDesktop = () => (window as any).require !== undefined;
   
-  if (isDesktop() && ((file as any).path || (file as any).webkitRelativePath || file.name)) {
+  if (isDesktop()) {
     try {
-      const ipcRenderer = (window as any).require('electron').ipcRenderer;
-      const path = (file as any).path;
+      const electron = (window as any).require('electron');
+      const ipcRenderer = electron.ipcRenderer;
+      let path = (file as any).path;
+      if (!path && electron.webUtils && typeof electron.webUtils.getPathForFile === 'function') {
+        try {
+          path = electron.webUtils.getPathForFile(file);
+        } catch (e) {}
+      }
       if (path) {
         const tags: any = await Promise.race([
           ipcRenderer.invoke('read-id3-tags', { filePath: path }),
@@ -207,27 +213,40 @@ export const sortTracks = (tracks: Track[]): Track[] => {
 
  
 const cleanString = (str: string) => {
-    return str.replace(/\(.*\)/g, '').replace(/\[.*\]/g, '').replace(/feat\.|ft\./gi, '').trim();
+    const cleaned = str.replace(/\(.*\)/g, '').replace(/\[.*\]/g, '').replace(/feat\.|ft\./gi, '').trim();
+    return cleaned || str.trim();
 };
 
 export const isJunkLyrics = (lyrics?: string | null): boolean => {
     if (!lyrics || !lyrics.trim()) return true;
     const trimmed = lyrics.trim();
-    if (trimmed.includes('你好') && (trimmed.length < 50 || trimmed.includes('[00:00.00]'))) return true;
     if (trimmed === '[00:00.00]' || trimmed === '[00:00.00]你好！' || trimmed === '[00:00.00]你好') return true;
-    if (/^\[\d{2}:\d{2}\.\d{2,3}\]\s*$/m.test(trimmed) && trimmed.length < 30) return true;
-    const nonEmptyLines = trimmed.split('\n').filter(l => l.trim().length > 0);
-    if (nonEmptyLines.length <= 2 && nonEmptyLines.some(l => l.includes('[00:00.00]'))) return true;
+    if (trimmed.includes('你好') && trimmed.length < 20) return true;
     return false;
 };
 
-export const fetchLyricsFromLRCLIB = async (artist: string, title: string): Promise<string | null> => {
+export const fetchLyricsFromLRCLIB = async (artist: string, title: string, duration?: number): Promise<string | null> => {
     if (!artist || !title) return null;
-    console.log(`[LRCLIB] Fetching lyrics for: ${artist} - ${title}`);
     try {
         const cleanArtist = cleanString(artist);
         let cleanTitle = cleanString(title);
-        cleanTitle = cleanTitle.replace(/-.*(remix|remaster|edit|mix|version|single|live).*/gi, '').trim();
+        cleanTitle = cleanTitle.replace(/-.*(remix|remaster|edit|mix|version|single|live).*/gi, '').trim() || cleanTitle;
+
+        const normalize = (s?: string | null) => (s || '').toLowerCase().replace(/[^a-z0-9а-яё]/gi, '');
+        const normTargetArtist = normalize(cleanArtist);
+        const normTargetTitle = normalize(cleanTitle);
+
+        const isArtistMatch = (candArtist?: string | null) => {
+            const cand = normalize(candArtist);
+            if (!cand || !normTargetArtist) return false;
+            return cand === normTargetArtist || cand.includes(normTargetArtist) || normTargetArtist.includes(cand);
+        };
+
+        const isTitleMatch = (candTitle?: string | null) => {
+            const cand = normalize(candTitle);
+            if (!cand || !normTargetTitle) return false;
+            return cand === normTargetTitle || cand.includes(normTargetTitle) || normTargetTitle.includes(cand);
+        };
 
         const isValidSynced = (lyr?: string | null) => {
             if (!lyr || isJunkLyrics(lyr)) return false;
@@ -236,77 +255,73 @@ export const fetchLyricsFromLRCLIB = async (artist: string, title: string): Prom
 
         const isValidPlain = (lyr?: string | null) => {
             if (!lyr || isJunkLyrics(lyr)) return false;
-            return lyr.trim().length > 10;
+            return lyr.trim().length > 5;
         };
 
-        const candidates: Array<{ syncedLyrics?: string; plainLyrics?: string }> = [];
+        const durParam = (duration && duration > 0) ? `&duration=${Math.round(duration)}` : '';
+        const getUrl = `https://lrclib.net/api/get?artist_name=${encodeURIComponent(cleanArtist)}&track_name=${encodeURIComponent(cleanTitle)}${durParam}`;
 
-        const fetchEndpoint = async (url: string) => {
+        try {
+            const getRes = await fetch(getUrl);
+            if (getRes.ok) {
+                const item = await getRes.json();
+                if (item && !item.instrumental) {
+                    if (isArtistMatch(item.artistName) && isTitleMatch(item.trackName)) {
+                        if (isValidSynced(item.syncedLyrics)) return item.syncedLyrics!;
+                        if (isValidPlain(item.plainLyrics)) return item.plainLyrics!;
+                    }
+                }
+            }
+        } catch (e) {
+            console.error("[LRCLIB] Exact get error:", e);
+        }
+
+        const rawCandidates: any[] = [];
+        const fetchSearch = async (url: string) => {
             try {
                 const res = await fetch(url);
                 if (res.ok) {
                     const data = await res.json();
                     if (Array.isArray(data)) {
-                        data.forEach(item => { if (item) candidates.push(item); });
-                    } else if (data && typeof data === 'object') {
-                        candidates.push(data);
+                        data.forEach(d => { if (d) rawCandidates.push(d); });
                     }
                 }
-            } catch (e) {
-                console.error("[LRCLIB] Fetch error:", url, e);
-            }
+            } catch (e) {}
         };
 
-         
-        await fetchEndpoint(`https://lrclib.net/api/get?artist_name=${encodeURIComponent(cleanArtist)}&track_name=${encodeURIComponent(cleanTitle)}`);
+        await fetchSearch(`https://lrclib.net/api/search?artist_name=${encodeURIComponent(cleanArtist)}&track_name=${encodeURIComponent(cleanTitle)}`);
 
-        for (const item of candidates) {
-            if (isValidSynced(item.syncedLyrics)) {
-                console.log("[LRCLIB] Found synced lyrics via exact GET");
-                return item.syncedLyrics!;
-            }
+        if (rawCandidates.length === 0) {
+            await fetchSearch(`https://lrclib.net/api/search?q=${encodeURIComponent(`${cleanArtist} ${cleanTitle}`)}`);
         }
 
-         
-        await fetchEndpoint(`https://lrclib.net/api/search?artist_name=${encodeURIComponent(cleanArtist)}&track_name=${encodeURIComponent(cleanTitle)}`);
-
-        for (const item of candidates) {
-            if (isValidSynced(item.syncedLyrics)) {
-                console.log("[LRCLIB] Found synced lyrics via search params");
-                return item.syncedLyrics!;
+        const validCandidates = rawCandidates.filter(item => {
+            if (!item || item.instrumental) return false;
+            if (!isValidSynced(item.syncedLyrics) && !isValidPlain(item.plainLyrics)) return false;
+            if (!isArtistMatch(item.artistName)) return false;
+            if (!isTitleMatch(item.trackName)) return false;
+            if (duration && duration > 0 && item.duration && item.duration > 0) {
+                if (Math.abs(item.duration - duration) > 25) return false;
             }
+            return true;
+        });
+
+        if (duration && duration > 0) {
+            validCandidates.sort((a, b) => {
+                const diffA = a.duration ? Math.abs(a.duration - duration) : 999;
+                const diffB = b.duration ? Math.abs(b.duration - duration) : 999;
+                return diffA - diffB;
+            });
         }
 
-         
-        await fetchEndpoint(`https://lrclib.net/api/search?q=${encodeURIComponent(`${cleanArtist} ${cleanTitle}`)}`);
-
-        for (const item of candidates) {
-            if (isValidSynced(item.syncedLyrics)) {
-                console.log("[LRCLIB] Found synced lyrics via q query");
-                return item.syncedLyrics!;
-            }
+        for (const item of validCandidates) {
+            if (isValidSynced(item.syncedLyrics)) return item.syncedLyrics!;
         }
 
-         
-        if (cleanTitle.length > 2) {
-            await fetchEndpoint(`https://lrclib.net/api/search?q=${encodeURIComponent(cleanTitle)}`);
-            for (const item of candidates) {
-                if (isValidSynced(item.syncedLyrics)) {
-                    console.log("[LRCLIB] Found synced lyrics via title query");
-                    return item.syncedLyrics!;
-                }
-            }
+        for (const item of validCandidates) {
+            if (isValidPlain(item.plainLyrics)) return item.plainLyrics!;
         }
 
-         
-        for (const item of candidates) {
-            if (isValidPlain(item.plainLyrics)) {
-                console.log("[LRCLIB] Found plain lyrics fallback");
-                return item.plainLyrics!;
-            }
-        }
-
-        console.warn(`[LRCLIB] No valid lyrics found for ${artist} - ${title}`);
         return null;
     } catch (error) {
         console.error("[LRCLIB] Error fetching lyrics:", error);

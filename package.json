@@ -1,7 +1,7 @@
 {
   "name": "glass-music",
-  "version": "3.0.0",
-  "description": "A futuristic, liquid-glass aesthetic music player for Linux",
+  "version": "3.0.1",
+  "description": "A futuristic, liquid-glass aesthetic music player for Linux, Windows, MacOS",
   "main": "main.js",
   "homepage": "https://github.com/glass-music/app",
   "author": {
@@ -24,11 +24,22 @@
     "dist:linux": "npm run build:linux",
     "dist:mac": "npm run build:mac",
     "dist:flatpak": "npm run build:flatpak",
+    "dist:flatpak:docker": "docker run --rm -it --privileged -v \"$PWD\":/project -w /project electronuserland/builder:18 bash -c \"apt-get update && apt-get install -y --no-install-recommends flatpak ostree && npm install && npm run build:flatpak && chown -R \\$(id -u):\\$(id -g) release/ node_modules/ 2>/dev/null || true\"",
     "dist:rpm": "npm run build:rpm",
+    "dist:pacman": "npm run build:pacman",
+    "dist:appimage": "npm run build:appimage",
+    "dist:deb": "npm run build:deb",
+    "dist:tar": "npm run build:tar",
+    "dist:targz": "npm run build:targz",
     "build:linux": "npm run build && electron-builder --linux",
-    "build:flatpak": "npm run build && electron-builder --linux flatpak",
+    "build:pacman": "npm run build && electron-builder --linux pacman",
+    "build:appimage": "npm run build && electron-builder --linux AppImage",
+    "build:deb": "npm run build && electron-builder --linux deb",
+    "build:tar": "npm run build && electron-builder --linux tar.gz",
+    "build:targz": "npm run build && electron-builder --linux tar.gz",
+    "build:flatpak": "bash ./scripts/build-flatpak.sh",
     "build:rpm": "npm run build && electron-builder --linux rpm",
-    "build:snap": "npm run build && electron-builder --linux snap -c.snap.name=\"glass-music-player\" -c.productName=\"Glass Music Player\"",
+    "build:snap": "npm run build && electron-builder --linux snap -c.linux.executableName=\"glass-music-player\" -c.extraMetadata.name=\"glass-music-player\" -c.productName=\"Glass Music Player\"",
     "build:win": "npm run build && electron-builder --win --x64",
     "build:mac": "npm run build && electron-builder --mac --x64"
   },
@@ -110,7 +121,13 @@
         "github"
       ],
       "confinement": "strict",
-      "grade": "stable"
+      "grade": "stable",
+      "plugs": [
+        "default",
+        "home",
+        "removable-media",
+        "audio-playback"
+      ]
     },
     "flatpak": {
       "runtimeVersion": "25.08",

@@ -2,7 +2,7 @@ import React from 'react';
 import { motion } from 'framer-motion';
 import { Track, PlaybackState } from '../types';
 import { 
-  Play, Pause, SkipBack, SkipForward, Volume2, VolumeX, Shuffle, Repeat,
+  Play, Pause, SkipBack, SkipForward, Volume2, Volume1, VolumeX, Shuffle, Repeat,
   Maximize2, Heart, Mic2, ListMusic, Rabbit, Turtle, Quote
 } from './Icons';
 import { formatTime } from '../utils';
@@ -28,7 +28,7 @@ interface PlayerControlsProps {
   onToggleLike: (trackId: string) => void;
   accentColor: string;
   onGoToArtist: (artist: string) => void;
-  onGoToAlbum: (album: string) => void;
+  onGoToAlbum: (album: string, artist?: string) => void;
   playerStyle?: 'floating' | 'classic' | 'split';
   playerDock?: 'bottom' | 'top' | 'left' | 'right';
   enableGlass?: boolean;
@@ -54,6 +54,25 @@ const PlayerControls: React.FC<PlayerControlsProps> = React.memo(({
     return artistString.split(ARTIST_SPLIT_REGEX).map(a => a.trim()).filter(Boolean);
   };
 
+  const getCleanTrackMeta = () => {
+    if (!currentTrack) return { displayTitle: 'No Track', displayArtist: 'Unknown Artist' };
+    let t = (currentTrack.title || '').trim();
+    let a = (currentTrack.artist || '').trim();
+
+    if (t.includes(' - ') && (!a || a.toLowerCase() === 'unknown' || a.toLowerCase() === 'unknown artist' || a === t)) {
+      const parts = t.split(' - ');
+      a = parts[0].trim();
+      t = parts.slice(1).join(' - ').trim();
+    }
+
+    return {
+      displayTitle: t || 'No Track',
+      displayArtist: a || 'Unknown Artist'
+    };
+  };
+
+  const { displayTitle, displayArtist } = getCleanTrackMeta();
+
   const getAudioBadge = (track?: Track | null) => {
     if (!track) return null;
     const url = track.fileUrl || track.path || '';
@@ -72,14 +91,19 @@ const PlayerControls: React.FC<PlayerControlsProps> = React.memo(({
 
   const audioBadge = getAudioBadge(currentTrack);
 
+  const prevVolumeRef = React.useRef(volume > 0 ? volume : 0.8);
+  React.useEffect(() => {
+    if (volume > 0) prevVolumeRef.current = volume;
+  }, [volume]);
+
   const handleVolumeToggle = () => {
-    if (volume === 0) onVolumeChange(1);
+    if (volume === 0) onVolumeChange(prevVolumeRef.current || 0.8);
     else onVolumeChange(0);
   };
 
   const isVertical = playerStyle !== 'floating' && (playerDock === 'left' || playerDock === 'right');
 
-  const renderTrackInfo = (className: string = "flex items-center w-[30%] min-w-[220px] max-w-[380px] group") => (
+  const renderTrackInfo = (className: string = "flex items-center min-w-0 flex-1 max-w-[280px] md:max-w-[340px] group") => (
         <div className={className}>
              
             <div className={`relative ${isVertical ? 'w-full aspect-square mb-6 mx-auto max-w-[260px]' : 'w-16 h-16 mr-4'} shrink-0 flex items-center justify-center`}>
@@ -122,10 +146,17 @@ const PlayerControls: React.FC<PlayerControlsProps> = React.memo(({
                 <div className={`flex items-center ${isVertical ? 'justify-center' : 'justify-start'} gap-1.5 max-w-full min-w-0`}>
                   <p 
                     className={`${isVertical ? 'text-2xl mb-1' : 'text-[14px]'} font-bold text-white truncate min-w-0 cursor-pointer hover:text-white/90 hover:underline tracking-tight`}
-                    onClick={() => currentTrack && onGoToAlbum(currentTrack.album)}
-                    title={currentTrack?.title || ''}
+                    onClick={() => {
+                      if (currentTrack) {
+                        onGoToAlbum(
+                          currentTrack.album || currentTrack.title,
+                          currentTrack.albumArtist || currentTrack.artist
+                        );
+                      }
+                    }}
+                    title={currentTrack?.album ? `${displayTitle} • ${currentTrack.album}` : displayTitle}
                   >
-                    {currentTrack?.title || 'No Track'}
+                    {displayTitle}
                   </p>
                   {audioBadge && !isVertical && (
                     <span className={`text-[8px] font-black px-1.5 py-0.5 rounded border tracking-wider shrink-0 uppercase select-none ${audioBadge.color}`}>
@@ -134,7 +165,7 @@ const PlayerControls: React.FC<PlayerControlsProps> = React.memo(({
                   )}
                 </div>
                 <p className={`${isVertical ? 'text-base mb-2' : 'text-[12px]'} font-medium text-white/60 truncate max-w-full mt-0.5`}>
-                  {currentTrack ? formatArtists(currentTrack.artist).map((artist, i, arr) => (
+                  {currentTrack ? formatArtists(displayArtist).map((artist, i, arr) => (
                     <React.Fragment key={i}>
                       <span className="hover:text-white cursor-pointer transition-colors" onClick={() => onGoToArtist(artist)}>{artist}</span>
                       {i < arr.length - 1 && ' • '}
@@ -267,13 +298,13 @@ const PlayerControls: React.FC<PlayerControlsProps> = React.memo(({
         </div>
   );
 
-  const renderTools = (className: string = "flex items-center justify-end w-[30%] min-w-[200px] max-w-[350px] gap-2 lg:gap-3") => (
+  const renderTools = (className: string = "flex items-center justify-end shrink-0 gap-2 sm:gap-3 min-w-0") => (
         <div className={className}>
             <motion.button 
                 whileHover={{ scale: 1.1 }}
                 whileTap={{ scale: 0.9 }} 
                 onClick={onOpenLyrics} 
-                className="text-white/50 hover:text-white hover:bg-white/10 transition-all p-2.5 rounded-full hidden lg:flex items-center justify-center"
+                className="text-white/50 hover:text-white hover:bg-white/10 transition-all p-2.5 rounded-full hidden xl:flex items-center justify-center shrink-0"
                 title={t('lyrics')}
             >
                 <Quote className="w-5 h-5 fill-current" />
@@ -283,27 +314,41 @@ const PlayerControls: React.FC<PlayerControlsProps> = React.memo(({
                   whileHover={{ scale: 1.1 }}
                   whileTap={{ scale: 0.9 }}
                   onClick={onToggleAudioEffect}
-                  className={`p-2.5 transition-all rounded-full hidden md:flex items-center justify-center hover:bg-white/10 ${audioEffect !== 'normal' ? 'bg-white/20 text-white shadow-[0_0_12px_rgba(255,255,255,0.2)]' : 'text-white/50 hover:text-white'}`}
+                  className={`p-2.5 transition-all rounded-full hidden lg:flex items-center justify-center hover:bg-white/10 shrink-0 ${audioEffect !== 'normal' ? 'bg-white/20 text-white shadow-[0_0_12px_rgba(255,255,255,0.2)]' : 'text-white/50 hover:text-white'}`}
                   title={audioEffect === 'slowed' ? 'Slowed' : audioEffect === 'spedup' ? 'Speed Up' : 'Normal'}
               >
                   {audioEffect === 'slowed' ? <Turtle className="w-5 h-5" /> : <Rabbit className={`w-5 h-5 ${audioEffect === 'normal' ? 'opacity-50' : ''}`} />}
               </motion.button>
             )}
-            <div className="flex items-center gap-2.5 flex-1 max-w-[140px] pl-1 group">
-                <button onClick={handleVolumeToggle} className="text-white/60 hover:text-white transition-colors p-1.5 rounded-full hover:bg-white/5">
-                  {volume === 0 ? <VolumeX className="w-5 h-5" /> : <Volume2 className="w-5 h-5" />}
+            <div 
+              className="flex items-center gap-1.5 sm:gap-2 shrink-0 pl-1 group select-none"
+              onWheel={(e) => {
+                e.preventDefault();
+                const delta = e.deltaY < 0 ? 0.05 : -0.05;
+                const newVol = Math.max(0, Math.min(1, parseFloat((volume + delta).toFixed(2))));
+                onVolumeChange(newVol);
+              }}
+            >
+                <button 
+                  onClick={handleVolumeToggle} 
+                  className="text-white/70 hover:text-white transition-colors p-1.5 rounded-full hover:bg-white/10 shrink-0 cursor-pointer"
+                  title={volume === 0 ? "Включить звук" : "Выключить звук"}
+                >
+                  {volume === 0 ? <VolumeX className="w-5 h-5 text-red-400" /> : volume < 0.4 ? <Volume1 className="w-5 h-5" /> : <Volume2 className="w-5 h-5" />}
                 </button>
-                <div className="relative flex-1 h-1.5 bg-white/20 rounded-full cursor-pointer overflow-hidden group-hover:h-2 transition-all shadow-inner">
+                <div className="relative w-20 sm:w-24 md:w-28 h-2 bg-white/20 hover:bg-white/30 rounded-full cursor-pointer transition-all shadow-inner shrink-0 group/bar">
                   <input 
                       type="range" 
                       min="0" max="1" step="0.01" 
-                      value={volume} onChange={(e) => onVolumeChange(parseFloat(e.target.value))}
+                      value={volume} 
+                      onChange={(e) => onVolumeChange(parseFloat(e.target.value))}
                       className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10"
+                      title={`Громкость: ${Math.round(volume * 100)}%`}
                   />
                   <div 
-                    className="absolute top-0 left-0 bottom-0 bg-white rounded-full transition-all duration-75 group-hover:brightness-110" 
+                    className="absolute top-0 left-0 bottom-0 rounded-full transition-all duration-75 group-hover/bar:brightness-110 pointer-events-none" 
                     style={{ 
-                      width: `${volume * 100}%`,
+                      width: `${Math.max(volume * 100, volume > 0 ? 6 : 0)}%`,
                       backgroundColor: accentColor || '#ffffff',
                       boxShadow: `0 0 8px ${accentColor || 'rgba(255,255,255,0.4)'}`
                     }} 
@@ -315,7 +360,7 @@ const PlayerControls: React.FC<PlayerControlsProps> = React.memo(({
                 whileHover={{ scale: 1.1 }}
                 whileTap={{ scale: 0.9 }} 
                 onClick={onToggleSidebar} 
-                className="text-white/50 hover:text-white hover:bg-white/10 transition-all p-2.5 rounded-full hidden md:flex items-center justify-center" 
+                className="text-white/50 hover:text-white hover:bg-white/10 transition-all p-2.5 rounded-full hidden sm:flex items-center justify-center shrink-0" 
                 title="Toggle Sidebar"
               >
                   <ListMusic className="w-5 h-5" />
@@ -400,9 +445,9 @@ const PlayerControls: React.FC<PlayerControlsProps> = React.memo(({
            </>
         ) : (
            <>
-             {renderTrackInfo("flex items-center w-[30%] min-w-[200px] max-w-[350px] group")}
-             {renderControls("flex-1 flex flex-col items-center justify-center px-4 md:px-8 max-w-[600px] w-full")}
-             {renderTools("flex items-center justify-end w-[30%] min-w-[200px] max-w-[350px] gap-2 lg:gap-4")}
+             {renderTrackInfo("flex items-center min-w-0 flex-1 max-w-[280px] md:max-w-[340px] group mr-2")}
+             {renderControls("flex-1 min-w-0 flex flex-col items-center justify-center px-2 sm:px-4 md:px-8 max-w-[600px] w-full")}
+             {renderTools("flex items-center justify-end shrink-0 gap-2 sm:gap-3")}
            </>
         )}
       </div>
@@ -415,9 +460,9 @@ const PlayerControls: React.FC<PlayerControlsProps> = React.memo(({
   else if (playerDock === 'right') floatDock = 'bottom-6 right-8';
 
   return (
-    <div className={`absolute ${floatDock} z-50 flex items-center justify-between xl:justify-center w-[98%] md:w-auto md:min-w-[700px] max-w-[1200px] h-[90px] rounded-[3rem] px-6 pointer-events-auto shadow-[0_20px_50px_rgba(0,0,0,0.5)] ${transitionClasses} ${glassClasses}`}>
+    <div className={`absolute ${floatDock} z-50 flex items-center justify-between gap-2 sm:gap-4 w-[96%] max-w-[1240px] h-[90px] rounded-[3rem] px-5 sm:px-6 pointer-events-auto shadow-[0_20px_50px_rgba(0,0,0,0.5)] ${transitionClasses} ${glassClasses}`}>
        {renderTrackInfo()}
-       {renderControls()}
+       {renderControls("flex-1 min-w-0 flex flex-col items-center justify-center px-2 sm:px-4 md:px-8 max-w-[600px] w-full")}
        {renderTools()}
     </div>
   );

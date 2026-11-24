@@ -12,6 +12,10 @@ export interface Track {
   year?: string;
   isLiked?: boolean;
   source?: 'local' | 'web';
+  streamProvider?: 'youtube' | 'soundcloud' | 'local' | 'web';
+  streamId?: string;
+  originalUrl?: string;
+  backupStreamUrls?: string[];
   lyrics?: string;
   playCount?: number;
   addedAt?: number;
@@ -23,7 +27,9 @@ export enum PlaybackState {
   BUFFERING,
 }
 
-export type ViewType = 'listen_now' | 'albums' | 'artists' | 'songs' | 'artist_detail' | 'album_detail' | 'favorites' | 'search' | 'playlists' | 'playlist_detail' | 'profile';
+export type ViewType = 'wave' | 'listen_now' | 'albums' | 'artists' | 'songs' | 'artist_detail' | 'album_detail' | 'favorites' | 'search' | 'playlists' | 'playlist_detail' | 'profile';
+export type WaveMood = 'all' | 'energetic' | 'calm' | 'drive' | 'deep' | 'favorites' | 'discovery';
+export type WaveSource = 'all' | 'youtube' | 'soundcloud';
 
 export interface Playlist {
   id: string;
@@ -89,6 +95,16 @@ export interface ThemeConfig {
   bassLevel?: number;
   trebleLevel?: number;
   savePlaybackSession?: boolean;
+  enableMusicService?: boolean;
+}
+
+export interface OnlineAlbum {
+  id: string;
+  title: string;
+  artist: string;
+  coverUrl: string;
+  year?: string;
+  trackCount?: number;
 }
 
 export interface ArtistMetadata {

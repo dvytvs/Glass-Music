@@ -7,8 +7,12 @@ import { TranslationKey } from '../translations';
 import { 
   Play, Pause, Music, Disc, Mic2, Edit, Trash2, ArrowLeft, Heart, 
   Upload, X, Check, Quote, Image as ImageIcon, Search, MoreHorizontal, User, Calendar, RefreshCw, ListMusic, Timer, Shuffle, ChevronDown, ChevronRight,
-  Sparkles, Layers, Flame, Grid, List
+  Sparkles, Layers, Flame, Grid, List, Scissors, Waves, Plus, Loader2
 } from './Icons';
+import AudioTrimmerModal from './AudioTrimmerModal';
+import MyWaveView from './MyWaveView';
+import { searchOnlineAll, searchOnlineAlbums, fetchArtistOnlineCatalog, fetchOnlineAlbumTracks } from '../services/musicStreamService';
+import { OnlineAlbum } from '../types';
 import { formatTime, fileToDataURL, fetchLyricsFromLRCLIB, isJunkLyrics } from '../utils';
 
 interface MainViewProps {
@@ -20,10 +24,12 @@ interface MainViewProps {
   currentView: ViewType;
   selectedArtist: string | null;
   selectedAlbum: string | null;
+  selectedAlbumArtist?: string | null;
   onUpdateTrack: (id: string, data: Partial<Track>) => void;
+  onTrackTrimmed?: (id: string, newDuration: number) => void;
   onDeleteTrack: (id: string) => void;
   onGoToArtist: (artist: string) => void;
-  onGoToAlbum: (album: string) => void;
+  onGoToAlbum: (album: string, artist?: string) => void;
   onBack: () => void;
   accentColor: string;
   artistMetadata?: Record<string, ArtistMetadata>;
@@ -45,20 +51,34 @@ interface MainViewProps {
   onUpdateProfile?: (data: Partial<import('../types').UserProfile>) => void;
   playerStyle?: 'floating' | 'classic' | 'split';
   playerDock?: 'bottom' | 'top' | 'left' | 'right';
+  onTogglePlayPause?: () => void;
+  onAddTrackToLibrary?: (track: Track) => void;
+  analyser?: AnalyserNode | null;
+  enableMusicService?: boolean;
 }
 
 const ARTIST_SPLIT_REGEX = /\s*(?:,|;|feat\.?|ft\.?|&|\/|featuring)\s+/i;
 
 const MainView: React.FC<MainViewProps> = React.memo(({ 
   tracks, currentTrack, playbackState, onPlay, onShuffleAll, currentView, 
-  selectedArtist, selectedAlbum, onUpdateTrack, onDeleteTrack, onGoToArtist, onGoToAlbum, onBack, accentColor,
+  selectedArtist, selectedAlbum, selectedAlbumArtist, onUpdateTrack, onTrackTrimmed, onDeleteTrack, onGoToArtist, onGoToAlbum, onBack, accentColor,
   artistMetadata = {}, onUpdateArtist, searchQuery = "", onRequestFileUnlock,
-  onToggleLike, enableGlass = true, t, onTranslate, playlists = [], selectedPlaylist, onUpdatePlaylist, onDeletePlaylist, onCreatePlaylist, onChangeView, onOpenSelectTracks, userProfile, onUpdateProfile, playerStyle = 'classic', playerDock = 'bottom'
+  onToggleLike, enableGlass = true, t, onTranslate, playlists = [], selectedPlaylist, onUpdatePlaylist, onDeletePlaylist, onCreatePlaylist, onChangeView, onOpenSelectTracks, userProfile, onUpdateProfile, playerStyle = 'classic', playerDock = 'bottom',
+  onTogglePlayPause, onAddTrackToLibrary, analyser, enableMusicService = true
 }) => {
   const [editingTrack, setEditingTrack] = useState<Track | null>(null);
+  const [trimmingTrack, setTrimmingTrack] = useState<Track | null>(null);
   const [isFetchingLyrics, setIsFetchingLyrics] = useState(false);
   const [translatedBio, setTranslatedBio] = useState<string | null>(null);
   const [isTranslatingBio, setIsTranslatingBio] = useState(false);
+  const [onlineResults, setOnlineResults] = useState<Track[]>([]);
+  const [onlineAlbums, setOnlineAlbums] = useState<OnlineAlbum[]>([]);
+  const [artistOnlineAlbums, setArtistOnlineAlbums] = useState<OnlineAlbum[]>([]);
+  const [artistOnlineTracks, setArtistOnlineTracks] = useState<Track[]>([]);
+  const [albumOnlineTracks, setAlbumOnlineTracks] = useState<Track[]>([]);
+  const [isSearchingOnline, setIsSearchingOnline] = useState(false);
+  const [isLoadingAlbumTracks, setIsLoadingAlbumTracks] = useState(false);
+  const [addedOnlineTracks, setAddedOnlineTracks] = useState<Record<string, boolean>>({});
 
   const [playlistMenuOpen, setPlaylistMenuOpen] = useState<string | null>(null);
   const [showAllPopularTracks, setShowAllPopularTracks] = useState(false);
@@ -99,6 +119,78 @@ const MainView: React.FC<MainViewProps> = React.memo(({
       }
     }
   }, [selectedArtist, currentView]);
+
+  useEffect(() => {
+    if (currentView === 'search' && searchQuery.trim().length > 1 && enableMusicService) {
+      let isCurrent = true;
+      setIsSearchingOnline(true);
+      const timer = setTimeout(() => {
+        Promise.all([
+          searchOnlineAll(searchQuery.trim(), 24).catch(() => []),
+          searchOnlineAlbums(searchQuery.trim()).catch(() => [])
+        ]).then(([tracksRes, albumsRes]) => {
+          if (isCurrent) {
+            setOnlineResults(tracksRes);
+            setOnlineAlbums(albumsRes);
+          }
+        }).finally(() => {
+          if (isCurrent) setIsSearchingOnline(false);
+        });
+      }, 350);
+
+      return () => {
+        isCurrent = false;
+        clearTimeout(timer);
+      };
+    } else if (currentView !== 'search' || !enableMusicService) {
+      setOnlineResults([]);
+      setOnlineAlbums([]);
+    }
+  }, [currentView, searchQuery, enableMusicService]);
+
+  useEffect(() => {
+    if (currentView === 'artist_detail' && selectedArtist && enableMusicService) {
+      let isCurrent = true;
+      fetchArtistOnlineCatalog(selectedArtist)
+        .then(catalog => {
+          if (isCurrent) {
+            setArtistOnlineAlbums(catalog.albums || []);
+            setArtistOnlineTracks(catalog.popularTracks || []);
+          }
+        })
+        .catch(() => {});
+
+      return () => {
+        isCurrent = false;
+      };
+    } else {
+      setArtistOnlineAlbums([]);
+      setArtistOnlineTracks([]);
+    }
+  }, [currentView, selectedArtist, enableMusicService]);
+
+  useEffect(() => {
+    if (currentView === 'album_detail' && selectedAlbum && enableMusicService) {
+      let isCurrent = true;
+      setIsLoadingAlbumTracks(true);
+      fetchOnlineAlbumTracks(selectedAlbum, selectedAlbumArtist || undefined)
+        .then(loadedTracks => {
+          if (isCurrent) {
+            setAlbumOnlineTracks(loadedTracks || []);
+          }
+        })
+        .catch(() => {})
+        .finally(() => {
+          if (isCurrent) setIsLoadingAlbumTracks(false);
+        });
+
+      return () => {
+        isCurrent = false;
+      };
+    } else {
+      setAlbumOnlineTracks([]);
+    }
+  }, [currentView, selectedAlbum, selectedAlbumArtist, enableMusicService]);
   const [isSearchingMetadata, setIsSearchingMetadata] = useState(false);
   const [isRefreshingArtist, setIsRefreshingArtist] = useState(false);
   const scrollParentRef = useRef<HTMLDivElement>(null);
@@ -139,7 +231,7 @@ const MainView: React.FC<MainViewProps> = React.memo(({
       
       tryScroll();
     }
-  }, [currentView, selectedArtist, selectedAlbum, selectedPlaylist]);
+  }, [currentView, selectedArtist, selectedAlbum, selectedAlbumArtist, selectedPlaylist]);
 
   const [editingFile, setEditingFile] = useState<{ url: string, type: 'avatar' | 'banner', fileType: string } | null>(null);
   const [position, setPosition] = useState(50);
@@ -251,6 +343,17 @@ const MainView: React.FC<MainViewProps> = React.memo(({
     }
   };
 
+  const getTrackDisplay = (track: Track) => {
+    let t = (track.title || '').trim();
+    let a = (track.artist || '').trim();
+    if (t.includes(' - ') && (!a || a.toLowerCase() === 'unknown' || a.toLowerCase() === 'unknown artist' || a === t)) {
+      const parts = t.split(' - ');
+      a = parts[0].trim();
+      t = parts.slice(1).join(' - ').trim();
+    }
+    return { title: t || 'Unknown Title', artist: a || 'Unknown Artist' };
+  };
+
   const renderArtistLinks = (artistString: string) => {
     if (!artistString) return null;
     const artists = artistString.split(ARTIST_SPLIT_REGEX).map(a => a.trim()).filter(Boolean);
@@ -270,11 +373,16 @@ const MainView: React.FC<MainViewProps> = React.memo(({
   const albums = useMemo(() => {
     const map = new Map<string, { title: string, artist: string, cover: string, year?: string, artists: Set<string> }>();
     tracks.forEach(t => {
-      const key = t.album;
+      const albumTitle = (t.album && t.album.trim()) ? t.album.trim() : (t.title || 'Unknown').trim();
+      const albumArtist = (t.albumArtist && t.albumArtist.trim()) 
+        ? t.albumArtist.trim() 
+        : (t.artist || 'Unknown Artist').trim();
+
+      const key = `${albumTitle.toLowerCase()}___${albumArtist.toLowerCase()}`;
       if (!map.has(key)) {
         map.set(key, { 
-            title: t.album, 
-            artist: t.albumArtist || t.artist, 
+            title: albumTitle, 
+            artist: albumArtist, 
             cover: t.coverUrl, 
             year: t.year,
             artists: new Set([t.artist])
@@ -284,8 +392,6 @@ const MainView: React.FC<MainViewProps> = React.memo(({
         existing.artists.add(t.artist);
         if (t.albumArtist && existing.artist !== t.albumArtist) {
             existing.artist = t.albumArtist;
-        } else if (!t.albumArtist && existing.artists.size > 1 && !existing.artist.includes("Various")) {
-            existing.artist = "Various Artists";
         }
         if (!existing.cover || existing.cover.includes('default')) {
             existing.cover = t.coverUrl;
@@ -308,7 +414,34 @@ const MainView: React.FC<MainViewProps> = React.memo(({
     let result = tracks.filter(t => {
       if (currentView === 'favorites') return t.isLiked;
       if (currentView === 'artist_detail') return t.artist.split(ARTIST_SPLIT_REGEX).map(n => n.trim().toLowerCase()).includes(selectedArtist?.toLowerCase() || "");
-      if (currentView === 'album_detail') return t.album === selectedAlbum;
+      if (currentView === 'album_detail') {
+        const targetAlbum = (selectedAlbum || '').trim().toLowerCase();
+        const trackAlbum = (t.album && t.album.trim()) ? t.album.trim().toLowerCase() : (t.title || '').trim().toLowerCase();
+        if (trackAlbum !== targetAlbum) return false;
+
+        if (selectedAlbumArtist) {
+          const targetArtist = selectedAlbumArtist.trim().toLowerCase();
+          if (targetArtist === 'various artists' || targetArtist === 'various') {
+            return true;
+          }
+
+          const trackAlbumArtist = (t.albumArtist || '').trim().toLowerCase();
+          const trackArtist = (t.artist || '').trim().toLowerCase();
+
+          if (trackAlbumArtist && trackAlbumArtist === targetArtist) return true;
+          if (trackArtist === targetArtist) return true;
+
+          const splitArtists = trackArtist.split(ARTIST_SPLIT_REGEX).map(a => a.trim().toLowerCase()).filter(Boolean);
+          if (splitArtists.includes(targetArtist)) return true;
+
+          const targetSplit = targetArtist.split(ARTIST_SPLIT_REGEX).map(a => a.trim().toLowerCase()).filter(Boolean);
+          if (splitArtists.some(sa => targetSplit.includes(sa))) return true;
+
+          return false;
+        }
+
+        return true;
+      }
       if (currentView === 'playlist_detail' && selectedPlaylist) {
         const playlist = playlists.find(p => p.id === selectedPlaylist);
         return playlist ? playlist.trackIds.includes(t.id) : false;
@@ -334,7 +467,7 @@ const MainView: React.FC<MainViewProps> = React.memo(({
       });
     }
     return result;
-  }, [tracks, currentView, selectedArtist, selectedAlbum, searchQuery, selectedPlaylist, playlists, sortOption]);
+  }, [tracks, currentView, selectedArtist, selectedAlbum, selectedAlbumArtist, searchQuery, selectedPlaylist, playlists, sortOption]);
 
   const renderTrackList = (tracksToRender: Track[], contextTracks: Track[] = tracksToRender) => {
     const isGrid = trackViewMode === 'grid';
@@ -402,6 +535,24 @@ const MainView: React.FC<MainViewProps> = React.memo(({
                       className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105" 
                       onError={(e) => (e.currentTarget.src = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='100' height='100'%3E%3Crect width='100' height='100' fill='%23222'/%3E%3C/svg%3E")}
                     />
+                    {track.streamProvider && (
+                      <div className="absolute top-2 left-2 z-10 pointer-events-none">
+                        <span className={`px-2 py-0.5 rounded-full text-[9px] font-black uppercase tracking-wider backdrop-blur-md shadow-md ${
+                          track.streamProvider === 'soundcloud' 
+                            ? 'bg-orange-500/80 text-white border border-orange-400/30' 
+                            : 'bg-red-500/80 text-white border border-red-400/30'
+                        }`}>
+                          {track.streamProvider === 'soundcloud' ? 'SoundCloud' : 'YouTube Music'}
+                        </span>
+                      </div>
+                    )}
+                    {track.source === 'local' && currentView === 'search' && (
+                      <div className="absolute top-2 left-2 z-10 pointer-events-none">
+                        <span className="px-2 py-0.5 rounded-full text-[9px] font-black uppercase tracking-wider backdrop-blur-md shadow-md bg-white/10 text-white/90 border border-white/20">
+                          {t('source_local')}
+                        </span>
+                      </div>
+                    )}
                     <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-all duration-300 backdrop-blur-none">
                       <div 
                         className="w-12 h-12 rounded-full flex items-center justify-center shadow-2xl text-black transition-transform duration-300 scale-90 group-hover:scale-100"
@@ -421,13 +572,13 @@ const MainView: React.FC<MainViewProps> = React.memo(({
                   <h4 
                     className="font-bold text-sm truncate text-[var(--text-main)] mb-0.5 hover:underline cursor-pointer" 
                     style={{ color: isActive ? accentColor : undefined }}
-                    onClick={(e) => { e.stopPropagation(); onGoToAlbum(track.album); }}
-                    title={track.title}
+                    onClick={(e) => { e.stopPropagation(); onGoToAlbum(track.album || track.title, track.albumArtist || track.artist); }}
+                    title={getTrackDisplay(track).title}
                   >
-                    {track.title}
+                    {getTrackDisplay(track).title}
                   </h4>
                   <div className="text-xs text-[var(--text-muted)] truncate font-medium">
-                    {renderArtistLinks(track.artist)}
+                    {renderArtistLinks(getTrackDisplay(track).artist)}
                   </div>
                 </motion.div>
               );
@@ -507,19 +658,42 @@ const MainView: React.FC<MainViewProps> = React.memo(({
                         <p 
                             className={`text-sm font-semibold truncate transition-colors hover:underline cursor-pointer ${isActive ? '' : 'text-[var(--text-main)]'}`} 
                             style={{ color: isActive ? accentColor : undefined }}
-                            onClick={(e) => { e.stopPropagation(); onGoToAlbum(track.album); }}
-                            title={track.title}
+                            onClick={(e) => { 
+                              e.stopPropagation(); 
+                              onGoToAlbum(track.album || track.title, track.albumArtist || track.artist); 
+                            }}
+                            title={getTrackDisplay(track).title}
                         >
-                            {track.title}
+                            {getTrackDisplay(track).title}
                         </p>
-                        <div className="text-xs text-[var(--text-muted)] truncate group-hover:text-[var(--text-main)] transition-colors mt-0.5">
-                            {renderArtistLinks(track.artist)}
+                        <div className="flex items-center gap-2 text-xs text-[var(--text-muted)] truncate group-hover:text-[var(--text-main)] transition-colors mt-0.5">
+                            {track.streamProvider && (
+                              <span className={`px-1.5 py-0.2 rounded text-[9px] font-black uppercase tracking-wider ${
+                                track.streamProvider === 'soundcloud' ? 'bg-orange-500/20 text-orange-400 border border-orange-500/30' : 'bg-red-500/20 text-red-400 border border-red-500/30'
+                              }`}>
+                                {track.streamProvider === 'soundcloud' ? 'SoundCloud' : 'YouTube'}
+                              </span>
+                            )}
+                            {track.source === 'local' && currentView === 'search' && (
+                              <span className="px-1.5 py-0.2 rounded text-[9px] font-black uppercase tracking-wider bg-white/10 text-white/70 border border-white/10">
+                                {t('source_local')}
+                              </span>
+                            )}
+                            <span className="truncate">{renderArtistLinks(getTrackDisplay(track).artist)}</span>
                         </div>
                      </div>
                    </div>
 
                    <div className="hidden md:block w-1/4 min-w-[120px] text-sm text-[var(--text-muted)] truncate group-hover:text-[var(--text-main)] transition-colors">
-                     <span className="hover:underline cursor-pointer" onClick={(e) => { e.stopPropagation(); onGoToAlbum(track.album); }}>{track.album}</span>
+                     <span 
+                       className="hover:underline cursor-pointer" 
+                       onClick={(e) => { 
+                         e.stopPropagation(); 
+                         onGoToAlbum(track.album || track.title, track.albumArtist || track.artist); 
+                       }}
+                     >
+                       {track.album || track.title}
+                     </span>
                    </div>
 
                    <div className="hidden lg:block w-32 text-sm text-[var(--text-muted)] truncate tabular-nums">
@@ -624,6 +798,23 @@ const MainView: React.FC<MainViewProps> = React.memo(({
 
   const renderView = () => {
     switch (currentView) {
+      case 'wave':
+        return (
+          <MyWaveView
+            tracks={tracks}
+            currentTrack={currentTrack}
+            playbackState={playbackState}
+            onPlayTrack={(track, newQueue) => onPlay(track, newQueue)}
+            onTogglePlayPause={onTogglePlayPause || (() => {})}
+            onToggleLike={onToggleLike}
+            onAddTrackToLibrary={onAddTrackToLibrary}
+            accentColor={accentColor}
+            enableGlass={enableGlass}
+            analyser={analyser}
+            t={t}
+          />
+        );
+
       case 'listen_now': {
         const hour = new Date().getHours();
         let greeting = t('good_evening');
@@ -702,7 +893,15 @@ const MainView: React.FC<MainViewProps> = React.memo(({
                             {t('studio_master')}
                           </span>
                         </div>
-                        <h2 className="text-xl md:text-3xl font-black text-[var(--text-main)] truncate mb-0.5">{topTrack.title}</h2>
+                        <h2 
+                          className="text-xl md:text-3xl font-black text-[var(--text-main)] truncate mb-0.5 cursor-pointer hover:underline"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            onGoToAlbum(topTrack.album || topTrack.title, topTrack.albumArtist || topTrack.artist);
+                          }}
+                        >
+                          {topTrack.title}
+                        </h2>
                         <p className="text-sm md:text-base text-[var(--text-muted)] font-medium truncate">{topTrack.artist}</p>
                       </div>
                     </div>
@@ -744,7 +943,16 @@ const MainView: React.FC<MainViewProps> = React.memo(({
                             {t.coverUrl ? <img src={t.coverUrl} className="w-full h-full object-cover group-hover:scale-105 transition-transform" /> : <div className="w-full h-full bg-white/10" />}
                           </div>
                           <div className="flex-1 min-w-0">
-                            <div className="text-sm font-bold truncate text-[var(--text-main)] group-hover:text-[var(--accent-color,white)] transition-colors" style={{ color: currentTrack?.id === t.id ? accentColor : undefined }}>{t.title}</div>
+                            <div 
+                              className="text-sm font-bold truncate text-[var(--text-main)] group-hover:text-[var(--accent-color,white)] transition-colors cursor-pointer hover:underline" 
+                              style={{ color: currentTrack?.id === t.id ? accentColor : undefined }}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                onGoToAlbum(t.album || t.title, t.albumArtist || t.artist);
+                              }}
+                            >
+                              {t.title}
+                            </div>
                             <div className="text-xs text-[var(--text-muted)] truncate">{t.artist}</div>
                           </div>
                         </div>
@@ -847,13 +1055,16 @@ const MainView: React.FC<MainViewProps> = React.memo(({
                         <h3 
                           className={`font-bold text-xs truncate mb-0.5 transition-colors hover:underline cursor-pointer group-hover:text-[var(--text-main)] ${isActive ? '' : 'text-[var(--text-main)]/90'}`} 
                           style={{ color: isActive ? accentColor : undefined }}
-                          onClick={(e) => { e.stopPropagation(); onGoToAlbum(track.album); }}
-                          title={track.title}
+                          onClick={(e) => { 
+                            e.stopPropagation(); 
+                            onGoToAlbum(track.album || track.title, track.albumArtist || track.artist); 
+                          }}
+                          title={getTrackDisplay(track).title}
                         >
-                          {track.title}
+                          {getTrackDisplay(track).title}
                         </h3>
                         <div className="text-[11px] text-[var(--text-muted)] truncate font-medium group-hover:text-[var(--text-main)]/70 transition-colors">
-                          {renderArtistLinks(track.artist)}
+                          {renderArtistLinks(getTrackDisplay(track).artist)}
                         </div>
                       </motion.div>
                     );
@@ -879,7 +1090,7 @@ const MainView: React.FC<MainViewProps> = React.memo(({
         return (
           <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-8 stagger-list px-4">
             {albums.map((album, i) => (
-              <div key={i} className="group cursor-pointer" onClick={() => onGoToAlbum(album.title)}>
+              <div key={i} className="group cursor-pointer" onClick={() => onGoToAlbum(album.title, album.artist)}>
                 <div className="aspect-square rounded-[2.5rem] overflow-hidden shadow-2xl mb-4 relative border border-[var(--glass-border)] transition-all duration-500 group-hover:scale-[1.03] group-hover:shadow-[0_20px_40px_rgba(0,0,0,0.4)] bg-[var(--card-bg)]">
                   <img src={album.cover} className="w-full h-full object-cover" onError={(e) => (e.currentTarget.src = "")} />
                   <div className="absolute inset-0 bg-black/30 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-all duration-500">
@@ -990,20 +1201,32 @@ const MainView: React.FC<MainViewProps> = React.memo(({
 
                  
                 {(() => {
-                  const popularTracks = [...filteredTracks].sort((a, b) => (b.playCount || 0) - (a.playCount || 0));
+                  const combinedArtistTracks = [
+                    ...filteredTracks,
+                    ...artistOnlineTracks.filter(ot => !filteredTracks.some(ft => ft.title.toLowerCase() === ot.title.toLowerCase()))
+                  ];
+                  const popularTracks = [...combinedArtistTracks].sort((a, b) => (b.playCount || 0) - (a.playCount || 0));
                   const displayedTracks = showAllPopularTracks ? popularTracks : popularTracks.slice(0, 5);
                   
-                  const albumsMap = new Map<string, Track[]>();
+                  const albumsMap = new Map<string, { title: string, artist: string, cover: string, count: number }>();
                   filteredTracks.forEach(t => {
-                    if (!albumsMap.has(t.album)) albumsMap.set(t.album, []);
-                    albumsMap.get(t.album)!.push(t);
+                    const alb = (t.album && t.album.trim()) ? t.album.trim() : t.title;
+                    if (!albumsMap.has(alb)) {
+                      albumsMap.set(alb, { title: alb, artist: selectedArtist || t.artist, cover: t.coverUrl, count: 1 });
+                    } else {
+                      albumsMap.get(alb)!.count += 1;
+                    }
                   });
-                  const albums = Array.from(albumsMap.entries()).sort((a, b) => a[0].localeCompare(b[0]));
-                  const displayedAlbums = showAllAlbums ? albums : albums.slice(0, 3);
+                  artistOnlineAlbums.forEach(oa => {
+                    if (!albumsMap.has(oa.title)) {
+                      albumsMap.set(oa.title, { title: oa.title, artist: oa.artist || selectedArtist || '', cover: oa.coverUrl, count: oa.trackCount || 0 });
+                    }
+                  });
+                  const albumsList = Array.from(albumsMap.values()).sort((a, b) => a.title.localeCompare(b.title));
+                  const displayedAlbums = showAllAlbums ? albumsList : albumsList.slice(0, 6);
 
                   return (
                     <>
-                       
                       <div className="animate-slide-up" style={{ animationDelay: '0.1s' }}>
                         <div className="flex items-center gap-3 mb-6">
                           <h2 className="text-2xl font-bold text-[var(--text-main)]">{t('popular_tracks')}</h2>
@@ -1022,12 +1245,11 @@ const MainView: React.FC<MainViewProps> = React.memo(({
                         </div>
                       </div>
 
-                       
-                      {albums.length > 0 && (
+                      {albumsList.length > 0 && (
                         <div className="animate-slide-up" style={{ animationDelay: '0.2s' }}>
                           <div className="flex items-center gap-3 mb-6">
                             <h2 className="text-2xl font-bold text-[var(--text-main)]">{t('albums')}</h2>
-                            {albums.length > 3 && (
+                            {albumsList.length > 6 && (
                               <button 
                                 onClick={() => setShowAllAlbums(!showAllAlbums)}
                                 className="p-1.5 rounded-full bg-[var(--card-bg)] hover:bg-[var(--card-hover)] text-[var(--text-muted)] hover:text-[var(--text-main)] transition-all border border-[var(--glass-border)]"
@@ -1037,64 +1259,30 @@ const MainView: React.FC<MainViewProps> = React.memo(({
                             )}
                           </div>
                           
-                          {showAllAlbums ? (
-                             
-                            <div className="flex flex-col gap-3">
-                              {displayedAlbums.map(([albumName, albumTracks]) => (
-                                <div 
-                                  key={albumName}
-                                  onClick={() => onGoToAlbum(albumName)}
-                                  className="group cursor-pointer flex items-center gap-4 p-3 rounded-full hover:bg-[var(--card-hover)] transition-all border border-transparent hover:border-[var(--glass-border)] bg-[var(--card-bg)]/10"
-                                >
-                                  <div className="w-20 h-20 rounded-full overflow-hidden relative shadow-md shrink-0">
-                                    {albumTracks[0]?.coverUrl ? (
-                                        <img src={albumTracks[0].coverUrl} className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110" />
-                                    ) : (
-                                        <div className="w-full h-full bg-[var(--glass-border)] flex items-center justify-center">
-                                            <Music className="w-8 h-8 text-[var(--text-muted)]" />
-                                        </div>
-                                    )}
-                                    <div className="absolute inset-0 bg-black/30 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center backdrop-blur-none">
-                                      <Play className="w-8 h-8 text-white fill-current drop-shadow-lg" />
-                                    </div>
-                                  </div>
-                                  <div className="flex-1 min-w-0">
-                                    <h3 className="font-bold text-[var(--text-main)] text-lg truncate mb-1">{albumName}</h3>
-                                    <p className="text-[var(--text-muted)] text-sm font-medium">{albumTracks.length} {t('songs')}</p>
-                                  </div>
-                                  <div className="pr-4 opacity-0 group-hover:opacity-100 transition-opacity text-[var(--text-muted)]">
-                                    <ChevronRight className="w-6 h-6" />
+                          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6 gap-6">
+                            {displayedAlbums.map((album) => (
+                              <div 
+                                key={album.title}
+                                onClick={() => onGoToAlbum(album.title, album.artist || selectedArtist || undefined)}
+                                className="group cursor-pointer bg-[var(--card-bg)]/20 p-4 rounded-[2rem] hover:bg-[var(--card-hover)] transition-all border border-[var(--glass-border)] hover:scale-[1.02]"
+                              >
+                                <div className="aspect-square rounded-[1.5rem] overflow-hidden mb-3 relative shadow-lg bg-black/40">
+                                  {album.cover ? (
+                                      <img src={album.cover} className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105" />
+                                  ) : (
+                                      <div className="w-full h-full bg-[var(--glass-border)] flex items-center justify-center">
+                                          <Music className="w-12 h-12 text-[var(--text-muted)]" />
+                                      </div>
+                                  )}
+                                  <div className="absolute inset-0 bg-black/30 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center backdrop-blur-none">
+                                    <Play className="w-10 h-10 text-white fill-current drop-shadow-lg" />
                                   </div>
                                 </div>
-                              ))}
-                            </div>
-                          ) : (
-                             
-                            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
-                              {displayedAlbums.map(([albumName, albumTracks]) => (
-                                <div 
-                                  key={albumName}
-                                  onClick={() => onGoToAlbum(albumName)}
-                                  className="group cursor-pointer bg-[var(--card-bg)]/20 p-4 rounded-[2.5rem] hover:bg-[var(--card-hover)] transition-all border border-[var(--glass-border)]"
-                                >
-                                  <div className="aspect-square rounded-[2rem] overflow-hidden mb-4 relative shadow-lg">
-                                    {albumTracks[0]?.coverUrl ? (
-                                        <img src={albumTracks[0].coverUrl} className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110" />
-                                    ) : (
-                                        <div className="w-full h-full bg-[var(--glass-border)] flex items-center justify-center">
-                                            <Music className="w-12 h-12 text-[var(--text-muted)]" />
-                                        </div>
-                                    )}
-                                    <div className="absolute inset-0 bg-black/30 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center backdrop-blur-none">
-                                      <Play className="w-12 h-12 text-white fill-current drop-shadow-lg" />
-                                    </div>
-                                  </div>
-                                  <h3 className="font-bold text-[var(--text-main)] truncate text-base mb-1">{albumName}</h3>
-                                  <p className="text-[var(--text-muted)] text-sm font-medium">{albumTracks.length} {t('songs')}</p>
-                                </div>
-                              ))}
-                            </div>
-                          )}
+                                <h3 className="font-bold text-[var(--text-main)] truncate text-sm mb-0.5" title={album.title}>{album.title}</h3>
+                                <p className="text-[var(--text-muted)] text-xs font-medium">{album.count > 0 ? `${album.count} ${t('songs')}` : t('albums')}</p>
+                              </div>
+                            ))}
+                          </div>
                         </div>
                       )}
 
@@ -1151,36 +1339,62 @@ const MainView: React.FC<MainViewProps> = React.memo(({
         );
 
       case 'album_detail':
+        const displayAlbumTracks = (() => {
+          const combined = [...filteredTracks];
+          const localTitles = new Set(filteredTracks.map(t => t.title.toLowerCase().trim()));
+          for (const ot of albumOnlineTracks) {
+            if (!localTitles.has(ot.title.toLowerCase().trim())) {
+              combined.push(ot);
+            }
+          }
+          return combined;
+        })();
+        const albumCover = displayAlbumTracks[0]?.coverUrl || '';
         return (
             <div className="animate-fade-in">
                 <div className="flex flex-col md:flex-row gap-12 mb-16 items-center md:items-end px-4">
                     <div className="w-72 h-72 rounded-[40px] overflow-hidden shadow-[0_30px_60px_rgba(0,0,0,0.6)] border border-white/10 shrink-0 bg-white/5 transition-transform duration-700 hover:scale-[1.02]">
-                      <img src={filteredTracks[0]?.coverUrl} className="w-full h-full object-cover" />
+                      <img 
+                        src={albumCover} 
+                        className="w-full h-full object-cover" 
+                        onError={(e) => { (e.target as HTMLImageElement).src = 'assets/default-cover.png'; }} 
+                      />
                     </div>
                     <div className="flex-1 text-center md:text-left min-w-0 pb-4">
                         <p className="text-[11px] uppercase tracking-[0.5em] text-[var(--text-muted)] mb-4 font-black">{t('albums')}</p>
                         <h1 className="text-6xl font-black text-[var(--text-main)] mb-6 tracking-tighter drop-shadow-2xl truncate">{selectedAlbum}</h1>
                         <div className="flex items-center justify-center md:justify-start gap-4 mb-10">
                           <div className="w-8 h-8 rounded-full bg-[var(--card-bg)] overflow-hidden border border-[var(--glass-border)]">
-                            {artistMetadata[filteredTracks[0]?.artist || ""]?.avatar ? (
-                              <img src={artistMetadata[filteredTracks[0]?.artist || ""]?.avatar} className="w-full h-full object-cover" />
+                            {artistMetadata[selectedAlbumArtist || displayAlbumTracks[0]?.albumArtist || displayAlbumTracks[0]?.artist || ""]?.avatar ? (
+                              <img src={artistMetadata[selectedAlbumArtist || displayAlbumTracks[0]?.albumArtist || displayAlbumTracks[0]?.artist || ""]?.avatar} className="w-full h-full object-cover" />
                             ) : (
                               <div className="w-full h-full flex items-center justify-center text-[var(--text-muted)]"><User className="w-4 h-4" /></div>
                             )}
                           </div>
                           <p className="text-lg font-bold text-[var(--text-main)]/80 transition-colors hover:text-[var(--text-main)]">
-                              {renderArtistLinks(filteredTracks[0]?.artist || "")}
+                              {renderArtistLinks(selectedAlbumArtist || displayAlbumTracks[0]?.albumArtist || displayAlbumTracks[0]?.artist || "")}
                           </p>
                           <span className="text-[var(--text-muted)] font-black">•</span>
-                          <p className="text-sm font-bold text-[var(--text-muted)]">{filteredTracks.length} {t('songs')}</p>
+                          <p className="text-sm font-bold text-[var(--text-muted)]">{displayAlbumTracks.length} {t('songs')}</p>
                         </div>
                         <div className="flex gap-4 justify-center md:justify-start">
-                            <button onClick={() => filteredTracks.length > 0 && onPlay(filteredTracks[0], filteredTracks)} className="bg-[var(--text-main)] text-[var(--bg-main)] px-12 py-4 rounded-[20px] font-black text-sm hover:scale-105 active:scale-95 transition-all shadow-2xl shadow-white/10 flex items-center gap-3"><Play className="w-5 h-5 fill-current" /> {t('listen_now')}</button>
-                            <button onClick={() => onShuffleAll(filteredTracks)} className="bg-[var(--card-bg)] backdrop-blur-none border border-[var(--glass-border)] px-12 py-4 rounded-[20px] font-black text-sm hover:bg-[var(--card-hover)] transition-all text-[var(--text-main)]">{t('shuffle')}</button>
+                            <button onClick={() => displayAlbumTracks.length > 0 && onPlay(displayAlbumTracks[0], displayAlbumTracks)} className="bg-[var(--text-main)] text-[var(--bg-main)] px-12 py-4 rounded-[20px] font-black text-sm hover:scale-105 active:scale-95 transition-all shadow-2xl shadow-white/10 flex items-center gap-3"><Play className="w-5 h-5 fill-current" /> {t('listen_now')}</button>
+                            <button onClick={() => onShuffleAll(displayAlbumTracks)} className="bg-[var(--card-bg)] backdrop-blur-none border border-[var(--glass-border)] px-12 py-4 rounded-[20px] font-black text-sm hover:bg-[var(--card-hover)] transition-all text-[var(--text-main)]">{t('shuffle')}</button>
                         </div>
                     </div>
                 </div>
-                {renderTrackList(filteredTracks)}
+                {displayAlbumTracks.length > 0 ? (
+                  renderTrackList(displayAlbumTracks)
+                ) : isLoadingAlbumTracks ? (
+                  <div className="flex flex-col items-center justify-center py-20 text-center">
+                    <Loader2 className="w-10 h-10 animate-spin mb-4" style={{ color: accentColor }} />
+                    <p className="text-sm font-bold text-[var(--text-main)]">{t('searching')}</p>
+                  </div>
+                ) : (
+                  <div className="text-center text-[var(--text-muted)] py-16">
+                    <p className="text-base font-bold text-[var(--text-main)]">{t('no_tracks')}</p>
+                  </div>
+                )}
             </div>
         );
 
@@ -1255,17 +1469,79 @@ const MainView: React.FC<MainViewProps> = React.memo(({
         );
 
       case 'search':
+        const localMatches = filteredTracks;
+        const onlineMatches = onlineResults;
+        const combinedTracks = [
+          ...localMatches,
+          ...onlineMatches.filter(om => !localMatches.some(lm => lm.title.toLowerCase() === om.title.toLowerCase()))
+        ];
+
+        const localMatchingAlbums = albums.filter(a => 
+          a.title.toLowerCase().includes(searchQuery.toLowerCase()) || 
+          a.artist.toLowerCase().includes(searchQuery.toLowerCase())
+        );
+        const combinedAlbums = [
+          ...localMatchingAlbums.map(a => ({ id: `local_${a.title}_${a.artist}`, title: a.title, artist: a.artist, coverUrl: a.cover })),
+          ...onlineAlbums.filter(oa => !localMatchingAlbums.some(la => la.title.toLowerCase() === oa.title.toLowerCase()))
+        ];
+
         return (
-          <div className="space-y-10">
-            {filteredTracks.length > 0 && (
-              <section>
-                <h2 className="text-xl font-bold mb-4 px-4 flex items-center gap-2">
-                  <Music className="w-5 h-5" style={{ color: accentColor }} />
-                  {t('your_library')}
-                </h2>
-                {renderTrackList(filteredTracks)}
-              </section>
+          <div className="space-y-8 animate-fade-in px-2 md:px-4 pb-16">
+            {isSearchingOnline && (
+              <div className="flex items-center gap-2 px-4 py-2 rounded-2xl bg-white/5 border border-white/10 w-fit text-xs text-[var(--text-muted)] animate-pulse">
+                <Loader2 className="w-3.5 h-3.5 animate-spin text-[var(--accent-color)]" />
+                <span>{t('searching')}...</span>
+              </div>
             )}
+
+            {combinedAlbums.length > 0 && (
+              <div className="animate-slide-up">
+                <div className="flex items-center gap-3 mb-4">
+                  <h3 className="text-xl font-bold text-[var(--text-main)]">{t('albums')}</h3>
+                  <span className="text-xs text-[var(--text-muted)] font-semibold">({combinedAlbums.length})</span>
+                </div>
+                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-4">
+                  {combinedAlbums.slice(0, 12).map((alb) => (
+                    <div
+                      key={alb.id}
+                      onClick={() => onGoToAlbum(alb.title, alb.artist)}
+                      className="group cursor-pointer bg-[var(--card-bg)]/30 hover:bg-[var(--card-hover)] p-3 rounded-2xl border border-[var(--glass-border)] transition-all hover:scale-[1.02]"
+                    >
+                      <div className="aspect-square rounded-xl overflow-hidden mb-2.5 relative bg-black/40 shadow-md">
+                        <img 
+                          src={alb.coverUrl} 
+                          alt={alb.title}
+                          className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
+                          onError={(e) => {
+                            (e.target as HTMLImageElement).src = 'assets/default-cover.png';
+                          }}
+                        />
+                        <div className="absolute inset-0 bg-black/30 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity">
+                          <Play className="w-8 h-8 text-white fill-current drop-shadow-md" />
+                        </div>
+                      </div>
+                      <h4 className="font-bold text-xs text-[var(--text-main)] truncate" title={alb.title}>
+                        {alb.title}
+                      </h4>
+                      <p className="text-[11px] text-[var(--text-muted)] truncate mt-0.5">
+                        {alb.artist}
+                      </p>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            <div>
+              {combinedTracks.length > 0 ? (
+                renderTrackList(combinedTracks)
+              ) : !isSearchingOnline ? (
+                <div className="text-center text-[var(--text-muted)] py-16">
+                  <Search className="w-12 h-12 mx-auto mb-4 opacity-20" />
+                  <p className="text-base font-bold text-[var(--text-main)]">{t('no_tracks')}</p>
+                </div>
+              ) : null}
+            </div>
           </div>
         );
 
@@ -1497,6 +1773,7 @@ const MainView: React.FC<MainViewProps> = React.memo(({
 
   const getTitle = () => {
     switch (currentView) {
+      case 'wave': return t('my_wave');
       case 'listen_now': return t('listen_now');
       case 'albums': return t('albums');
       case 'artists': return t('artists');
@@ -1542,6 +1819,10 @@ const MainView: React.FC<MainViewProps> = React.memo(({
                       <h3 className="text-xl font-bold text-[var(--text-main)] flex items-center gap-2">{t('edit')}
                           <button type="button" onClick={handleFetchMetadata} disabled={isSearchingMetadata} className={`ml-4 px-3 py-1.5 rounded-lg bg-[var(--card-bg)] hover:bg-[var(--card-hover)] flex items-center gap-2 text-xs font-bold transition-all ${isSearchingMetadata ? 'opacity-50' : ''}`}>
                               {isSearchingMetadata ? t('searching') : '✨ ' + t('magic_api')}
+                          </button>
+                          <button type="button" onClick={() => setTrimmingTrack(editingTrack)} className="px-3 py-1.5 rounded-lg bg-emerald-500/20 text-emerald-400 hover:bg-emerald-500/30 border border-emerald-500/30 flex items-center gap-1.5 text-xs font-bold transition-all cursor-pointer">
+                              <Scissors className="w-3.5 h-3.5" />
+                              {t('trim_audio')}
                           </button>
                       </h3>
                       <button onClick={() => setEditingTrack(null)} className="text-[var(--text-muted)] hover:text-[var(--text-main)] p-2 transition-colors"><X className="w-5 h-5"/></button>
@@ -1593,7 +1874,7 @@ const MainView: React.FC<MainViewProps> = React.memo(({
                                               onClick={async () => {
                                                   if (!editingTrack.artist || !editingTrack.title) return;
                                                   setIsFetchingLyrics(true);
-                                                  const lyr = await fetchLyricsFromLRCLIB(editingTrack.artist, editingTrack.title);
+                                                  const lyr = await fetchLyricsFromLRCLIB(editingTrack.artist, editingTrack.title, editingTrack.duration);
                                                   setIsFetchingLyrics(false);
                                                   if (lyr) {
                                                       setEditingTrack({...editingTrack, lyrics: lyr});
@@ -1607,7 +1888,7 @@ const MainView: React.FC<MainViewProps> = React.memo(({
                                               {isFetchingLyrics ? 'Поиск...' : 'LRCLIB'}
                                           </button>
                                           <button type="button" onClick={() => lyricsInputRef.current?.click()} className="text-[10px] text-[var(--text-muted)] hover:text-white font-bold uppercase flex items-center gap-1 transition-colors">
-                                              <Upload className="w-3 h-3" /> {t('import_tracks')}
+                                              <Upload className="w-3 h-3" /> {t('import_lyrics')}
                                           </button>
                                       </div>
                                   </div>
@@ -1644,7 +1925,28 @@ const MainView: React.FC<MainViewProps> = React.memo(({
           </div>
         )}
 
-        {currentView !== 'artist_detail' && currentView !== 'album_detail' && (
+        {trimmingTrack && (
+          <AudioTrimmerModal
+            track={trimmingTrack}
+            onClose={() => setTrimmingTrack(null)}
+            onTrimComplete={(newDuration) => {
+              const roundedDuration = Math.round(newDuration);
+              if (editingTrack && editingTrack.id === trimmingTrack.id) {
+                setEditingTrack({ ...editingTrack, duration: roundedDuration });
+              }
+              if (onTrackTrimmed) {
+                onTrackTrimmed(trimmingTrack.id, roundedDuration);
+              } else {
+                onUpdateTrack(trimmingTrack.id, { duration: roundedDuration });
+              }
+              setTrimmingTrack(null);
+            }}
+            accentColor={accentColor}
+            t={t}
+          />
+        )}
+
+        {currentView !== 'artist_detail' && currentView !== 'album_detail' && currentView !== 'wave' && (
             <div className="flex items-end justify-between mb-8 px-4 pt-8">
                 <div><h1 className="text-5xl md:text-6xl font-black text-[var(--text-main)] tracking-tighter">{getTitle()}</h1></div>
                 {currentView === 'songs' && (
@@ -1709,7 +2011,18 @@ const MainView: React.FC<MainViewProps> = React.memo(({
             </button>
         )}
 
-        <div className="min-h-[50vh]">{renderView()}</div>
+        <AnimatePresence mode="wait">
+          <motion.div
+            key={`${currentView}_${selectedAlbum || ''}_${selectedArtist || ''}_${selectedPlaylist || ''}`}
+            initial={{ opacity: 0, y: 12 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -12 }}
+            transition={{ duration: 0.22, ease: [0.22, 1, 0.36, 1] }}
+            className="min-h-[50vh]"
+          >
+            {renderView()}
+          </motion.div>
+        </AnimatePresence>
       </div>
       </div>
     </div>

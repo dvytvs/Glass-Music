@@ -1,8 +1,7 @@
-
 import React, { useEffect, useRef, useMemo } from 'react';
 import { LyricLine } from '../types';
 import { parseLrc } from '../utils';
-import { RefreshCw, Sparkles } from './Icons';
+import { RefreshCw } from './Icons';
 
 interface LyricsViewProps {
   lyricsRaw?: string;
@@ -42,10 +41,8 @@ const LyricsView: React.FC<LyricsViewProps> = ({ lyricsRaw, currentTime, onSeek,
     return parsed;
   }, [lyricsRaw]);
 
-   
   const isPlainText = lines.length > 0 && lines[0].time === -1;
 
-   
   const activeIndex = useMemo(() => {
       if (isPlainText || lines.length === 0) return -1;
       for (let i = lines.length - 1; i >= 0; i--) {
@@ -58,7 +55,6 @@ const LyricsView: React.FC<LyricsViewProps> = ({ lyricsRaw, currentTime, onSeek,
 
   const activeLineRef = useRef<HTMLDivElement>(null);
 
-   
   useEffect(() => {
     if (!isPlainText && activeLineRef.current && containerRef.current) {
       activeLineRef.current.scrollIntoView({
@@ -89,7 +85,6 @@ const LyricsView: React.FC<LyricsViewProps> = ({ lyricsRaw, currentTime, onSeek,
     );
   }
 
-   
   if (isPlainText) {
       return (
         <div className="w-full h-full overflow-hidden relative group">
@@ -104,11 +99,11 @@ const LyricsView: React.FC<LyricsViewProps> = ({ lyricsRaw, currentTime, onSeek,
                 <span>{isRefetching ? 'Обновление...' : 'LRCLIB'}</span>
               </button>
             )}
-            <div className="w-full h-full overflow-y-auto px-10 py-24 space-y-8">
+            <div className="w-full h-full overflow-y-auto px-6 md:px-12 py-24 space-y-8">
                 {lines.map((line, index) => (
                     <p 
                         key={index} 
-                        className="text-3xl md:text-5xl font-black text-white/90 leading-tight text-center hover:text-white transition-all hover:scale-105 cursor-default tracking-tighter"
+                        className="text-2xl md:text-4xl font-black text-white/80 leading-relaxed text-left hover:text-white transition-all cursor-default tracking-tight"
                     >
                         {line.text}
                     </p>
@@ -118,7 +113,6 @@ const LyricsView: React.FC<LyricsViewProps> = ({ lyricsRaw, currentTime, onSeek,
       );
   }
 
-   
   return (
     <div className="w-full h-full overflow-hidden relative">
       {onRefetchLyrics && (
@@ -134,52 +128,84 @@ const LyricsView: React.FC<LyricsViewProps> = ({ lyricsRaw, currentTime, onSeek,
       )}
       <div 
         ref={containerRef}
-        className="w-full h-full overflow-y-auto px-4 lg:px-0 py-[50vh] space-y-10 scroll-smooth no-scrollbar"
+        className="w-full h-full overflow-y-auto px-4 md:px-8 py-[42vh] space-y-10 scroll-smooth no-scrollbar"
         style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}
       >
         {lines.map((line, index) => {
           const isActive = index === activeIndex;
           const isPast = index < activeIndex;
           const distance = Math.abs(index - activeIndex);
-          
-           
-          let blur = 0;
-          let scale = 1;
-          let opacity = 1;
-          
           const isCountdown = (line as any).isCountdown;
 
+          let scale = 1;
+          let opacity = 1;
           if (isActive) {
-            scale = isCountdown ? 1.3 : 1.05;
+            scale = isCountdown ? 1.25 : 1.04;
             opacity = 1;
           } else if (isPast) {
             scale = 0.98;
-            opacity = Math.max(0.15, 0.4 - distance * 0.08);
+            opacity = Math.max(0.18, 0.45 - distance * 0.08);
           } else {
             scale = 0.98;
-            opacity = Math.max(0.15, 0.6 - distance * 0.1);
+            opacity = Math.max(0.2, 0.55 - distance * 0.1);
           }
+
+          const nextLine = lines[index + 1];
+          const lineDuration = nextLine && nextLine.time > line.time ? Math.min(8, Math.max(1.2, nextLine.time - line.time)) : 4;
+          const lineProgress = isActive ? Math.min(1, Math.max(0, (currentTime - line.time) / lineDuration)) : (isPast ? 1 : 0);
+
+          const rawWords = line.text.split(/(\s+)/);
 
           return (
             <div
               key={index}
               ref={isActive ? activeLineRef : null}
-              onClick={() => !isPlainText && onSeek && onSeek(line.time)}
+              onClick={() => onSeek && onSeek(line.time)}
               className="transition-all duration-500 ease-out origin-left cursor-pointer group"
               style={{
                 transform: `scale(${scale})`,
-                opacity: opacity,
+                opacity: opacity
               }}
             >
-              <p 
-                className={`text-3xl md:text-5xl lg:text-6xl leading-[1.2] font-black transition-colors duration-500 
-                ${isCountdown ? 'tracking-[0.5em] font-mono' : 'tracking-tight'} 
-                ${isActive 
-                    ? (isCountdown ? 'text-[var(--accent-color)] drop-shadow-[0_0_20px_var(--accent-color)]' : 'text-white drop-shadow-[0_0_30px_rgba(255,255,255,0.4)]') 
-                    : 'text-white/30 group-hover:text-white/60'}
-              `}>
-                {line.text}
-              </p>
+              {isCountdown ? (
+                <p className="text-4xl md:text-6xl font-black font-mono tracking-[0.5em] text-[var(--accent-color)] drop-shadow-[0_0_25px_var(--accent-color)]">
+                  {line.text}
+                </p>
+              ) : (
+                <p className="text-3xl sm:text-4xl md:text-5xl lg:text-6xl leading-[1.25] font-black tracking-tight text-left select-none">
+                  {rawWords.map((part, wIdx) => {
+                    const isWhitespace = /^\s+$/.test(part);
+                    if (isWhitespace) {
+                      return <span key={wIdx}>{part}</span>;
+                    }
+
+                    const wordCount = Math.max(1, line.text.trim().split(/\s+/).length);
+                    const wordRealIdx = line.text.slice(0, line.text.indexOf(part) + part.length).trim().split(/\s+/).length - 1;
+                    const wordStart = wordRealIdx / wordCount;
+                    const wordEnd = (wordRealIdx + 1) / wordCount;
+
+                    const isWordActive = isActive && lineProgress >= wordStart && lineProgress < wordEnd;
+                    const isWordPassed = (isActive && lineProgress >= wordEnd) || isPast;
+
+                    return (
+                      <span
+                        key={wIdx}
+                        className={`inline-block transition-all duration-300 ${
+                          isWordActive
+                            ? 'text-white scale-105 drop-shadow-[0_0_24px_rgba(255,255,255,0.95)] font-black'
+                            : isWordPassed
+                            ? 'text-white drop-shadow-[0_0_12px_rgba(255,255,255,0.4)]'
+                            : isActive
+                            ? 'text-white/35 font-bold'
+                            : 'text-white/30 group-hover:text-white/60'
+                        }`}
+                      >
+                        {part}
+                      </span>
+                    );
+                  })}
+                </p>
+              )}
             </div>
           );
         })}

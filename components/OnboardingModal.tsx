@@ -1,6 +1,5 @@
-
 import React, { useState } from 'react';
-import { ArrowRight, User, Palette, Droplet } from './Icons';
+import { ArrowRight, User, Palette, Droplet, Waves } from './Icons';
 import { ThemeConfig, UserProfile } from '../types';
 import { TranslationKey } from '../translations';
 
@@ -15,10 +14,11 @@ const OnboardingModal: React.FC<OnboardingModalProps> = ({ onComplete, accentCol
   const [tempProfile, setTempProfile] = useState<Partial<UserProfile>>({ name: '' });
   const [tempTheme, setTempTheme] = useState<Partial<ThemeConfig>>({
     accentColor: '#db2777',
-    backgroundType: 'liquid'
+    backgroundType: 'liquid',
+    enableMusicService: true
   });
 
-  const nextStep = () => setStep(prev => Math.min(prev + 1, 5));
+  const nextStep = () => setStep(prev => Math.min(prev + 1, 6));
   const prevStep = () => setStep(prev => Math.max(prev - 1, 1));
 
   const handleFinish = () => {
@@ -27,7 +27,6 @@ const OnboardingModal: React.FC<OnboardingModalProps> = ({ onComplete, accentCol
 
   return (
     <div className="fixed inset-0 z-[300] flex bg-[var(--bg-main)]">
-       
       <div className="hidden md:flex w-1/2 h-full relative overflow-hidden bg-black">
         <div className="absolute inset-0 z-10 bg-gradient-to-r from-transparent to-[var(--bg-main)]"></div>
         <img 
@@ -43,7 +42,6 @@ const OnboardingModal: React.FC<OnboardingModalProps> = ({ onComplete, accentCol
         )}
       </div>
 
-       
       <div className="w-full md:w-1/2 h-full flex flex-col justify-center items-center p-8 lg:p-24 relative overflow-y-auto">
         <div className="w-full max-w-md flex flex-col items-center text-center animate-zoom-in">
           
@@ -110,6 +108,33 @@ const OnboardingModal: React.FC<OnboardingModalProps> = ({ onComplete, accentCol
 
               {step === 5 && (
                   <div className="animate-fade-in-view space-y-6">
+                      <h2 className="text-3xl font-bold text-[var(--text-main)] flex items-center justify-center gap-3">
+                          <Waves className="w-8 h-8"/> {t('onboarding_service_question')}
+                      </h2>
+                      <p className="text-sm text-[var(--text-muted)] max-w-sm mx-auto">
+                          {t('onboarding_service_desc')}
+                      </p>
+                      <div className="grid grid-cols-1 gap-4 text-left">
+                          <button 
+                              onClick={() => setTempTheme({ ...tempTheme, enableMusicService: true })}
+                              className={`p-6 rounded-3xl border-2 transition-all ${tempTheme.enableMusicService !== false ? 'bg-[var(--card-bg)] border-[var(--text-main)] shadow-lg' : 'bg-[var(--card-bg)]/40 border-[var(--glass-border)] opacity-70 hover:opacity-100'}`}
+                          >
+                              <span className="font-bold text-lg text-[var(--text-main)] block">{t('service_mode_full')}</span>
+                              <span className="text-xs text-[var(--text-muted)] mt-1 block">Онлайн-поиск SoundCloud / YouTube Music, рекомендации, Моя волна и карточки альбомов.</span>
+                          </button>
+                          <button 
+                              onClick={() => setTempTheme({ ...tempTheme, enableMusicService: false })}
+                              className={`p-6 rounded-3xl border-2 transition-all ${tempTheme.enableMusicService === false ? 'bg-[var(--card-bg)] border-[var(--text-main)] shadow-lg' : 'bg-[var(--card-bg)]/40 border-[var(--glass-border)] opacity-70 hover:opacity-100'}`}
+                          >
+                              <span className="font-bold text-lg text-[var(--text-main)] block">{t('service_mode_local_only')}</span>
+                              <span className="text-xs text-[var(--text-muted)] mt-1 block">Классический автономный плеер: только ваши локальные аудиофайлы с компьютера.</span>
+                          </button>
+                      </div>
+                  </div>
+              )}
+
+              {step === 6 && (
+                  <div className="animate-fade-in-view space-y-6">
                       <h2 className="text-4xl font-black text-[var(--text-main)]">{t('done')}!</h2>
                       <p className="text-[var(--text-muted)] text-xl leading-relaxed">
                           Приятного прослушивания, {tempProfile.name || t('nickname')}! <br/> Помни: твоя музыка — твои правила.
@@ -125,16 +150,16 @@ const OnboardingModal: React.FC<OnboardingModalProps> = ({ onComplete, accentCol
                   </button>
               )}
               <button 
-                  onClick={step === 5 ? handleFinish : nextStep}
+                  onClick={step === 6 ? handleFinish : nextStep}
                   className="flex-[2] py-4 rounded-2xl font-bold text-white text-lg shadow-xl hover:scale-[1.02] active:scale-[0.98] transition-all flex items-center justify-center gap-3"
                   style={{ backgroundColor: tempTheme.accentColor }}
               >
-                  {step === 5 ? t('onboarding_start') : 'Далее'} <ArrowRight className="w-6 h-6" />
+                  {step === 6 ? t('onboarding_start') : 'Далее'} <ArrowRight className="w-6 h-6" />
               </button>
           </div>
 
           <div className="mt-12 flex gap-3">
-              {[1,2,3,4,5].map(s => (
+              {[1,2,3,4,5,6].map(s => (
                   <div key={s} className={`h-2 rounded-full transition-all duration-300 ${s === step ? 'w-10' : 'w-2 bg-[var(--text-muted)]/20'}`} style={s === step ? {backgroundColor: tempTheme.accentColor} : {}} />
               ))}
           </div>

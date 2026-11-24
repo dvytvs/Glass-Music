@@ -19,6 +19,7 @@ import { Track, PlaybackState, PlayerState, ViewType, ThemeConfig, ArtistMetadat
 import { generateMockCover, generateMockCoverPng, parseFileMetadata, sortTracks, fetchLyricsFromLRCLIB, isJunkLyrics } from './utils';
 import { translations, TranslationKey } from './translations';
 import { GoogleGenAI } from "@google/genai";
+import { resolveStreamUrl, fetchHighResAlbumCover } from './services/musicStreamService';
 
 const STORAGE_KEY = 'glass_music_library_v1';
 const THEME_KEY = 'glass_music_theme_v1';
@@ -57,18 +58,16 @@ const ARTIST_SPLIT_REGEX = /\s*(?:,|;|feat\.?|ft\.?|&|\/|featuring)\s+/i;
 
 const formatTrackMediaUrl = (filePath: string, port?: number) => {
   if (!filePath) return '';
-  const cleanPath = filePath.replace(/\\/g, '/');
-  const formattedPath = cleanPath.startsWith('/') ? cleanPath : `/${cleanPath}`;
-  
-  const encodedPath = formattedPath
+  const cleanPath = filePath.replace(/\\/g, '/').replace(/^\/+/, '');
+  const encodedPath = cleanPath
     .split('/')
     .map(segment => encodeURIComponent(segment))
     .join('/');
 
   if (port && port > 0) {
-    return `http://127.0.0.1:${port}${encodedPath}`;
+    return `http://127.0.0.1:${port}/${encodedPath}`;
   }
-  return `file://${encodedPath}`;
+  return `file:///${encodedPath}`;
 };
 
 const App: React.FC = () => {
@@ -88,7 +87,8 @@ const App: React.FC = () => {
   const [fullScreenMode, setFullScreenMode] = useState<'none' | 'cover' | 'lyrics'>('none');
   const [selectedArtist, setSelectedArtist] = useState<string | null>(null);
   const [selectedAlbum, setSelectedAlbum] = useState<string | null>(null);
-  const [viewHistory, setViewHistory] = useState<{view: ViewType, artist: string | null, album: string | null}[]>([]);
+  const [selectedAlbumArtist, setSelectedAlbumArtist] = useState<string | null>(null);
+  const [viewHistory, setViewHistory] = useState<{view: ViewType, artist: string | null, album: string | null, albumArtist?: string | null}[]>([]);
   const [isLoaded, setIsLoaded] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [theme, setTheme] = useState<ThemeConfig>(DEFAULT_THEME);
@@ -118,6 +118,7 @@ const App: React.FC = () => {
   const forwardHistoryRef = useRef<string[]>([]);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const saveTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const trackRetriesRef = useRef<Record<string, number>>({});
   
   const lastListenTimeLoggedRef = useRef<number>(0);
   
@@ -477,12 +478,18 @@ const App: React.FC = () => {
                   setTimeout(async () => {
                       try {
                           const ipcRenderer = (window as any).require('electron').ipcRenderer;
-                          const tracksToUpdate = restored.filter(t => t.path && (!t.coverUrl || t.coverUrl.startsWith('data:image/svg+xml') || t.coverUrl.startsWith('blob:')));
+                          const tracksToUpdate = restored.filter(t => t.path && (!t.coverUrl || t.coverUrl.startsWith('data:image/svg+xml') || t.coverUrl.startsWith('blob:') || !t.lyrics));
                           for (const t of tracksToUpdate) {
                               try {
                                   const meta = await ipcRenderer.invoke('read-id3-tags', { filePath: t.path });
-                                  if (meta && meta.coverUrl) {
-                                      setTracks(curr => curr.map(item => item.id === t.id ? { ...item, coverUrl: meta.coverUrl, albumArtist: meta.albumArtist || item.albumArtist, year: meta.year || item.year } : item));
+                                  if (meta) {
+                                      setTracks(curr => curr.map(item => item.id === t.id ? { 
+                                          ...item, 
+                                          coverUrl: meta.coverUrl || item.coverUrl, 
+                                          albumArtist: meta.albumArtist || item.albumArtist, 
+                                          year: meta.year || item.year,
+                                          lyrics: meta.lyrics || item.lyrics
+                                      } : item));
                                   }
                               } catch (err) {}
                           }
@@ -655,7 +662,7 @@ const App: React.FC = () => {
    
   useEffect(() => {
     if (!isLoaded) return;
-    const currentVersion = "3.0.0";
+    const currentVersion = "3.0.1";
     const lastVersion = localStorage.getItem('glass_music_last_version');
     if (lastVersion !== currentVersion) {
         setSettingsInitialView('changelog');
@@ -670,37 +677,84 @@ const App: React.FC = () => {
   const handleUpdateTrack = useCallback((id: string, data: Partial<Track>) => {
     setTracks(prev => {
         const track = prev.find(t => t.id === id);
+        if (!track) return prev;
         
         const metadataChanged = ['title', 'artist', 'album', 'albumArtist', 'year', 'lyrics', 'coverUrl'].some(key => key in data && data[key as keyof Track] !== track?.[key as keyof Track]);
 
         const isDesktop = () => (window as any).require !== undefined;
-        if (metadataChanged && track && track.path && isDesktop()) {
+        if (metadataChanged && track.path && isDesktop()) {
             try {
-                const ipcRenderer = (window as any).require('electron').ipcRenderer;
+                const electron = (window as any).require('electron');
+                const ipcRenderer = electron.ipcRenderer;
+                const audio = audioRef.current;
+                const isCurrentTrack = playerStateRef.current.currentTrack?.id === id;
+                const wasPlaying = isCurrentTrack && playerStateRef.current.playbackState === PlaybackState.PLAYING;
+                const currentPos = isCurrentTrack && audio ? (audio.currentTime || 0) : 0;
+
+                if (isCurrentTrack && audio) {
+                    audio.pause();
+                    audio.removeAttribute('src');
+                    audio.load();
+                }
+
                 ipcRenderer.invoke('write-id3-tags', { filePath: track.path, tags: { ...track, ...data } })
                     .then((result: any) => {
                         if (!result.success) {
                             console.error("Failed to write audio tags:", result.error);
                         } else {
                             console.log("Successfully wrote audio tags to", track.path);
-                             
-                            if (playerStateRef.current.currentTrack?.id === id) {
-                                const audio = audioRef.current;
-                                if (audio.error) {
-                                    const port = ipcRenderer.sendSync('get-media-port-sync');
-                                    const currentPos = playerStateRef.current.currentTime || 0;
-                                    const wasPlaying = playerStateRef.current.playbackState === PlaybackState.PLAYING;
-                                    audio.src = `${formatTrackMediaUrl(track.path, port)}?t=${Date.now()}`;
-                                    audio.load();
-                                    audio.currentTime = currentPos;
-                                    if (wasPlaying) {
-                                        audio.play().catch(console.error);
+                            ipcRenderer.invoke('read-id3-tags', { filePath: track.path }).then((freshMeta: any) => {
+                                const updatedCover = freshMeta?.coverDataUrl || freshMeta?.coverUrl || data.coverUrl;
+                                setTracks(curr => curr.map(t => {
+                                    if (t.id === id) {
+                                        return {
+                                            ...t,
+                                            ...(updatedCover ? { coverUrl: updatedCover, coverDataUrl: updatedCover } : {})
+                                        };
                                     }
+                                    return t;
+                                }));
+                                setPlayerState(curr => {
+                                    if (curr.currentTrack?.id === id) {
+                                        return {
+                                            ...curr,
+                                            currentTrack: {
+                                                ...curr.currentTrack,
+                                                ...(updatedCover ? { coverUrl: updatedCover, coverDataUrl: updatedCover } : {})
+                                            }
+                                        };
+                                    }
+                                    return curr;
+                                });
+                            }).catch(() => {});
+                        }
+
+                        if (isCurrentTrack && audio) {
+                            try {
+                                const port = ipcRenderer.sendSync('get-media-port-sync');
+                                audio.src = `${formatTrackMediaUrl(track.path, port)}?t=${Date.now()}`;
+                                audio.load();
+                                audio.currentTime = currentPos;
+                                if (wasPlaying) {
+                                    audio.play().catch(console.error);
                                 }
+                            } catch (e) {
+                                console.error("Error restoring audio playback:", e);
                             }
                         }
                     })
-                    .catch((err: any) => console.error("Electron error writing audio tags:", err));
+                    .catch((err: any) => {
+                        console.error("Electron error writing audio tags:", err);
+                        if (isCurrentTrack && audio) {
+                            try {
+                                const port = ipcRenderer.sendSync('get-media-port-sync');
+                                audio.src = `${formatTrackMediaUrl(track.path, port)}?t=${Date.now()}`;
+                                audio.load();
+                                audio.currentTime = currentPos;
+                                if (wasPlaying) audio.play().catch(console.error);
+                            } catch (e) {}
+                        }
+                    });
             } catch (e) {
                 console.error(e);
             }
@@ -712,6 +766,67 @@ const App: React.FC = () => {
             return { ...prev, currentTrack: { ...prev.currentTrack, ...data } as Track };
         }
         return prev;
+    });
+  }, []);
+
+  const handleTrackTrimmed = useCallback((id: string, newDuration: number) => {
+    const isDesktop = () => (window as any).require !== undefined;
+    let freshPort = 0;
+    if (isDesktop()) {
+      try {
+        const ipcRenderer = (window as any).require('electron').ipcRenderer;
+        freshPort = ipcRenderer.sendSync('get-media-port-sync') || 0;
+      } catch (e) {}
+    }
+
+    setTracks(prev => {
+      const updated = prev.map(t => {
+        if (t.id === id) {
+          const cleanPath = t.path ? formatTrackMediaUrl(t.path, freshPort) : (t.fileUrl ? t.fileUrl.split('?')[0] : '');
+          const freshUrl = `${cleanPath}?t=${Date.now()}`;
+          return {
+            ...t,
+            duration: newDuration,
+            fileUrl: freshUrl
+          };
+        }
+        return t;
+      });
+      return sortTracks(updated);
+    });
+
+    setPlayerState(prev => {
+      const isCurrent = prev.currentTrack?.id === id;
+      const targetTrack = tracksRef.current.find(t => t.id === id) || prev.currentTrack;
+      const cleanPath = targetTrack?.path
+        ? formatTrackMediaUrl(targetTrack.path, freshPort)
+        : (targetTrack?.fileUrl ? targetTrack.fileUrl.split('?')[0] : '');
+      const freshUrl = `${cleanPath}?t=${Date.now()}`;
+
+      if (isCurrent) {
+        const audio = audioRef.current;
+        audio.pause();
+        audio.src = freshUrl;
+        audio.load();
+        audio.currentTime = 0;
+      }
+
+      return {
+        ...prev,
+        currentTime: isCurrent ? 0 : prev.currentTime,
+        duration: isCurrent ? newDuration : prev.duration,
+        playbackState: isCurrent ? PlaybackState.PAUSED : prev.playbackState,
+        currentTrack: isCurrent && prev.currentTrack ? {
+          ...prev.currentTrack,
+          duration: newDuration,
+          fileUrl: freshUrl
+        } : prev.currentTrack,
+        queue: prev.queue.map(t => t.id === id ? {
+          ...t,
+          duration: newDuration,
+          fileUrl: freshUrl
+        } : t)
+      };
     });
   }, []);
 
@@ -740,8 +855,8 @@ const App: React.FC = () => {
 
      
     audioRef.current.pause();
+    trackRetriesRef.current[track.id] = 0;
 
-     
     handleUpdateTrack(track.id, { playCount: (track.playCount || 0) + 1 });
     
      
@@ -768,9 +883,36 @@ const App: React.FC = () => {
         } catch (e) {
             src = formatTrackMediaUrl(track.path);
         }
+    } else if (track.streamProvider || track.source === 'web' || track.streamId) {
+        try {
+            src = await resolveStreamUrl(track);
+            track.fileUrl = src;
+        } catch (resolveErr) {
+            console.error("Stream resolution failed:", resolveErr);
+        }
     } else {
         src = track.fileUrl || (track.path ? formatTrackMediaUrl(track.path) : '');
     }
+
+    if (!src && (track.streamProvider || track.source === 'web' || track.streamId)) {
+        try {
+            src = await resolveStreamUrl(track);
+            track.fileUrl = src;
+        } catch (resolveErr) {
+            console.error("Stream resolution fallback failed:", resolveErr);
+        }
+    }
+
+    if (!track.coverUrl || track.coverUrl.includes('default.jpg') || track.coverUrl.includes('-large') || track.coverUrl.includes('unsplash')) {
+        fetchHighResAlbumCover(track.artist, track.title).then(hd => {
+            if (hd) {
+                track.coverUrl = hd;
+                setPlayerState(prev => prev.currentTrack?.id === track.id ? { ...prev, currentTrack: { ...prev.currentTrack, coverUrl: hd } } : prev);
+                setTracks(prev => prev.map(t => t.id === track.id ? { ...t, coverUrl: hd } : t));
+            }
+        }).catch(() => {});
+    }
+
     if (!src) return;
     
     const targetVolume = playerStateRef.current.volume;
@@ -825,6 +967,8 @@ const App: React.FC = () => {
       setPlayerState(prev => ({ 
           ...prev, 
           currentTrack: track, 
+          currentTime: 0,
+          duration: track.duration > 0 ? track.duration : prev.duration,
           playbackState: PlaybackState.PLAYING,
           audioEffect: currentEffect === 'normal' ? 'normal' : prev.audioEffect  
       }));
@@ -836,15 +980,6 @@ const App: React.FC = () => {
             playbackState: PlaybackState.PAUSED,
             audioEffect: currentEffect === 'normal' ? 'normal' : prev.audioEffect
         }));
-    }
-
-     
-    if (!track.lyrics) {
-      fetchLyricsFromLRCLIB(track.artist, track.title).then(lyrics => {
-        if (lyrics) {
-          handleUpdateTrack(track.id, { lyrics });
-        }
-      });
     }
   }, [handleUpdateTrack]);
 
@@ -1022,24 +1157,62 @@ const App: React.FC = () => {
         }
     };
     const onDurationChange = () => {
-        if (!Number.isNaN(audio.duration) && audio.duration !== Infinity) {
-            setPlayerState(prev => ({ ...prev, duration: audio.duration }));
+        if (!Number.isNaN(audio.duration) && audio.duration !== Infinity && audio.duration > 0) {
+            const trackDur = playerStateRef.current.currentTrack?.duration || 0;
+            if (trackDur > 0) {
+                if (audio.duration >= trackDur * 0.85 || Math.abs(audio.duration - trackDur) < 5) {
+                    setPlayerState(prev => ({ ...prev, duration: audio.duration }));
+                }
+            } else {
+                setPlayerState(prev => ({ ...prev, duration: audio.duration }));
+            }
         }
     };
-    const onError = (e: any) => {
-        console.error("Audio element error:", audio.error);
+    const onError = () => {
         const currentTrack = playerStateRef.current.currentTrack;
         const currentPos = playerStateRef.current.currentTime || 0;
         const wasPlaying = playerStateRef.current.playbackState === PlaybackState.PLAYING;
         const isDesktop = () => typeof window !== 'undefined' && (window as any).require !== undefined;
 
-         
+        if (!currentTrack) {
+            setPlayerState(prev => ({ ...prev, playbackState: PlaybackState.PAUSED }));
+            return;
+        }
+
+        const trackKey = currentTrack.id;
+        const retries = trackRetriesRef.current[trackKey] || 0;
+        if (retries >= 1) {
+            trackRetriesRef.current[trackKey] = 0;
+            handleNext(true);
+            return;
+        }
+        trackRetriesRef.current[trackKey] = retries + 1;
+
+        if (currentTrack.streamProvider || currentTrack.source === 'web' || currentTrack.streamId) {
+            resolveStreamUrl(currentTrack, true).then(freshSrc => {
+                if (freshSrc) {
+                    audio.src = freshSrc;
+                    audio.load();
+                    audio.currentTime = currentPos;
+                    if (wasPlaying) {
+                        audio.play().then(() => {
+                            setPlayerState(prev => ({ ...prev, playbackState: PlaybackState.PLAYING }));
+                        }).catch(() => {});
+                    }
+                } else {
+                    handleNext(true);
+                }
+            }).catch(() => {
+                handleNext(true);
+            });
+            return;
+        }
+
         if (currentTrack && isDesktop() && currentTrack.path) {
             try {
                 const ipcRenderer = (window as any).require('electron').ipcRenderer;
                 const port = ipcRenderer.sendSync('get-media-port-sync');
                 if (port) {
-                    console.log("Auto-recovering audio playback stream...");
                     const recoveredSrc = `${formatTrackMediaUrl(currentTrack.path, port)}?t=${Date.now()}`;
                     setTimeout(() => {
                         audio.src = recoveredSrc;
@@ -1048,14 +1221,12 @@ const App: React.FC = () => {
                         if (wasPlaying) {
                             audio.play().then(() => {
                                 setPlayerState(prev => ({ ...prev, playbackState: PlaybackState.PLAYING }));
-                            }).catch(console.error);
+                            }).catch(() => {});
                         }
                     }, 200);
                     return;
                 }
-            } catch (recoveryErr) {
-                console.error("Recovery failed:", recoveryErr);
-            }
+            } catch (_) {}
         }
         setPlayerState(prev => ({ ...prev, playbackState: PlaybackState.PAUSED }));
     };
@@ -1081,7 +1252,7 @@ const App: React.FC = () => {
     if (saveTimeoutRef.current) clearTimeout(saveTimeoutRef.current);
     saveTimeoutRef.current = setTimeout(async () => {
         try {
-            const tracksToSave = tracks.map(t => ({ ...t, fileUrl: '' }));
+            const tracksToSave = tracks.map(t => (t.path ? { ...t, fileUrl: '' } : t));
             const shouldSaveSession = theme.savePlaybackSession !== false;
             const sessionToSave = (shouldSaveSession && playerState.currentTrack) ? {
                 currentTrackId: playerState.currentTrack.id,
@@ -1127,7 +1298,20 @@ const App: React.FC = () => {
   const handleRefetchLyrics = useCallback(async (track: Track) => {
     if (!track) return;
     setIsRefetchingLyrics(true);
-    const lyrics = await fetchLyricsFromLRCLIB(track.artist, track.title);
+    let lyrics: string | null = null;
+    const isDesktop = () => (window as any).require !== undefined;
+    if (track.path && isDesktop()) {
+      try {
+        const ipcRenderer = (window as any).require('electron').ipcRenderer;
+        const meta = await ipcRenderer.invoke('read-id3-tags', { filePath: track.path });
+        if (meta && meta.lyrics && !isJunkLyrics(meta.lyrics)) {
+          lyrics = meta.lyrics;
+        }
+      } catch (e) {}
+    }
+    if (!lyrics) {
+      lyrics = await fetchLyricsFromLRCLIB(track.artist, track.title, track.duration);
+    }
     setIsRefetchingLyrics(false);
     if (lyrics && !isJunkLyrics(lyrics)) {
       handleUpdateTrack(track.id, { lyrics });
@@ -1138,14 +1322,35 @@ const App: React.FC = () => {
 
   useEffect(() => {
     const track = playerState.currentTrack;
-    if (track && (!track.lyrics || isJunkLyrics(track.lyrics))) {
-      console.log(`[App] Auto-fetching lyrics for: ${track.artist} - ${track.title}`);
-      fetchLyricsFromLRCLIB(track.artist, track.title).then(lyrics => {
+    if (track && !track.lyrics) {
+      const isDesktop = () => (window as any).require !== undefined;
+      if (track.path && isDesktop()) {
+        try {
+          const ipcRenderer = (window as any).require('electron').ipcRenderer;
+          ipcRenderer.invoke('read-id3-tags', { filePath: track.path }).then((meta: any) => {
+            if (meta && meta.lyrics && !isJunkLyrics(meta.lyrics)) {
+              handleUpdateTrack(track.id, { lyrics: meta.lyrics });
+              return;
+            }
+            fetchLyricsFromLRCLIB(track.artist, track.title, track.duration).then(lyrics => {
+              if (lyrics && !isJunkLyrics(lyrics)) {
+                handleUpdateTrack(track.id, { lyrics });
+              }
+            });
+          }).catch(() => {
+            fetchLyricsFromLRCLIB(track.artist, track.title, track.duration).then(lyrics => {
+              if (lyrics && !isJunkLyrics(lyrics)) {
+                handleUpdateTrack(track.id, { lyrics });
+              }
+            });
+          });
+          return;
+        } catch (e) {}
+      }
+
+      fetchLyricsFromLRCLIB(track.artist, track.title, track.duration).then(lyrics => {
         if (lyrics && !isJunkLyrics(lyrics)) {
-          console.log(`[App] Auto-fetch success for: ${track.title}`);
           handleUpdateTrack(track.id, { lyrics });
-        } else {
-          console.log(`[App] Auto-fetch failed or returned junk for: ${track.title}`);
         }
       });
     }
@@ -1207,9 +1412,29 @@ const App: React.FC = () => {
       }
   };
 
-  const handleGoToAlbum = (album: string) => {
-      setViewHistory(prev => [...prev, { view: playerState.currentView, artist: selectedArtist, album: selectedAlbum }]);
-      setSelectedAlbum(album);
+  const handleGoToAlbum = async (album: string, artist?: string) => {
+      let resolvedAlbum = album || '';
+      const isGeneric = !resolvedAlbum || resolvedAlbum === 'SoundCloud' || resolvedAlbum.startsWith('SoundCloud •') || resolvedAlbum === 'YouTube Music' || resolvedAlbum === 'Glass Music';
+      if (isGeneric && artist) {
+        try {
+          const itunesRes = await fetch(`https://itunes.apple.com/search?term=${encodeURIComponent(artist)}&entity=album&limit=1`);
+          if (itunesRes.ok) {
+            const data = await itunesRes.json();
+            if (data.results && data.results.length > 0 && data.results[0].collectionName) {
+              resolvedAlbum = data.results[0].collectionName;
+            }
+          }
+        } catch (_) {}
+      }
+
+      setViewHistory(prev => [...prev, { 
+        view: playerState.currentView, 
+        artist: selectedArtist, 
+        album: selectedAlbum,
+        albumArtist: selectedAlbumArtist 
+      }]);
+      setSelectedAlbum(resolvedAlbum);
+      setSelectedAlbumArtist(artist || null);
       setPlayerState(prev => ({ ...prev, currentView: 'album_detail' }));
   };
 
@@ -1223,6 +1448,7 @@ const App: React.FC = () => {
           const lastState = newHistory.pop()!;
           setSelectedArtist(lastState.artist);
           setSelectedAlbum(lastState.album);
+          setSelectedAlbumArtist(lastState.albumArtist || null);
           setPlayerState(p => ({ ...p, currentView: lastState.view }));
           return newHistory;
       });
@@ -1384,13 +1610,38 @@ const App: React.FC = () => {
       }
   };
 
-  const handleDeleteTrack = (id: string) => {
-      if (playerState.currentTrack?.id === id) { 
-          audioRef.current.pause(); 
+  const handleDeleteTrack = useCallback(async (id: string) => {
+      const trackToDelete = tracksRef.current.find(t => t.id === id);
+      if (!trackToDelete) return;
+
+      if (playerStateRef.current.currentTrack?.id === id) { 
+          audioRef.current.pause();
+          audioRef.current.removeAttribute('src');
+          audioRef.current.load();
           setPlayerState(prev => ({ ...prev, currentTrack: null, playbackState: PlaybackState.PAUSED })); 
       }
+
+      const isDesktop = () => (window as any).require !== undefined;
+      if (isDesktop() && trackToDelete.path) {
+          try {
+              const ipcRenderer = (window as any).require('electron').ipcRenderer;
+              await ipcRenderer.invoke('trash-file', { filePath: trackToDelete.path });
+          } catch (e) {
+              console.error("Failed to move track to trash:", e);
+          }
+      }
+
       setTracks(prev => prev.filter(t => t.id !== id));
-  };
+      setPlaylists(prev => prev.map(p => ({
+          ...p,
+          trackIds: p.trackIds.filter(tId => tId !== id)
+      })));
+      setPlayerState(prev => ({
+          ...prev,
+          queue: prev.queue.filter(t => t.id !== id),
+          history: prev.history.filter(hId => hId !== id)
+      }));
+  }, []);
 
   const handleClearLibrary = async () => {
     if (window.confirm("Очистить библиотеку?")) {
@@ -1435,6 +1686,72 @@ const App: React.FC = () => {
     });
   };
 
+  const handleImportFilesClick = async () => {
+    const isDesktop = () => (window as any).require !== undefined;
+    if (isDesktop()) {
+      try {
+        const electron = (window as any).require('electron');
+        const ipcRenderer = electron.ipcRenderer;
+        const filePaths: string[] = await ipcRenderer.invoke('select-files');
+        if (filePaths && filePaths.length > 0) {
+          const port = ipcRenderer.sendSync('get-media-port-sync');
+          const normalizePath = (p?: string) => p ? p.toLowerCase().replace(/\\/g, '/') : '';
+          const existingPaths = new Set(tracksRef.current.filter(t => t.path).map(t => normalizePath(t.path)));
+          const newPaths = filePaths.filter(p => !existingPaths.has(normalizePath(p)));
+          if (newPaths.length === 0) return;
+
+          let batch: Track[] = [];
+          for (let i = 0; i < newPaths.length; i++) {
+            const p = newPaths[i];
+            const fileName = p.split(/[\\/]/).pop() || 'Unknown Track';
+            try {
+              const tags: any = await ipcRenderer.invoke('read-id3-tags', { filePath: p });
+              const duration = (tags && typeof tags.duration === 'number') ? tags.duration : 0;
+              const fileUrl = formatTrackMediaUrl(p, port);
+
+              batch.push({
+                id: Math.random().toString(36).substr(2, 9),
+                title: (tags && tags.title) || fileName.replace(/\.[^/.]+$/, ""),
+                artist: (tags && tags.artist) || "",
+                album: (tags && tags.album) || "",
+                albumArtist: (tags && tags.albumArtist) || "",
+                duration: duration,
+                coverUrl: (tags && (tags.coverDataUrl || tags.coverUrl)) || generateMockCover(fileName),
+                fileUrl: fileUrl,
+                path: p,
+                isLiked: false,
+                lyrics: tags && tags.lyrics,
+                year: (tags && tags.year) ? String(tags.year) : new Date().getFullYear().toString(),
+                source: 'local',
+                addedAt: Date.now()
+              });
+
+              if (batch.length >= 10 || i === newPaths.length - 1) {
+                const currentBatch = [...batch];
+                setTracks(prev => {
+                  const currentExistingPaths = new Set(prev.filter(t => t.path).map(t => normalizePath(t.path)));
+                  const uniqueBatch = currentBatch.filter(t => !currentExistingPaths.has(normalizePath(t.path)));
+                  if (uniqueBatch.length === 0) return prev;
+                  return sortTracks([...prev, ...uniqueBatch]);
+                });
+                batch = [];
+              }
+            } catch (err) {
+              console.error("Error importing file:", p, err);
+            }
+          }
+          return;
+        }
+        if (filePaths && filePaths.length === 0) {
+          return;
+        }
+      } catch (e) {
+        console.error("Native file picker failed, falling back to input:", e);
+      }
+    }
+    fileInputRef.current?.click();
+  };
+
   const handleFileSelect = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const files = event.target.files; if (!files) return;
     
@@ -1449,12 +1766,26 @@ const App: React.FC = () => {
         
         try {
             const metadata = await parseFileMetadata(file);
-            const filePath = (file as any).path;
+            let filePath = (file as any).path;
+            const isDesktop = () => (window as any).require !== undefined;
+            if (isDesktop()) {
+                try {
+                    const electron = (window as any).require('electron');
+                    if (!filePath && electron?.webUtils?.getPathForFile) {
+                        filePath = electron.webUtils.getPathForFile(file) || filePath;
+                    }
+                } catch (e) {}
+            }
             
             let fileUrl = '';
-            const isDesktop = () => (window as any).require !== undefined;
             if (isDesktop() && filePath) {
-                fileUrl = `file://${encodeURI(filePath.replace(/\\/g, '/'))}`;
+                try {
+                    const ipcRenderer = (window as any).require('electron').ipcRenderer;
+                    const port = ipcRenderer.sendSync('get-media-port-sync');
+                    fileUrl = formatTrackMediaUrl(filePath, port);
+                } catch (e) {
+                    fileUrl = formatTrackMediaUrl(filePath);
+                }
             } else {
                 fileUrl = URL.createObjectURL(file);
             }
@@ -1466,6 +1797,7 @@ const App: React.FC = () => {
               artist: metadata.artist || "", album: metadata.album || "", albumArtist: metadata.albumArtist || "",
               duration: duration || 0, coverUrl: metadata.coverUrl || generateMockCover(file.name),
               fileUrl: fileUrl, path: filePath, isLiked: false, 
+              lyrics: metadata.lyrics,
               year: metadata.year || new Date().getFullYear().toString(), source: 'local', addedAt: Date.now()
             });
 
@@ -1519,7 +1851,13 @@ const App: React.FC = () => {
                     try {
                         const mockFile = { path: file.path, name: file.name } as any as File;
                         const metadata = await parseFileMetadata(mockFile);
-                        const fileUrl = `file://${encodeURI(file.path.replace(/\\/g, '/'))}`;
+                        let fileUrl = '';
+                        try {
+                            const port = ipcRenderer.sendSync('get-media-port-sync');
+                            fileUrl = formatTrackMediaUrl(file.path, port);
+                        } catch (e) {
+                            fileUrl = formatTrackMediaUrl(file.path);
+                        }
                         const duration = metadata.duration || 0;
                         
                         return {
@@ -1533,6 +1871,7 @@ const App: React.FC = () => {
                             fileUrl: fileUrl,
                             path: file.path,
                             isLiked: false,
+                            lyrics: metadata.lyrics,
                             year: metadata.year || new Date().getFullYear().toString(),
                             source: 'local',
                             addedAt: Date.now()
@@ -1594,6 +1933,9 @@ const App: React.FC = () => {
 
   const handleChangeView = useCallback((view: ViewType) => {
     setViewHistory([]);
+    setSelectedArtist(null);
+    setSelectedAlbum(null);
+    setSelectedAlbumArtist(null);
     setPlayerState(prev => ({ ...prev, currentView: view }));
     setSidebarOpen(true);
   }, []);
@@ -1626,6 +1968,13 @@ const App: React.FC = () => {
     setIsSelectTracksOpen(true);
   }, []);
 
+  const handleAddTrackToLibrary = useCallback((track: Track) => {
+    setTracks(prev => {
+      if (prev.some(t => t.id === track.id)) return prev;
+      return [track, ...prev];
+    });
+  }, []);
+
   const isVideoBg = theme.backgroundType === 'video';
   const isHeavyBg = isVideoBg || (theme.animateBackground && playerState.playbackState === PlaybackState.PLAYING);
 
@@ -1648,7 +1997,7 @@ const App: React.FC = () => {
 
       <div className={`flex-1 flex ${theme.sidebarPosition === 'right' ? 'flex-row-reverse' : 'flex-row'} overflow-hidden relative z-10 p-2 md:p-4 gap-2 md:gap-4`}>
         <Sidebar 
-          onImportClick={() => fileInputRef.current?.click()} 
+          onImportClick={handleImportFilesClick} 
           onImportFolderClick={handleImportFolderClick}
           onYouTubeImportClick={() => setIsYouTubeModalOpen(true)}
           onSpotiFLACImportClick={() => setIsSpotifyModalOpen(true)}
@@ -1661,13 +2010,15 @@ const App: React.FC = () => {
           selectedPlaylist={selectedPlaylist}
           onSelectPlaylist={handleSelectPlaylist}
           onCreatePlaylist={handleCreatePlaylistOpen}
+          enableMusicService={theme.enableMusicService}
         />
         <div className={`flex-1 flex flex-col relative z-20 ${mainGlassClass} rounded-[2rem] md:rounded-[3rem] overflow-hidden shadow-2xl`}>
           <MainView 
             tracks={tracks} currentTrack={playerState.currentTrack} playbackState={playerState.playbackState}
             onPlay={handlePlay} onShuffleAll={handleShuffleAll}
             currentView={playerState.currentView} selectedArtist={selectedArtist} selectedAlbum={selectedAlbum}
-            onUpdateTrack={handleUpdateTrack} onDeleteTrack={handleDeleteTrack} onGoToArtist={handleGoToArtist}
+            selectedAlbumArtist={selectedAlbumArtist}
+            onUpdateTrack={handleUpdateTrack} onTrackTrimmed={handleTrackTrimmed} onDeleteTrack={handleDeleteTrack} onGoToArtist={handleGoToArtist}
             onGoToAlbum={handleGoToAlbum} onBack={handleBack}
             accentColor={theme.accentColor} artistMetadata={artistMetadata} onUpdateArtist={handleUpdateArtist}
             searchQuery={searchQuery} onRequestFileUnlock={handleRequestFileUnlock}
@@ -1682,6 +2033,10 @@ const App: React.FC = () => {
             onUpdateProfile={handleUpdateProfile}
             playerStyle={theme.playerStyle}
             playerDock={theme.playerDock}
+            onTogglePlayPause={handlePlayPause}
+            onAddTrackToLibrary={handleAddTrackToLibrary}
+            analyser={analyser}
+            enableMusicService={theme.enableMusicService}
           />
           <PlayerControls 
               currentTrack={playerState.currentTrack} playbackState={playerState.playbackState}
@@ -1713,6 +2068,8 @@ const App: React.FC = () => {
             analyser={analyser}
             onRefetchLyrics={handleRefetchLyrics}
             isRefetchingLyrics={isRefetchingLyrics}
+            onGoToAlbum={handleGoToAlbum}
+            onGoToArtist={handleGoToArtist}
         />
       )}
       {isEditingLayout && (
